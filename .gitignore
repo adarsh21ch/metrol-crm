@@ -2,3 +2,12 @@
 .shots/
 .test.js
 .diag*.js
+
+# never commit real credentials
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+.vercel/
