@@ -2,6 +2,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 /* ---------------------------------------------------------------- tokens */
@@ -28,15 +29,18 @@
   --pri:#101010;
   --pri-hover:#2B2B2B;
   --pri-on:#FFFFFF;
-  --good:#0B7A58;   --good-soft:#E2F3EC;  --good-line:#B7E0CF;
-  --warn:#8F6206;   --warn-soft:#FBF0D8;  --warn-line:#EBD2A0;
-  --bad:#BC392E;    --bad-soft:#FBEAE8;   --bad-line:#F0C4BF;
+  /* Status/quality colours. Deepened text and firmer fills so a chip reads at
+     a glance on white — the pale-on-pale version washed out in light mode. */
+  --good:#046C4E;   --good-soft:#D7F5E3;  --good-line:#8FDCB4;
+  --warn:#7A4E00;   --warn-soft:#FCEBC2;  --warn-line:#E2BB66;
+  --bad:#A81E12;    --bad-soft:#FCE0DC;   --bad-line:#F0A79D;
   --shadow-sm:0 1px 2px rgba(0,0,0,.06);
   --shadow-md:0 1px 2px rgba(0,0,0,.05), 0 10px 28px -14px rgba(0,0,0,.24);
   --shadow-lg:0 24px 60px -20px rgba(0,0,0,.32);
   --r:7px;
   --topbar-h:58px;
   --rail-w:64px;
+  --side-w:214px;
   --sans:"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --display:"Archivo", var(--sans);
   --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -61,9 +65,9 @@
     --pri:#F4F4F5;
     --pri-hover:#FFFFFF;
     --pri-on:#0A0A0A;
-    --good:#3FC194;   --good-soft:#0F2A21;  --good-line:#1E4C3B;
-    --warn:#E0A93F;   --warn-soft:#2A2113;  --warn-line:#4C3D1C;
-    --bad:#F0796B;    --bad-soft:#2C1715;   --bad-line:#4E2A26;
+    --good:#4ADE9E;   --good-soft:#0D3326;  --good-line:#226E4E;
+    --warn:#F2C14E;   --warn-soft:#332812;  --warn-line:#6E5522;
+    --bad:#FF8A78;    --bad-soft:#3A1B17;   --bad-line:#7E362B;
     --shadow-sm:0 1px 2px rgba(0,0,0,.4);
     --shadow-md:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
     --shadow-lg:0 24px 60px -20px rgba(0,0,0,.8);
@@ -88,9 +92,9 @@
   --pri:#F4F4F5;
   --pri-hover:#FFFFFF;
   --pri-on:#0A0A0A;
-  --good:#3FC194;   --good-soft:#0F2A21;  --good-line:#1E4C3B;
-  --warn:#E0A93F;   --warn-soft:#2A2113;  --warn-line:#4C3D1C;
-  --bad:#F0796B;    --bad-soft:#2C1715;   --bad-line:#4E2A26;
+  --good:#4ADE9E;   --good-soft:#0D3326;  --good-line:#226E4E;
+  --warn:#F2C14E;   --warn-soft:#332812;  --warn-line:#6E5522;
+  --bad:#FF8A78;    --bad-soft:#3A1B17;   --bad-line:#7E362B;
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);
   --shadow-md:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
   --shadow-lg:0 24px 60px -20px rgba(0,0,0,.8);
@@ -267,10 +271,22 @@ input,select{font:inherit;color:inherit}
 
 .shell{flex:1;display:flex;min-height:0}
 .sidebar{
-  width:214px;flex:0 0 214px;background:var(--surface);
+  position:relative;
+  width:var(--side-w);flex:0 0 var(--side-w);background:var(--surface);
   border-right:1px solid var(--line);
   padding:16px 12px;display:flex;flex-direction:column;gap:3px;
 }
+/* Pane resizer. Same lesson as the column handle: keep it inside its own pane
+   and pull the indicator onto the edge, rather than overhanging the border. */
+.pane-rz{
+  position:absolute;top:0;right:0;width:9px;height:100%;
+  cursor:col-resize;z-index:26;display:flex;justify-content:flex-end;touch-action:none;
+}
+.pane-rz::after{
+  content:"";width:2px;height:100%;margin-right:-1px;
+  background:transparent;transition:background .12s ease;
+}
+.pane-rz:hover::after,.pane-rz.is-drag::after{background:var(--accent)}
 .side-label{padding:6px 10px 8px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
 .side-link{
   display:flex;align-items:center;gap:10px;
@@ -293,20 +309,34 @@ input,select{font:inherit;color:inherit}
 
 /* --------------------------------------------------- sidebar 1: proj rail */
 .rail{
+  position:relative;
   width:var(--rail-w);flex:0 0 var(--rail-w);background:var(--surface);
   border-right:1px solid var(--line);
-  padding:12px 0;display:flex;flex-direction:column;align-items:center;gap:6px;
-  overflow-y:auto;overflow-x:visible;scrollbar-width:none;
+  padding:12px;display:flex;flex-direction:column;
 }
-.rail::-webkit-scrollbar{display:none}
-.rail-sep{width:28px;height:1px;background:var(--line);flex:none;margin:3px 0}
+.rail-list{
+  flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px;
+  overflow-y:auto;overflow-x:hidden;scrollbar-width:none;
+}
+.rail-list::-webkit-scrollbar{display:none}
+.rail.is-wide .rail-list{align-items:stretch}
+.rail-sep{width:100%;max-width:28px;height:1px;background:var(--line);flex:none;margin:3px 0}
+.rail.is-wide .rail-sep{max-width:none}
 .rail-btn{
   position:relative;width:40px;height:40px;flex:none;border-radius:9px;
   border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);
-  display:grid;place-items:center;
+  display:flex;align-items:center;justify-content:center;gap:9px;
   font-family:var(--display);font-size:12.5px;font-weight:700;letter-spacing:-.01em;
   transition:background .13s ease,color .13s ease,border-color .13s ease;
 }
+.rail-mark{flex:none;display:grid;place-items:center;width:18px}
+.rail-name{
+  display:none;font-family:var(--sans);font-size:12.5px;font-weight:500;letter-spacing:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.rail.is-wide .rail-btn{width:100%;justify-content:flex-start;padding:0 10px}
+.rail.is-wide .rail-name{display:block}
+.rail.is-wide .rail-tip{display:none}
 .rail-btn:hover{background:var(--surface-3);color:var(--ink);border-color:var(--ink-3)}
 .rail-btn.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on)}
 .rail-btn.is-on::before{
@@ -410,14 +440,18 @@ th.rz-col{position:relative}
 body.is-resizing{cursor:col-resize;user-select:none}
 
 /* editable cells */
+/* An editable chip keeps the chip's own fill, so the colour still reads at a
+   glance; the caret and a hover ring are what mark it editable. It used to
+   force background:transparent, which is why light mode looked washed out. */
 .cell-edit{
-  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 9px;
-  border-radius:20px;border:1px solid transparent;background:transparent;
-  font-size:11.5px;font-weight:600;max-width:100%;
+  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+  border-radius:20px;font-size:11.5px;font-weight:600;max-width:100%;
+  transition:box-shadow .13s ease;
 }
-.cell-edit svg{opacity:.5;flex:none}
-.cell-edit:hover{filter:brightness(.97)}
+.cell-edit svg{opacity:.55;flex:none}
+.cell-edit:hover{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--ink-3)}
 .cell-edit:hover svg{opacity:1}
+.cell-dash{color:var(--ink-3)}
 .assign-btn{
   display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;
   border-radius:20px;border:1px dashed var(--line);background:transparent;
@@ -544,7 +578,59 @@ table.grid tbody tr.row-link{cursor:pointer}
 .modal-head p{font-size:12.5px;color:var(--ink-3)}
 .modal-body{padding:14px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
 .modal-foot{padding:13px 18px;border-top:1px solid var(--line-2);display:flex;gap:8px;justify-content:flex-end;background:var(--surface-2)}
+.modal--wide{width:min(760px,100%)}
+.drop{
+  border:1.5px dashed var(--line);border-radius:var(--r);background:var(--surface-2);
+  padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:4px;
+  text-align:center;cursor:pointer;transition:border-color .13s ease,background .13s ease;
+}
+.drop:hover,.drop.is-over{border-color:var(--accent);background:var(--accent-soft)}
+.drop b{font-size:13px}
+.drop span{font-size:12px;color:var(--ink-3)}
+.drop.has-file{border-style:solid;border-color:var(--good-line);background:var(--good-soft)}
+.drop.has-file b{color:var(--good)}
+.imp-note{font-size:12px;color:var(--ink-3);line-height:1.6}
+.imp-note b{color:var(--ink-2);font-weight:600}
+.imp-note code{
+  font-family:var(--mono);font-size:11px;background:var(--surface-3);
+  padding:1px 5px;border-radius:4px;color:var(--ink-2);
+}
+.imp-result{
+  font-size:12.5px;padding:9px 11px;border-radius:var(--r);
+  background:var(--surface-3);border:1px solid var(--line);line-height:1.55;
+}
+.imp-result.is-bad{background:var(--bad-soft);border-color:var(--bad-line);color:var(--bad)}
+.imp-result.is-ok{background:var(--good-soft);border-color:var(--good-line);color:var(--good)}
+.hist-meta{
+  display:flex;flex-wrap:wrap;gap:8px 18px;padding:10px 12px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);
+}
+.hist-meta div{display:flex;flex-direction:column;gap:2px}
+.hist-meta .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.hist-meta .v{font-size:12.5px;font-weight:500}
+.hist-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table.hist{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+table.hist th,table.hist td{
+  padding:8px 11px;text-align:left;vertical-align:middle;
+  border-bottom:1px solid var(--line-2);white-space:nowrap;
+}
+table.hist thead th{
+  background:var(--surface-2);font-size:10px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line);
+}
+table.hist tbody tr:last-child td{border-bottom:0}
+table.hist .when{color:var(--ink-3);font-family:var(--mono);font-size:11.5px}
+table.hist .what{font-weight:500}
+.hist-arrow{color:var(--ink-3);padding:0 2px}
+.name-btn{
+  border:0;background:transparent;padding:0;text-align:left;
+  font-weight:500;color:var(--ink);border-bottom:1px dashed var(--line);
+}
+.name-btn:hover{border-bottom-color:var(--ink-3);color:var(--ink)}
 .member-list{display:flex;flex-direction:column;gap:4px}
+.member-row.is-on{background:var(--accent-soft);border-color:var(--accent-line)}
+.member-row .now{margin-left:auto;font-size:10.5px;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--accent-ink)}
 .member-row{
   display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);
   border:1px solid transparent;background:transparent;width:100%;text-align:left;
@@ -799,7 +885,10 @@ table.grid tbody tr.row-link{cursor:pointer}
   </div>
 
   <div class="shell">
-    <nav class="rail" id="projRail" aria-label="Projects"></nav>
+    <nav class="rail" id="projRail" aria-label="Projects">
+      <div class="rail-list" id="projRailList"></div>
+      <span class="pane-rz" id="railRz" title="Drag to widen \u00b7 double-click to reset"></span>
+    </nav>
     <nav class="sidebar" id="sideNav">
       <div class="side-label">Funding Room</div>
       <button class="side-link is-on" data-sec="sec-overview">
@@ -823,6 +912,7 @@ table.grid tbody tr.row-link{cursor:pointer}
         Sales dashboard
       </button>
       <div class="side-foot">Prototype — sample data. Every number below is calculated from the rows in the tables.</div>
+      <span class="pane-rz" id="sideRz" title="Drag to resize \u00b7 double-click to reset"></span>
     </nav>
 
     <div class="workspace" id="ownerScroll">
@@ -854,6 +944,10 @@ table.grid tbody tr.row-link{cursor:pointer}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
                 <input class="input" id="leadSearch" type="search" placeholder="Search name, email or phone">
               </div>
+              <button class="btn btn--sm" data-modal="import">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
+                Import
+              </button>
               <button class="btn btn--sm btn--primary" data-modal="newlead">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                 Add lead
@@ -1094,6 +1188,55 @@ table.grid tbody tr.row-link{cursor:pointer}
   </div>
 </div>
 
+<div class="backdrop" id="importModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <div class="modal-head">
+      <h3 id="impTitle">Import leads</h3>
+      <p>An Excel sheet (.xlsx) or a CSV, one lead per row.</p>
+    </div>
+    <div class="modal-body">
+      <input type="file" id="impFile" accept=".xlsx,.xls,.csv,text/csv" hidden>
+      <div class="drop" id="impDrop" role="button" tabindex="0">
+        <b id="impDropName">Choose a file</b>
+        <span id="impDropHint">or drop it here — .xlsx or .csv</span>
+      </div>
+      <p class="imp-note">
+        The first row must be a header. It looks for <b>Name</b>, <b>Phone</b>, <b>Email</b>
+        and optionally <b>Assign to</b> — any other columns are ignored.
+        Leads already in this project with the same phone number are skipped.
+      </p>
+      <div class="field">
+        <label for="impAssign">Assign every imported lead to</label>
+        <select class="input" id="impAssign"></select>
+      </div>
+      <div class="imp-result" id="impResult" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn--sm" data-close>Cancel</button>
+      <button class="btn btn--sm btn--primary" id="impGo" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="historyModal" hidden>
+  <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+    <div class="modal-head">
+      <h3 id="histTitle">Lead history</h3>
+      <p id="histSub">Every change to this lead, oldest first</p>
+    </div>
+    <div class="modal-body">
+      <div class="hist-meta" id="histMeta"></div>
+      <div class="hist-wrap">
+        <table class="hist">
+          <thead><tr><th>When</th><th>What changed</th><th>From</th><th>To</th><th>By</th></tr></thead>
+          <tbody id="histBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn--sm" data-close>Close</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- ====================================================== PROTOTYPE NAV -->
@@ -1184,6 +1327,10 @@ var QUALITY = {
   "average": {label:"Average", cls:"chip--warn"},
   "bad":     {label:"Bad",     cls:"chip--bad"}
 };
+/* Where a lead came from. Adarsh runs Metrol's Meta ads, so that is the common
+   case; "Excel import" is stamped on anything brought in through the importer. */
+var SOURCES = ["Meta lead form","Meta lead form","Manual entry","Meta lead form","Website form"];
+
 var CURRENT_PROJECT = "Funding Room";
 var ME = "m1";
 
@@ -1240,6 +1387,32 @@ if(MQ_DARK){
   var onScheme = function(){ paintTheme(); };
   if(MQ_DARK.addEventListener) MQ_DARK.addEventListener("change", onScheme);
   else if(MQ_DARK.addListener) MQ_DARK.addListener(onScheme);
+}
+
+/* ---------------------------------------------------------------- history */
+/* Every change to a lead is appended here, so the owner can open any lead and
+   see where it has been: who held it, how the status moved, when it closed. */
+var EVENTS = [];
+var EVENT_SEQ = 0;
+function logEvent(leadId, what, from, to, by, whenMs){
+  EVENTS.push({
+    id: ++EVENT_SEQ, leadId: leadId, what: what,
+    from: from == null ? "" : from, to: to == null ? "" : to,
+    by: by || "\u2014", at: whenMs == null ? Date.now() : whenMs
+  });
+}
+function leadEvents(leadId){
+  return EVENTS.filter(function(e){ return e.leadId === leadId; })
+               .sort(function(a,b){ return a.at - b.at || a.id - b.id; });
+}
+function fmtWhen(ms){
+  var d = new Date(ms);
+  return d.toLocaleDateString("en-IN",{day:"numeric",month:"short"}) + ", " +
+         d.toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"});
+}
+function byName(id){
+  var m = member(id);
+  return m ? m.name : (id || "\u2014");
 }
 
 var toastTimer;
@@ -1379,6 +1552,14 @@ function renderChip(map, key, fallback){
 }
 var caret = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
+/* The owner does not work leads — the assigned salesperson sets status and
+   quality, and the owner reads them. Unset shows a dash, not an empty control. */
+function readChip(map, key){
+  var m = map[key];
+  if(!m) return '<span class="cell-dash">\u2014</span>';
+  return '<span class="chip '+m.cls+'">'+m.label+"</span>";
+}
+
 function editChip(map, key, fallback, kind, id){
   var m = map[key];
   var cls = m ? m.cls : "chip--none";
@@ -1386,14 +1567,19 @@ function editChip(map, key, fallback, kind, id){
   return '<button class="cell-edit chip '+cls+'" data-edit="'+kind+'" data-id="'+id+'">'+label+caret+"</button>";
 }
 
+/* Assigning and REASSIGNING are both the owner's job, so an already-assigned
+   lead stays clickable — previously only an empty cell offered a control. */
 function ownerCell(l){
   var mm = member(l.owner);
   if(!mm) return '<button class="assign-btn" data-assign="'+l.id+'">+ Assign</button>';
-  return '<span class="td-flex"><span class="avatar">'+mm.initials+'</span><span>'+esc(mm.name)+"</span></span>";
+  return '<button class="cell-edit" data-assign="'+l.id+'" title="Reassign this lead">'+
+    '<span class="avatar">'+mm.initials+"</span>"+
+    '<span style="overflow:hidden;text-overflow:ellipsis">'+esc(mm.name)+"</span>"+caret+"</button>";
 }
 
 function nameCell(l){
-  return '<span class="td-flex">'+(l.isNew?'<span class="new-dot" title="New lead"></span>':"")+'<span class="cell-strong">'+esc(l.name)+"</span></span>";
+  return '<span class="td-flex">'+(l.isNew?'<span class="new-dot" title="New lead"></span>':"")+
+    '<button class="name-btn" data-history="'+l.id+'" title="Open this lead\u2019s history">'+esc(l.name)+"</button></span>";
 }
 
 /* ------------------------------------------------------------ owner view */
@@ -1406,8 +1592,8 @@ function leadCols(){
     {key:"conn",  label:"Connected",   width:108, render:function(r){
       return isConnected(r) ? '<span class="chip chip--accent">Yes</span>' : '<span class="chip chip--none">No</span>';
     }},
-    {key:"status",label:"Status",      width:134, render:function(r){ return editChip(STATUS, r.status, "Set status", "status", r.id); }},
-    {key:"qual",  label:"Quality",     width:126, render:function(r){ return editChip(QUALITY, r.quality, "Not set", "quality", r.id); }},
+    {key:"status",label:"Status",      width:134, render:function(r){ return readChip(STATUS, r.status); }},
+    {key:"qual",  label:"Quality",     width:126, render:function(r){ return readChip(QUALITY, r.quality); }},
     {key:"owner", label:"Assigned to", width:186, render:ownerCell}
   ];
 }
@@ -1675,9 +1861,11 @@ document.addEventListener("click", function(e){
         if(v === "converted" && !l.amount){
           openSaleModal(l);
         } else {
+          var was = STATUS[l.status] ? STATUS[l.status].label : "";
           l.status = v;
           l.isNew = false;
           if(v !== "converted"){ delete l.amount; delete l.verified; delete l.daysAgo; }
+          logEvent(l.id, "Status", was, STATUS[v].label, byName(l.owner));
           rerender();
           toast(l.name + " — status set to " + STATUS[v].label);
         }
@@ -1686,7 +1874,9 @@ document.addEventListener("click", function(e){
       showMenu(ed, Object.keys(QUALITY).map(function(k){
         return {value:k, label:QUALITY[k].label, cls:QUALITY[k].cls};
       }), l.quality, function(v){
+        var was = QUALITY[l.quality] ? QUALITY[l.quality].label : "Not set";
         l.quality = v; l.isNew = false;
+        logEvent(l.id, "Quality", was, QUALITY[v].label, byName(l.owner));
         rerender();
         toast(l.name + " — marked " + QUALITY[v].label);
       });
@@ -1702,12 +1892,18 @@ document.addEventListener("click", function(e){
       {value:"yes", label:"Verified", cls:"chip--good"},
       {value:"no",  label:"Pending",  cls:"chip--warn"}
     ], vl.verified ? "yes" : "no", function(v){
+      var was = vl.verified ? "Verified" : "Pending";
       vl.verified = (v === "yes");
+      logEvent(vl.id, "Payment", was, vl.verified ? "Verified" : "Pending", "Owner");
       rerender();
       toast(vl.name + " — payment " + (vl.verified ? "verified" : "marked pending"));
     });
     return;
   }
+
+  // lead history
+  var hs = t.closest("[data-history]");
+  if(hs){ openHistory(parseInt(hs.dataset.history,10)); return; }
 
   // assign
   var asg = t.closest("[data-assign]");
@@ -1730,7 +1926,11 @@ document.addEventListener("click", function(e){
 
   // modals
   var md = t.closest("[data-modal]");
-  if(md){ $("#"+md.dataset.modal+"Modal").hidden = false; return; }
+  if(md){
+    if(md.dataset.modal === "import") openImport();
+    else $("#"+md.dataset.modal+"Modal").hidden = false;
+    return;
+  }
   if(t.closest("[data-close]")){ closeModals(); return; }
   var ct = t.closest("[data-close-toast]");
   if(ct){ closeModals(); toast(ct.dataset.closeToast); return; }
@@ -1807,7 +2007,9 @@ var assignId = null;
 function openAssign(id){
   assignId = id;
   var l = lead(id);
-  $("#assignLeadName").textContent = l.name + " · " + l.phone;
+  $("#assignTitle").textContent = l.owner ? "Reassign lead" : "Assign lead";
+  $("#assignLeadName").textContent = l.name + " \u00b7 " + l.phone +
+    (l.owner ? " \u00b7 currently with " + member(l.owner).name : "");
   $("#assignSearch").value = "";
   paintAssign("");
   $("#assignModal").hidden = false;
@@ -1815,27 +2017,279 @@ function openAssign(id){
 }
 function paintAssign(q){
   var all = projectLeads();
-  $("#assignList").innerHTML = MEMBERS.filter(function(m){
+  var l = lead(assignId);
+  var rows = MEMBERS.filter(function(m){
     return !q || m.name.toLowerCase().indexOf(q.toLowerCase()) > -1;
   }).map(function(m){
-    var load = all.filter(function(l){ return l.owner === m.id; }).length;
-    return '<button class="member-row" data-pick="'+m.id+'">'+
+    var load = all.filter(function(x){ return x.owner === m.id; }).length;
+    var on = l && l.owner === m.id;
+    return '<button class="member-row'+(on?" is-on":"")+'" data-pick="'+m.id+'">'+
       '<span class="avatar">'+m.initials+"</span>"+
       "<span><span class='nm' style='display:block'>"+esc(m.name)+"</span><span class='mt'>Sales</span></span>"+
-      '<span class="ld">'+load+" leads</span></button>";
-  }).join("");
+      (on ? '<span class="now">Current</span>'
+          : '<span class="ld">'+load+" leads</span>")+"</button>";
+  });
+  if(l && l.owner && !q){
+    rows.push('<button class="member-row" data-pick="__none">'+
+      '<span class="avatar">\u2014</span>'+
+      "<span><span class='nm' style='display:block'>Unassign</span>"+
+      "<span class='mt'>Send it back to the unassigned pile</span></span></button>");
+  }
+  $("#assignList").innerHTML = rows.join("");
 }
 $("#assignSearch").addEventListener("input", function(){ paintAssign(this.value); });
 $("#assignList").addEventListener("click", function(e){
   var b = e.target.closest("[data-pick]");
   if(!b) return;
   var l = lead(assignId);
+  var was = l.owner ? member(l.owner).name : "Unassigned";
+  if(b.dataset.pick === "__none"){
+    l.owner = null;
+    l.isNew = false;
+    logEvent(l.id, "Assigned", was, "Unassigned", "Owner");
+    closeModals(); rerender();
+    toast(l.name + " is unassigned again");
+    return;
+  }
+  if(l.owner === b.dataset.pick){ closeModals(); return; }
   l.owner = b.dataset.pick;
   l.isNew = true;
+  logEvent(l.id, "Assigned", was, member(l.owner).name, "Owner");
   closeModals();
   rerender();
-  toast(l.name + " assigned to " + member(l.owner).name);
+  toast(l.name + (was === "Unassigned" ? " assigned to " : " moved to ") + member(l.owner).name);
 });
+
+/* ------------------------------------------------------------- importing */
+/* Adarsh runs Metrol's Meta ads, so leads arrive in bulk far more often than
+   one at a time. CSV is parsed here; .xlsx goes through SheetJS, and if that
+   script did not load the modal says so rather than failing silently. */
+var impRows = null;
+
+function parseCSV(text){
+  var rows = [], row = [], cur = "", q = false;
+  for(var i = 0; i < text.length; i++){
+    var c = text.charAt(i);
+    if(q){
+      if(c === '"'){ if(text.charAt(i+1) === '"'){ cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if(c === '"'){ q = true; }
+    else if(c === ","){ row.push(cur); cur = ""; }
+    else if(c === "\n"){ row.push(cur); rows.push(row); row = []; cur = ""; }
+    else if(c !== "\r"){ cur += c; }
+  }
+  if(cur !== "" || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(function(r){
+    return r.some(function(x){ return String(x == null ? "" : x).trim() !== ""; });
+  });
+}
+
+function mapImport(rows){
+  if(!rows || rows.length < 2) return {error:"That file has no rows under the header."};
+  var head = rows[0].map(function(h){ return String(h == null ? "" : h).trim().toLowerCase(); });
+  function col(names){
+    for(var i = 0; i < names.length; i++){
+      var k = head.indexOf(names[i]);
+      if(k > -1) return k;
+    }
+    return -1;
+  }
+  var iName  = col(["name","full name","lead name","customer","customer name"]);
+  var iPhone = col(["phone","mobile","phone number","mobile number","contact","contact number"]);
+  var iEmail = col(["email","e-mail","email address","mail"]);
+  var iOwner = col(["assign to","assigned to","owner","salesperson","sales person"]);
+  if(iName < 0 && iPhone < 0){
+    return {error:'No "Name" or "Phone" column in the header row. Rename the header and try again.'};
+  }
+  function cell(r, i){ return i < 0 ? "" : String(r[i] == null ? "" : r[i]).trim(); }
+
+  var seen = {}, out = [], dupes = 0, blanks = 0;
+  projectLeads().forEach(function(l){ seen[String(l.phone).replace(/\D/g,"")] = true; });
+
+  rows.slice(1).forEach(function(r){
+    var name = cell(r, iName), phone = cell(r, iPhone);
+    if(!name && !phone){ blanks++; return; }
+    var key = phone.replace(/\D/g,"");
+    if(key && seen[key]){ dupes++; return; }
+    if(key) seen[key] = true;
+    var ownerName = cell(r, iOwner).toLowerCase();
+    var owner = null;
+    MEMBERS.forEach(function(m){ if(ownerName && m.name.toLowerCase() === ownerName) owner = m.id; });
+    out.push({
+      name: name || "(no name)",
+      email: cell(r, iEmail) || "\u2014",
+      phone: phone || "\u2014",
+      owner: owner
+    });
+  });
+  return {leads:out, dupes:dupes, blanks:blanks};
+}
+
+function impSay(msg, kind){
+  var el = $("#impResult");
+  el.hidden = false;
+  el.className = "imp-result" + (kind ? " is-" + kind : "");
+  el.innerHTML = msg;
+}
+
+function impLoad(file){
+  if(!file) return;
+  impRows = null;
+  $("#impGo").disabled = true;
+  $("#impDrop").classList.add("has-file");
+  $("#impDropName").textContent = file.name;
+  $("#impDropHint").textContent = "Reading\u2026";
+
+  var done = function(rows, err){
+    if(err){ impSay(esc(err), "bad"); $("#impDropHint").textContent = "Pick another file"; return; }
+    var m = mapImport(rows);
+    if(m.error){ impSay(esc(m.error), "bad"); $("#impDropHint").textContent = "Pick another file"; return; }
+    impRows = m.leads;
+    $("#impDropHint").textContent = "Ready to import";
+    var bits = ["<b>" + m.leads.length + "</b> lead" + (m.leads.length === 1 ? "" : "s") + " found"];
+    if(m.dupes)  bits.push(m.dupes + " skipped as duplicate phone numbers");
+    if(m.blanks) bits.push(m.blanks + " blank rows ignored");
+    impSay(bits.join(" \u00b7 "), m.leads.length ? "ok" : "bad");
+    $("#impGo").disabled = !m.leads.length;
+  };
+
+  var lower = file.name.toLowerCase();
+  if(/\.(xlsx|xls)$/.test(lower)){
+    if(!window.XLSX){
+      done(null, "The Excel reader could not load. Save the sheet as CSV and import that.");
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function(){
+      try {
+        var wb = XLSX.read(new Uint8Array(fr.result), {type:"array"});
+        done(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:""}), null);
+      } catch(_){ done(null, "That file could not be read as a spreadsheet."); }
+    };
+    fr.onerror = function(){ done(null, "The file could not be opened."); };
+    fr.readAsArrayBuffer(file);
+  } else {
+    var fr2 = new FileReader();
+    fr2.onload = function(){
+      try { done(parseCSV(String(fr2.result)), null); }
+      catch(_){ done(null, "That file could not be read as CSV."); }
+    };
+    fr2.onerror = function(){ done(null, "The file could not be opened."); };
+    fr2.readAsText(file);
+  }
+}
+
+function openImport(){
+  impRows = null;
+  $("#impGo").disabled = true;
+  $("#impFile").value = "";
+  $("#impResult").hidden = true;
+  $("#impDrop").classList.remove("has-file","is-over");
+  $("#impDropName").textContent = "Choose a file";
+  $("#impDropHint").textContent = "or drop it here \u2014 .xlsx or .csv";
+  $("#impAssign").innerHTML = '<option value="">Leave unassigned</option>' +
+    MEMBERS.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+"</option>"; }).join("");
+  $("#importModal").hidden = false;
+}
+
+function runImport(){
+  if(!impRows || !impRows.length) return;
+  var bulk = $("#impAssign").value || null;
+  var nextId = LEADS.reduce(function(mx, l){ return Math.max(mx, l.id); }, 0);
+  var n = 0;
+  impRows.forEach(function(r){
+    var owner = r.owner || bulk || null;
+    var l = {
+      id: ++nextId, name: r.name, email: r.email, phone: r.phone,
+      status: "new", quality: null, owner: owner,
+      project: CURRENT_PROJECT, source: "Excel import", isNew: true
+    };
+    LEADS.push(l);
+    logEvent(l.id, "Lead created", "", "Excel import", "Owner");
+    if(owner) logEvent(l.id, "Assigned", "Unassigned", member(owner).name, "Owner");
+    n++;
+  });
+  impRows = null;
+  closeModals();
+  rerender();
+  renderProjects();
+  toast(n + " lead" + (n === 1 ? "" : "s") + " imported into " + CURRENT_PROJECT +
+        (bulk ? " and assigned to " + member(bulk).name : ""));
+}
+
+$("#impDrop").addEventListener("click", function(){ $("#impFile").click(); });
+$("#impDrop").addEventListener("keydown", function(e){
+  if(e.key === "Enter" || e.key === " "){ e.preventDefault(); $("#impFile").click(); }
+});
+$("#impFile").addEventListener("change", function(){ impLoad(this.files && this.files[0]); });
+["dragenter","dragover"].forEach(function(t){
+  $("#impDrop").addEventListener(t, function(e){ e.preventDefault(); this.classList.add("is-over"); });
+});
+["dragleave","drop"].forEach(function(t){
+  $("#impDrop").addEventListener(t, function(e){ e.preventDefault(); this.classList.remove("is-over"); });
+});
+$("#impDrop").addEventListener("drop", function(e){
+  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) impLoad(f);
+});
+$("#impGo").addEventListener("click", runImport);
+
+/* ------------------------------------------------------------- history UI */
+function openHistory(id){
+  var l = lead(id);
+  if(!l) return;
+  $("#histTitle").textContent = l.name;
+  $("#histMeta").innerHTML = [
+    ["Phone",       esc(l.phone)],
+    ["Project",     esc(l.project)],
+    ["Source",      esc(l.source || "Manual entry")],
+    ["Status",      STATUS[l.status] ? STATUS[l.status].label : "\u2014"],
+    ["Quality",     l.quality ? QUALITY[l.quality].label : "\u2014"],
+    ["Assigned to", l.owner ? esc(member(l.owner).name) : "Unassigned"],
+    ["Sale",        l.amount ? money(l.amount) + (l.verified ? " \u00b7 verified" : " \u00b7 pending") : "\u2014"]
+  ].map(function(x){
+    return '<div><span class="k">'+x[0]+'</span><span class="v">'+x[1]+"</span></div>";
+  }).join("");
+
+  var evs = leadEvents(id);
+  $("#histBody").innerHTML = evs.length ? evs.map(function(e){
+    return "<tr><td class=\"when\">"+fmtWhen(e.at)+"</td>"+
+      "<td class=\"what\">"+esc(e.what)+"</td>"+
+      "<td>"+(e.from ? esc(e.from) : '<span class="cell-dash">\u2014</span>')+"</td>"+
+      "<td>"+(e.to ? esc(e.to) : '<span class="cell-dash">\u2014</span>')+"</td>"+
+      "<td>"+esc(e.by)+"</td></tr>";
+  }).join("") : '<tr><td colspan="5" class="cell-dash">Nothing recorded for this lead yet.</td></tr>';
+  $("#historyModal").hidden = false;
+}
+
+/* Back-fill a plausible trail for the sample leads, so the history table shows
+   a real journey instead of being empty until someone clicks something. */
+function seedHistory(){
+  var DAY = 86400000, now = Date.now();
+  LEADS.forEach(function(l, i){
+    if(!l.source) l.source = SOURCES[i % SOURCES.length];
+    var closed = (l.daysAgo == null) ? null : l.daysAgo;
+    var age = (closed == null) ? 3 + (i % 12) : closed + 2 + (i % 5);
+    var t = now - age * DAY;
+    var who = l.owner ? member(l.owner).name : "\u2014";
+    logEvent(l.id, "Lead created", "", l.source, "System", t);
+    if(l.owner){ t += 0.25*DAY; logEvent(l.id, "Assigned", "Unassigned", who, "Owner", t); }
+    if(l.status !== "new"){
+      t += 0.5*DAY; logEvent(l.id, "Status", "New", "Connected", who, t);
+    }
+    if(l.quality){
+      t += 0.15*DAY; logEvent(l.id, "Quality", "Not set", QUALITY[l.quality].label, who, t);
+    }
+    if(l.status === "follow_up"){ t += 0.4*DAY; logEvent(l.id, "Status", "Connected", "Follow-up", who, t); }
+    if(l.status === "dead"){     t += 0.4*DAY; logEvent(l.id, "Status", "Connected", "Dead", who, t); }
+    if(l.status === "converted"){
+      var ct = now - closed * DAY;
+      logEvent(l.id, "Status", "Connected", "Converted", who, ct);
+      logEvent(l.id, "Sale recorded", "", money(l.amount), who, ct + 0.05*DAY);
+      if(l.verified) logEvent(l.id, "Payment", "Pending", "Verified", "Owner", ct + 0.4*DAY);
+    }
+  });
+}
 
 /* ----------------------------------------------------------- sale modal */
 var saleLead = null;
@@ -1849,12 +2303,15 @@ function openSaleModal(l){
 $("#saleSave").addEventListener("click", function(){
   var v = parseInt($("#saleAmount").value, 10);
   if(!v || v <= 0){ toast("Enter the sale amount to continue."); return; }
+  var wasStatus = STATUS[saleLead.status] ? STATUS[saleLead.status].label : "";
   saleLead.status = "converted";
   saleLead.amount = v;
   saleLead.verified = false;
   saleLead.daysAgo = 0;
   saleLead.isNew = false;
   if(!saleLead.quality) saleLead.quality = "good";
+  logEvent(saleLead.id, "Status", wasStatus, "Converted", byName(saleLead.owner));
+  logEvent(saleLead.id, "Sale recorded", "", money(v), byName(saleLead.owner));
   closeModals();
   rerender();
   toast(saleLead.name + " converted — " + money(v) + " added to sales");
@@ -1971,21 +2428,91 @@ function renderProjects(){
 
 /* --------------------------------------------------- sidebar 1: proj rail */
 function renderRail(){
-  var rail = $("#projRail");
-  if(!rail) return;
-  rail.innerHTML =
-    '<button class="rail-btn" data-go="projects">'+
-      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">'+
+  var list = $("#projRailList");
+  if(!list) return;
+  list.innerHTML =
+    '<button class="rail-btn" data-go="projects" aria-label="All projects">'+
+      '<span class="rail-mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">'+
       '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'+
-      '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'+
+      '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>'+
+      '<span class="rail-name">All projects</span>'+
       '<span class="rail-tip">All projects</span></button>'+
     '<div class="rail-sep"></div>'+
     PROJECTS.map(function(p){
       var on = p.name === CURRENT_PROJECT;
       return '<button class="rail-btn'+(on?" is-on":"")+'" data-project="'+p.id+'" data-live="'+(p.live?"1":"0")+'"'+
         ' aria-label="'+esc(p.name)+'"'+(on?' aria-current="true"':"")+'>'+
-        initialsOf(p.name)+'<span class="rail-tip">'+esc(p.name)+"</span></button>";
+        '<span class="rail-mark">'+initialsOf(p.name)+"</span>"+
+        '<span class="rail-name">'+esc(p.name)+"</span>"+
+        '<span class="rail-tip">'+esc(p.name)+"</span></button>";
     }).join("");
+}
+
+/* ------------------------------------------------------- resizable panes */
+/* Both sidebars drag like a table column, remember their width, and reset on
+   double-click. The projects rail swaps monograms for full names once it is
+   wide enough to hold them. */
+var RAIL_MIN = 56, RAIL_MAX = 300, RAIL_DEF = 64, RAIL_WIDE = 132;
+var SIDE_MIN = 168, SIDE_MAX = 380, SIDE_DEF = 214;
+
+function setRailWidth(w){
+  w = Math.max(RAIL_MIN, Math.min(RAIL_MAX, Math.round(w)));
+  document.documentElement.style.setProperty("--rail-w", w + "px");
+  var rail = $("#projRail");
+  if(rail) rail.classList.toggle("is-wide", w >= RAIL_WIDE);
+  return w;
+}
+function setSideWidth(w){
+  w = Math.max(SIDE_MIN, Math.min(SIDE_MAX, Math.round(w)));
+  document.documentElement.style.setProperty("--side-w", w + "px");
+  return w;
+}
+
+function wirePaneResize(handleId, paneId, apply, storeKey, def){
+  var h = $("#"+handleId), pane = $("#"+paneId);
+  if(!h || !pane) return;
+  h.addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    var startX = e.clientX;
+    var startW = pane.getBoundingClientRect().width;
+    var frame = null, latest = startW;
+    try { h.setPointerCapture(e.pointerId); } catch(_){}
+    h.classList.add("is-drag");
+    document.body.classList.add("is-resizing");
+    function move(ev){
+      latest = startW + (ev.clientX - startX);
+      if(frame) return;
+      frame = requestAnimationFrame(function(){ frame = null; apply(latest); });
+    }
+    function up(ev){
+      if(frame){ cancelAnimationFrame(frame); frame = null; }
+      var w = apply(latest);
+      storeSet(storeKey, String(w));
+      try { h.releasePointerCapture(ev.pointerId); } catch(_){}
+      h.classList.remove("is-drag");
+      document.body.classList.remove("is-resizing");
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("mousemove", move, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("mouseup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+    }
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("mousemove", move, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("mouseup", up, true);
+    window.addEventListener("pointercancel", up, true);
+  });
+  h.addEventListener("dblclick", function(){ apply(def); storeSet(storeKey, String(def)); });
+}
+
+function initPanes(){
+  var r = parseInt(storeGet("metrol-crm-rail-w"), 10);
+  var d = parseInt(storeGet("metrol-crm-side-w"), 10);
+  setRailWidth(isNaN(r) ? RAIL_DEF : r);
+  setSideWidth(isNaN(d) ? SIDE_DEF : d);
+  wirePaneResize("railRz", "projRail", setRailWidth, "metrol-crm-rail-w", RAIL_DEF);
+  wirePaneResize("sideRz", "sideNav",  setSideWidth, "metrol-crm-side-w", SIDE_DEF);
 }
 
 function renderProjSelect(){
@@ -2010,6 +2537,12 @@ function renderProjSelect(){
       if(!el) return;
       if(el.getBoundingClientRect().top - top < 120) active = id;
     });
+    // The last section is shorter than the viewport, so its top never crosses
+    // the threshold and it could never light up. Once the scroller has bottomed
+    // out, whatever is last IS what you are looking at.
+    if(scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4){
+      active = ids[ids.length - 1];
+    }
     $$("[data-sec]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.sec === active); });
   }
   scroller.addEventListener("scroll", function(){
@@ -2019,6 +2552,8 @@ function renderProjSelect(){
 
 /* ------------------------------------------------------------------ init */
 applyTheme(storeGet(THEME_KEY), false);   // remembered choice, or follow device
+seedHistory();
+initPanes();
 renderProjects();
 renderRail();
 renderProjSelect();

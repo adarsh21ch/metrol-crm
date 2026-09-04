@@ -187,10 +187,86 @@ Neither was caused by the four changes; both were in the resize feature.
 
 ---
 
+# ROUND 2 — Adarsh's review of the rebrand (2026-09-04)
+
+## Owner reads, the salesperson writes
+
+The owner does not work leads, so **Status and Quality are read-only in the owner's
+table** — plain filled chips, and an em dash where nothing is set. The salesperson
+dashboard keeps both editable, because that is whose job it is. The owner keeps the
+one control that *is* their job: **Payment verified / pending** in the Sales table.
+
+## Status colours now survive light mode
+
+Two separate problems. First, `.cell-edit` forced `background:transparent`, so every
+status chip in the tables was bare coloured text — that is why light mode looked
+washed out. An editable chip now keeps its chip fill and is marked as editable by the
+caret and a hover ring instead. Second, the semantic palette itself was too pale.
+Measured contrast of chip text on chip fill, both themes:
+
+| | light | dark |
+|---|---|---|
+| good  | 5.54 | 8.06 |
+| warn  | 6.10 | 8.61 |
+| bad   | 5.89 | 6.79 |
+
+All above the 4.5 AA threshold. **Note this reverses the earlier "keep the semantic
+colours exactly as they are" instruction** — Adarsh asked for the change directly.
+
+## Both sidebars drag
+
+`.pane-rz` handles on the right edge of the rail and of the section nav, dragging
+like a table column, double-click to reset, widths remembered in
+`metrol-crm-rail-w` / `metrol-crm-side-w`. The rail runs 56–300px and **swaps
+monograms for full project names past 132px** (`.rail.is-wide`). The section nav runs
+168–380px. Widening either one takes room from the 1144px leads grid, which then
+scrolls inside its own container — that is the trade Adarsh chose by asking for it.
+
+## Scroll-spy could never reach the last section
+
+`Sales dashboard` is shorter than the viewport, so its top never crossed the 120px
+threshold and the nav stuck on the third item. The spy now pins the last section
+once the scroller has bottomed out.
+
+## Reassignment — this was the "team member option not working"
+
+The roster was already right (3 men, 2 women: Mohit, Arjun, Imran / Priya, Sneha).
+The actual bug: `ownerCell` only rendered a control when a lead was **un**assigned,
+so a lead could be assigned once and never moved. An assigned cell is now a button,
+the modal says "Reassign", marks the current holder, and offers **Unassign**.
+
+## Import leads from Excel or CSV
+
+"Import" beside "Add lead". CSV is parsed in-file with no dependency. `.xlsx` goes
+through **SheetJS, loaded from cdnjs** — one of the few script hosts the Artifact CSP
+admits. Header row required; it looks for Name / Phone / Email / Assign to, ignores
+other columns, skips rows whose phone already exists in the project, and reports what
+it found before you commit. Imported leads are stamped `source: "Excel import"`.
+
+> **UNVERIFIED:** this sandbox's network policy blocks cdnjs, so the SheetJS load
+> could not be tested. CSV is fully tested. If `.xlsx` ever fails on the live page,
+> the modal already says "save the sheet as CSV" — but check a real `.xlsx` once and
+> confirm the script URL.
+
+## Lead history
+
+`EVENTS` + `logEvent()` record every create, assign, status, quality, sale and
+payment change. Click any lead's **name** to open its history: a meta strip (phone,
+project, source, status, quality, owner, sale) over a chronological table of
+When / What changed / From / To / By. `seedHistory()` back-fills a plausible trail
+for the sample leads so the table is never empty.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.
 
+- **Confirm one real `.xlsx` import on the live artifact** — see the UNVERIFIED note
+  above. This is the only thing shipped that has not been tested end to end.
+- **"The whole tabs should be rearranged or reordered in this way" is ambiguous.**
+  Built: sidebars that resize and reflow. NOT built: dragging nav items into a
+  different order. Ask which he meant before building the second one.
 - **The overlapping avatar stack in the project card footer is hard to read**
   (`.stack .avatar`, 22px at `margin-left:-6px`). Pre-existing, unchanged. Worth
   raising with Adarsh rather than silently redesigning.
