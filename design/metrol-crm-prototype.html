@@ -182,9 +182,10 @@ input,select{font:inherit;color:inherit}
 .chip--good{background:var(--good-soft);color:var(--good);border-color:var(--good-line)}
 .chip--warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line)}
 .chip--bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-line)}
-/* "Connected" is not one of the green/amber/red semantics and must not read
-   as the amber Follow-up chip, so it is an ink outline. Yellow stays state. */
-.chip--accent{background:transparent;color:var(--ink);border-color:var(--ink)}
+/* "Connected" carries no green/amber/red meaning, so it stays neutral. It is
+   the same fill as New/Dead but at full ink strength — an in-progress lead
+   reads stronger than a parked one without a hard outline or a black block. */
+.chip--accent{background:var(--surface-3);color:var(--ink);border-color:var(--line)}
 .chip--mute{background:var(--surface-3);color:var(--ink-3);border-color:var(--line)}
 .chip--none{background:transparent;color:var(--ink-3);border-color:var(--line);border-style:dashed}
 .chip--none::before{display:none}
@@ -452,12 +453,24 @@ body.is-resizing{cursor:col-resize;user-select:none}
 .cell-edit:hover{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--ink-3)}
 .cell-edit:hover svg{opacity:1}
 .cell-dash{color:var(--ink-3)}
-.assign-btn{
-  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;
-  border-radius:20px;border:1px dashed var(--line);background:transparent;
-  font-size:11.5px;font-weight:500;color:var(--ink-3);
+/* The assignee reads as table text at table size. No pill, no outline — the
+   caret on hover is the only thing saying it can be changed. */
+.assignee{
+  display:inline-flex;align-items:center;gap:8px;max-width:100%;
+  border:0;background:transparent;padding:0;
+  font-size:13px;font-weight:500;color:var(--ink);
 }
-.assign-btn:hover{border-color:var(--accent-line);color:var(--accent-ink);border-style:solid;background:var(--accent-soft)}
+.assignee-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.assignee svg{opacity:0;flex:none;color:var(--ink-3);transition:opacity .12s ease}
+.assignee:hover svg{opacity:1}
+.assignee:hover .assignee-nm{text-decoration:underline;text-underline-offset:2px}
+.assign-btn{
+  border:0;background:transparent;padding:0;
+  font-size:13px;font-weight:500;color:var(--ink-3);
+}
+.assign-btn:hover{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px}
+.yn{font-size:13px;font-weight:500;color:var(--ink)}
+.yn.is-no{color:var(--ink-3);font-weight:400}
 
 .grid-foot{
   display:flex;align-items:center;gap:10px;padding:9px 13px;
@@ -627,25 +640,17 @@ table.hist .what{font-weight:500}
   font-weight:500;color:var(--ink);border-bottom:1px dashed var(--line);
 }
 .name-btn:hover{border-bottom-color:var(--ink-3);color:var(--ink)}
-.member-list{display:flex;flex-direction:column;gap:4px}
-.member-row.is-on{background:var(--accent-soft);border-color:var(--accent-line)}
-.member-row .now{margin-left:auto;font-size:10.5px;font-weight:600;letter-spacing:.07em;
-  text-transform:uppercase;color:var(--accent-ink)}
-.member-row{
-  display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);
-  border:1px solid transparent;background:transparent;width:100%;text-align:left;
-}
-.member-row:hover{background:var(--accent-soft);border-color:var(--accent-line)}
-.member-row .nm{font-size:13px;font-weight:500}
-.member-row .mt{font-size:11.5px;color:var(--ink-3)}
-.member-row .ld{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 
 /* menus */
 .menu{
   position:fixed;z-index:90;background:var(--surface);border:1px solid var(--line);
-  border-radius:8px;box-shadow:var(--shadow-lg);padding:5px;min-width:172px;
+  border-radius:8px;box-shadow:var(--shadow-lg);padding:5px;min-width:196px;
+  max-height:340px;overflow-y:auto;
   display:flex;flex-direction:column;gap:2px;
 }
+.menu-person{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-size:12.5px;font-weight:500}
+.menu-person span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-person--none{color:var(--ink-3)}
 .menu button{
   display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;
   border:0;background:transparent;border-radius:5px;font-size:12.5px;text-align:left;width:100%;
@@ -1117,22 +1122,6 @@ table.hist .what{font-weight:500}
 </div>
 
 <!-- ============================================================== MODALS -->
-<div class="backdrop" id="assignModal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assignTitle">
-    <div class="modal-head">
-      <h3 id="assignTitle">Assign lead</h3>
-      <p id="assignLeadName">—</p>
-    </div>
-    <div class="modal-body">
-      <input class="input" id="assignSearch" type="search" placeholder="Search team member">
-      <div class="member-list" id="assignList"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn--sm" data-close>Cancel</button>
-    </div>
-  </div>
-</div>
-
 <div class="backdrop" id="saleModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saleTitle">
     <div class="modal-head">
@@ -1567,14 +1556,15 @@ function editChip(map, key, fallback, kind, id){
   return '<button class="cell-edit chip '+cls+'" data-edit="'+kind+'" data-id="'+id+'">'+label+caret+"</button>";
 }
 
-/* Assigning and REASSIGNING are both the owner's job, so an already-assigned
-   lead stays clickable — previously only an empty cell offered a control. */
+/* Assigning and REASSIGNING are both the owner's job, so an assigned lead stays
+   clickable — but it is a name in a table cell, not a control in a pill. The
+   caret only appears on hover. */
 function ownerCell(l){
   var mm = member(l.owner);
   if(!mm) return '<button class="assign-btn" data-assign="'+l.id+'">+ Assign</button>';
-  return '<button class="cell-edit" data-assign="'+l.id+'" title="Reassign this lead">'+
+  return '<button class="assignee" data-assign="'+l.id+'" title="Change who this lead belongs to">'+
     '<span class="avatar">'+mm.initials+"</span>"+
-    '<span style="overflow:hidden;text-overflow:ellipsis">'+esc(mm.name)+"</span>"+caret+"</button>";
+    '<span class="assignee-nm">'+esc(mm.name)+"</span>"+caret+"</button>";
 }
 
 function nameCell(l){
@@ -1590,7 +1580,8 @@ function leadCols(){
     {key:"email", label:"Email",       width:216, render:function(r){ return '<span class="cell-mute">'+esc(r.email)+"</span>"; }},
     {key:"phone", label:"Phone",       width:150, render:function(r){ return '<span class="cell-mono">'+esc(r.phone)+"</span>"; }},
     {key:"conn",  label:"Connected",   width:108, render:function(r){
-      return isConnected(r) ? '<span class="chip chip--accent">Yes</span>' : '<span class="chip chip--none">No</span>';
+      // Yes or no. It is a fact, not a status — it needs no chip around it.
+      return isConnected(r) ? '<span class="yn">Yes</span>' : '<span class="yn is-no">No</span>';
     }},
     {key:"status",label:"Status",      width:134, render:function(r){ return readChip(STATUS, r.status); }},
     {key:"qual",  label:"Quality",     width:126, render:function(r){ return readChip(QUALITY, r.quality); }},
@@ -1815,7 +1806,7 @@ function showMenu(anchor, items, current, onPick){
   m.className = "menu";
   m.innerHTML = items.map(function(it){
     return '<button data-v="'+it.value+'" class="'+(it.value===current?"is-on":"")+'">'+
-      '<span class="chip '+it.cls+'">'+it.label+"</span>"+
+      (it.html ? it.html : '<span class="chip '+it.cls+'">'+it.label+"</span>")+
       '<svg class="tick" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'+
       "</button>";
   }).join("");
@@ -1835,7 +1826,8 @@ function showMenu(anchor, items, current, onPick){
 }
 
 document.addEventListener("click", function(e){
-  if(openMenu && !e.target.closest(".menu") && !e.target.closest("[data-edit]")) closeMenu();
+  if(openMenu && !e.target.closest(".menu") && !e.target.closest("[data-edit]") &&
+     !e.target.closest("[data-assign]") && !e.target.closest("[data-verify]")) closeMenu();
 });
 window.addEventListener("resize", closeMenu);
 
@@ -1905,9 +1897,9 @@ document.addEventListener("click", function(e){
   var hs = t.closest("[data-history]");
   if(hs){ openHistory(parseInt(hs.dataset.history,10)); return; }
 
-  // assign
+  // assign / reassign
   var asg = t.closest("[data-assign]");
-  if(asg){ openAssign(parseInt(asg.dataset.assign,10)); return; }
+  if(asg){ openAssignMenu(asg, parseInt(asg.dataset.assign,10)); return; }
 
   // screen routing
   var go = t.closest("[data-go]");
@@ -2003,236 +1995,35 @@ document.addEventListener("keydown", function(e){
 function closeModals(){ $$(".backdrop").forEach(function(b){ b.hidden = true; }); }
 
 /* --------------------------------------------------------------- assign */
-var assignId = null;
-function openAssign(id){
-  assignId = id;
+/* Assignment is a one-tap choice between five people, so it uses the same
+   dropdown as the status and quality cells. A modal was too much furniture. */
+function openAssignMenu(anchor, id){
   var l = lead(id);
-  $("#assignTitle").textContent = l.owner ? "Reassign lead" : "Assign lead";
-  $("#assignLeadName").textContent = l.name + " \u00b7 " + l.phone +
-    (l.owner ? " \u00b7 currently with " + member(l.owner).name : "");
-  $("#assignSearch").value = "";
-  paintAssign("");
-  $("#assignModal").hidden = false;
-  setTimeout(function(){ $("#assignSearch").focus(); }, 30);
-}
-function paintAssign(q){
-  var all = projectLeads();
-  var l = lead(assignId);
-  var rows = MEMBERS.filter(function(m){
-    return !q || m.name.toLowerCase().indexOf(q.toLowerCase()) > -1;
-  }).map(function(m){
-    var load = all.filter(function(x){ return x.owner === m.id; }).length;
-    var on = l && l.owner === m.id;
-    return '<button class="member-row'+(on?" is-on":"")+'" data-pick="'+m.id+'">'+
-      '<span class="avatar">'+m.initials+"</span>"+
-      "<span><span class='nm' style='display:block'>"+esc(m.name)+"</span><span class='mt'>Sales</span></span>"+
-      (on ? '<span class="now">Current</span>'
-          : '<span class="ld">'+load+" leads</span>")+"</button>";
+  if(!l) return;
+  var items = MEMBERS.map(function(mm){
+    return {value: mm.id, html:
+      '<span class="menu-person"><span class="avatar">'+mm.initials+"</span>"+
+      "<span>"+esc(mm.name)+"</span></span>"};
   });
-  if(l && l.owner && !q){
-    rows.push('<button class="member-row" data-pick="__none">'+
-      '<span class="avatar">\u2014</span>'+
-      "<span><span class='nm' style='display:block'>Unassign</span>"+
-      "<span class='mt'>Send it back to the unassigned pile</span></span></button>");
+  if(l.owner){
+    items.push({value:"__none", html:'<span class="menu-person menu-person--none"><span>Unassign</span></span>'});
   }
-  $("#assignList").innerHTML = rows.join("");
-}
-$("#assignSearch").addEventListener("input", function(){ paintAssign(this.value); });
-$("#assignList").addEventListener("click", function(e){
-  var b = e.target.closest("[data-pick]");
-  if(!b) return;
-  var l = lead(assignId);
-  var was = l.owner ? member(l.owner).name : "Unassigned";
-  if(b.dataset.pick === "__none"){
-    l.owner = null;
-    l.isNew = false;
-    logEvent(l.id, "Assigned", was, "Unassigned", "Owner");
-    closeModals(); rerender();
-    toast(l.name + " is unassigned again");
-    return;
-  }
-  if(l.owner === b.dataset.pick){ closeModals(); return; }
-  l.owner = b.dataset.pick;
-  l.isNew = true;
-  logEvent(l.id, "Assigned", was, member(l.owner).name, "Owner");
-  closeModals();
-  rerender();
-  toast(l.name + (was === "Unassigned" ? " assigned to " : " moved to ") + member(l.owner).name);
-});
-
-/* ------------------------------------------------------------- importing */
-/* Adarsh runs Metrol's Meta ads, so leads arrive in bulk far more often than
-   one at a time. CSV is parsed here; .xlsx goes through SheetJS, and if that
-   script did not load the modal says so rather than failing silently. */
-var impRows = null;
-
-function parseCSV(text){
-  var rows = [], row = [], cur = "", q = false;
-  for(var i = 0; i < text.length; i++){
-    var c = text.charAt(i);
-    if(q){
-      if(c === '"'){ if(text.charAt(i+1) === '"'){ cur += '"'; i++; } else q = false; }
-      else cur += c;
-    } else if(c === '"'){ q = true; }
-    else if(c === ","){ row.push(cur); cur = ""; }
-    else if(c === "\n"){ row.push(cur); rows.push(row); row = []; cur = ""; }
-    else if(c !== "\r"){ cur += c; }
-  }
-  if(cur !== "" || row.length){ row.push(cur); rows.push(row); }
-  return rows.filter(function(r){
-    return r.some(function(x){ return String(x == null ? "" : x).trim() !== ""; });
-  });
-}
-
-function mapImport(rows){
-  if(!rows || rows.length < 2) return {error:"That file has no rows under the header."};
-  var head = rows[0].map(function(h){ return String(h == null ? "" : h).trim().toLowerCase(); });
-  function col(names){
-    for(var i = 0; i < names.length; i++){
-      var k = head.indexOf(names[i]);
-      if(k > -1) return k;
-    }
-    return -1;
-  }
-  var iName  = col(["name","full name","lead name","customer","customer name"]);
-  var iPhone = col(["phone","mobile","phone number","mobile number","contact","contact number"]);
-  var iEmail = col(["email","e-mail","email address","mail"]);
-  var iOwner = col(["assign to","assigned to","owner","salesperson","sales person"]);
-  if(iName < 0 && iPhone < 0){
-    return {error:'No "Name" or "Phone" column in the header row. Rename the header and try again.'};
-  }
-  function cell(r, i){ return i < 0 ? "" : String(r[i] == null ? "" : r[i]).trim(); }
-
-  var seen = {}, out = [], dupes = 0, blanks = 0;
-  projectLeads().forEach(function(l){ seen[String(l.phone).replace(/\D/g,"")] = true; });
-
-  rows.slice(1).forEach(function(r){
-    var name = cell(r, iName), phone = cell(r, iPhone);
-    if(!name && !phone){ blanks++; return; }
-    var key = phone.replace(/\D/g,"");
-    if(key && seen[key]){ dupes++; return; }
-    if(key) seen[key] = true;
-    var ownerName = cell(r, iOwner).toLowerCase();
-    var owner = null;
-    MEMBERS.forEach(function(m){ if(ownerName && m.name.toLowerCase() === ownerName) owner = m.id; });
-    out.push({
-      name: name || "(no name)",
-      email: cell(r, iEmail) || "\u2014",
-      phone: phone || "\u2014",
-      owner: owner
-    });
-  });
-  return {leads:out, dupes:dupes, blanks:blanks};
-}
-
-function impSay(msg, kind){
-  var el = $("#impResult");
-  el.hidden = false;
-  el.className = "imp-result" + (kind ? " is-" + kind : "");
-  el.innerHTML = msg;
-}
-
-function impLoad(file){
-  if(!file) return;
-  impRows = null;
-  $("#impGo").disabled = true;
-  $("#impDrop").classList.add("has-file");
-  $("#impDropName").textContent = file.name;
-  $("#impDropHint").textContent = "Reading\u2026";
-
-  var done = function(rows, err){
-    if(err){ impSay(esc(err), "bad"); $("#impDropHint").textContent = "Pick another file"; return; }
-    var m = mapImport(rows);
-    if(m.error){ impSay(esc(m.error), "bad"); $("#impDropHint").textContent = "Pick another file"; return; }
-    impRows = m.leads;
-    $("#impDropHint").textContent = "Ready to import";
-    var bits = ["<b>" + m.leads.length + "</b> lead" + (m.leads.length === 1 ? "" : "s") + " found"];
-    if(m.dupes)  bits.push(m.dupes + " skipped as duplicate phone numbers");
-    if(m.blanks) bits.push(m.blanks + " blank rows ignored");
-    impSay(bits.join(" \u00b7 "), m.leads.length ? "ok" : "bad");
-    $("#impGo").disabled = !m.leads.length;
-  };
-
-  var lower = file.name.toLowerCase();
-  if(/\.(xlsx|xls)$/.test(lower)){
-    if(!window.XLSX){
-      done(null, "The Excel reader could not load. Save the sheet as CSV and import that.");
+  showMenu(anchor, items, l.owner, function(v){
+    var was = l.owner ? member(l.owner).name : "Unassigned";
+    if(v === "__none"){
+      l.owner = null; l.isNew = false;
+      logEvent(l.id, "Assigned", was, "Unassigned", "Owner");
+      rerender();
+      toast(l.name + " is unassigned again");
       return;
     }
-    var fr = new FileReader();
-    fr.onload = function(){
-      try {
-        var wb = XLSX.read(new Uint8Array(fr.result), {type:"array"});
-        done(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:""}), null);
-      } catch(_){ done(null, "That file could not be read as a spreadsheet."); }
-    };
-    fr.onerror = function(){ done(null, "The file could not be opened."); };
-    fr.readAsArrayBuffer(file);
-  } else {
-    var fr2 = new FileReader();
-    fr2.onload = function(){
-      try { done(parseCSV(String(fr2.result)), null); }
-      catch(_){ done(null, "That file could not be read as CSV."); }
-    };
-    fr2.onerror = function(){ done(null, "The file could not be opened."); };
-    fr2.readAsText(file);
-  }
-}
-
-function openImport(){
-  impRows = null;
-  $("#impGo").disabled = true;
-  $("#impFile").value = "";
-  $("#impResult").hidden = true;
-  $("#impDrop").classList.remove("has-file","is-over");
-  $("#impDropName").textContent = "Choose a file";
-  $("#impDropHint").textContent = "or drop it here \u2014 .xlsx or .csv";
-  $("#impAssign").innerHTML = '<option value="">Leave unassigned</option>' +
-    MEMBERS.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+"</option>"; }).join("");
-  $("#importModal").hidden = false;
-}
-
-function runImport(){
-  if(!impRows || !impRows.length) return;
-  var bulk = $("#impAssign").value || null;
-  var nextId = LEADS.reduce(function(mx, l){ return Math.max(mx, l.id); }, 0);
-  var n = 0;
-  impRows.forEach(function(r){
-    var owner = r.owner || bulk || null;
-    var l = {
-      id: ++nextId, name: r.name, email: r.email, phone: r.phone,
-      status: "new", quality: null, owner: owner,
-      project: CURRENT_PROJECT, source: "Excel import", isNew: true
-    };
-    LEADS.push(l);
-    logEvent(l.id, "Lead created", "", "Excel import", "Owner");
-    if(owner) logEvent(l.id, "Assigned", "Unassigned", member(owner).name, "Owner");
-    n++;
+    if(l.owner === v) return;
+    l.owner = v; l.isNew = true;
+    logEvent(l.id, "Assigned", was, member(v).name, "Owner");
+    rerender();
+    toast(l.name + (was === "Unassigned" ? " assigned to " : " moved to ") + member(v).name);
   });
-  impRows = null;
-  closeModals();
-  rerender();
-  renderProjects();
-  toast(n + " lead" + (n === 1 ? "" : "s") + " imported into " + CURRENT_PROJECT +
-        (bulk ? " and assigned to " + member(bulk).name : ""));
 }
-
-$("#impDrop").addEventListener("click", function(){ $("#impFile").click(); });
-$("#impDrop").addEventListener("keydown", function(e){
-  if(e.key === "Enter" || e.key === " "){ e.preventDefault(); $("#impFile").click(); }
-});
-$("#impFile").addEventListener("change", function(){ impLoad(this.files && this.files[0]); });
-["dragenter","dragover"].forEach(function(t){
-  $("#impDrop").addEventListener(t, function(e){ e.preventDefault(); this.classList.add("is-over"); });
-});
-["dragleave","drop"].forEach(function(t){
-  $("#impDrop").addEventListener(t, function(e){ e.preventDefault(); this.classList.remove("is-over"); });
-});
-$("#impDrop").addEventListener("drop", function(e){
-  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-  if(f) impLoad(f);
-});
-$("#impGo").addEventListener("click", runImport);
 
 /* ------------------------------------------------------------- history UI */
 function openHistory(id){

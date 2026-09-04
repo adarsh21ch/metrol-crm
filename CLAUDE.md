@@ -258,6 +258,32 @@ for the sample leads so the table is never empty.
 
 ---
 
+# ROUND 3 — Adarsh on the chrome (2026-09-04)
+
+He was right that the table had grown furniture. Everything here is subtraction.
+
+- **The pill around "Assigned to" is gone.** It had become a `.cell-edit` button —
+  a rounded outline at 11.5px, which is also why the person's name looked small and
+  faint. It is now `.assignee`: plain 13px table text at full `--ink`, avatar beside
+  it, and a caret that only fades in on hover. Measured name contrast 19.8 light,
+  16.5 dark. `+ Assign` is text now too, not a dashed pill.
+- **"Connected" is just the word.** No chip, no dot, no outline: `Yes` in ink, `No`
+  in `--ink-3`. It is a fact, not a status.
+- **The black outline chip is gone from the Status column too.** `chip--accent`
+  (Connected) is now the same soft fill as New/Dead but at full ink strength, so an
+  in-progress lead reads stronger than a parked one without a hard black edge.
+- **Assignment is a dropdown, not a modal.** `openAssignMenu()` reuses the same
+  `showMenu()` the status and quality cells use — click the name, the five people
+  drop down under it, tick on the current one, Unassign at the bottom when there is
+  someone to remove. The whole `#assignModal` (and `.member-row` / `.member-list`
+  CSS, and the search field inside it) is deleted, not just bypassed.
+  `showMenu()` items now accept an optional `html` field so a row can be a person
+  instead of a chip.
+- The per-member lead count that used to show in the assign modal is gone with it.
+  Worth re-adding to the dropdown if Adarsh misses it when balancing workloads.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.
