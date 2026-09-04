@@ -43,14 +43,18 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Nobody promotes themselves to owner from the client. Role changes go through
--- the service role key (server side) or the SQL editor.
+-- Nobody promotes themselves to owner from the client.
+--
+-- A trigger fires for every connection, so an unconditional guard locks out the
+-- SQL editor too — which is where the first owner has to be created. auth.uid()
+-- is null on a privileged connection (SQL editor, service role) and carries the
+-- user's id on a request from the app, so it is the honest way to separate them.
 create or replace function public.guard_role_change()
 returns trigger
 language plpgsql
 as $$
 begin
-  if new.role is distinct from old.role then
+  if new.role is distinct from old.role and auth.uid() is not null then
     raise exception 'role cannot be changed from the client';
   end if;
   return new;
