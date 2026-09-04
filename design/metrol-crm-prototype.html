@@ -461,6 +461,11 @@ table.grid thead th{
   border-bottom:1px solid var(--line);
   height:36px;user-select:none;
 }
+/* A light rule between columns, so the edge you are meant to grab is visible
+   before you go looking for it. Header rules a shade firmer than body rules. */
+table.grid th:not(:last-child),
+table.grid td:not(:last-child){border-right:1px solid var(--line-2)}
+table.grid thead th:not(:last-child){border-right:1px solid var(--line)}
 table.grid tbody tr:last-child td{border-bottom:0}
 table.grid tbody tr:hover td{background:var(--surface-2)}
 table.grid tbody tr.is-new td{background:var(--accent-soft)}
@@ -495,9 +500,13 @@ th.rz-col{position:relative}
 /* The drag affordance stays ink: a yellow hairline on white is too faint,
    and column resize is the one interaction that must never regress. */
 .rz:hover::after,.rz.is-drag::after{background:var(--ink)}
+/* Fixed, not absolute: an absolutely-positioned guide inside a scroller is
+   laid out against the content origin, so it drifted away from the cursor as
+   soon as the grid was scrolled. Its position now comes from the header cell's
+   own rectangle, which is true whatever the scroll offset. */
 .rz-guide{
-  position:absolute;top:0;bottom:0;width:2px;background:var(--ink);
-  opacity:.55;pointer-events:none;z-index:9;display:none;
+  position:fixed;width:2px;background:var(--ink);
+  opacity:.5;pointer-events:none;z-index:60;display:none;
 }
 body.is-resizing{cursor:col-resize;user-select:none}
 
@@ -545,8 +554,11 @@ kbd{
 }
 
 /* ------------------------------------------------------- sales dashboard */
-.sales-dash{display:grid;grid-template-columns:1.15fr 1fr;gap:12px;align-items:stretch}
-.money-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* The money tiles run the full width across the top and the charts sit under
+   them, rather than a narrow chart beside a 2x2 block with dead space either
+   side. One row of four reads as a summary; the charts get the room. */
+.money-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.dash-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:12px;align-items:stretch}
 .money-tile{
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   padding:14px;display:flex;flex-direction:column;gap:8px;
@@ -559,20 +571,37 @@ kbd{
 .chart-head{display:flex;align-items:baseline;gap:10px}
 .chart-head h4{font-size:13.5px}
 .chart-head .sub{font-size:11.5px;color:var(--ink-3);margin-left:auto;font-variant-numeric:tabular-nums}
-.bars{display:flex;align-items:flex-end;gap:8px;height:132px;position:relative;padding-top:16px}
-.bar-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:7px;position:relative}
+.bars{display:flex;align-items:flex-end;gap:10px;height:198px;position:relative;padding-top:18px}
+.bar-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:6px;position:relative}
+/* Capped so seven days across a wide card read as bars, not blocks. */
 .bar{
-  width:100%;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px;
-  transition:opacity .13s ease;
+  width:100%;max-width:44px;margin:0 auto;
+  background:var(--accent);border-radius:4px 4px 0 0;min-height:2px;
+  transition:opacity .13s ease, filter .13s ease;
 }
 .bar-col.is-zero .bar{background:var(--line);}
 .bar-col:hover .bar{opacity:.75}
 .bar-label{font-size:10.5px;color:var(--ink-3);text-align:center;font-variant-numeric:tabular-nums}
 .bar-col.is-today .bar-label{color:var(--ink);font-weight:600}
+/* Selective labels: the best day and today are always called out, the rest
+   appear on hover. They sit in the flow above their own bar, so a small bar's
+   number is never stranded at the top of the chart. */
 .bar-value{
-  position:absolute;top:-2px;left:50%;transform:translateX(-50%);
   font-family:var(--mono);font-size:10px;color:var(--ink-2);white-space:nowrap;
+  text-align:center;opacity:0;transition:opacity .12s ease;
 }
+.bar-value.is-shown{opacity:1}
+.bar-col:hover .bar-value{opacity:1}
+.bar-col:hover .bar{filter:brightness(.94)}
+
+/* who closed it — a ranked list, so every row carries its own label */
+.hbars{display:flex;flex-direction:column;gap:11px}
+.hbar{display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:10px}
+.hbar-nm{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbar-track{height:9px;border-radius:5px;background:var(--surface-3);overflow:hidden}
+.hbar-fill{display:block;height:100%;border-radius:5px;background:var(--accent);min-width:3px}
+.hbar-v{font-family:var(--mono);font-size:11.5px;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.hbar.is-zero .hbar-fill{background:var(--line)}
 .chart-base{height:1px;background:var(--line);margin-top:-7px}
 
 /* ---------------------------------------------------------- project grid */
@@ -759,7 +788,8 @@ table.hist .what{font-weight:500}
 @media (max-width:1080px){
   .ov-grid{grid-template-columns:1fr}
   .kpis{grid-template-columns:repeat(3,1fr)}
-  .sales-dash{grid-template-columns:1fr}
+  .dash-grid{grid-template-columns:1fr}
+  .money-grid{grid-template-columns:repeat(2,1fr)}
   .proj-grid{grid-template-columns:repeat(2,1fr)}
 }
 @media (max-width:860px){
@@ -1101,7 +1131,8 @@ table.hist .what{font-weight:500}
             <h3>Sales dashboard</h3>
             <div class="sub">Verified and pending payments combined</div>
           </div>
-          <div class="sales-dash">
+          <div class="money-grid" id="moneyGrid"></div>
+          <div class="dash-grid">
             <div class="chart-card">
               <div class="chart-head">
                 <h4>Last 7 days</h4>
@@ -1110,7 +1141,13 @@ table.hist .what{font-weight:500}
               <div class="bars" id="bars"></div>
               <div class="chart-base"></div>
             </div>
-            <div class="money-grid" id="moneyGrid"></div>
+            <div class="chart-card">
+              <div class="chart-head">
+                <h4>Who closed it</h4>
+                <div class="sub">All time</div>
+              </div>
+              <div class="hbars" id="hbars"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1557,15 +1594,29 @@ function buildTable(tableId, cols, rows, guideId, opts){
   return table;
 }
 
+/* The table used to carry min-width:100%, which let the browser stretch every
+   column proportionally whenever the grid was narrower than its container. Two
+   things broke: _widths no longer matched what was on screen (so the drag guide
+   sat left of the real edge), and a 100px drag moved the edge ~135px. Slack now
+   goes to the LAST column only, so _widths is always the truth and dragging is
+   one-to-one with the pointer. */
 function applyWidths(table){
   var cols = table.querySelectorAll("colgroup col");
-  var total = 0;
-  for(var i=0;i<cols.length;i++){
-    cols[i].style.width = table._widths[i] + "px";
-    total += table._widths[i];
+  var total = 0, i;
+  for(i=0;i<cols.length;i++){ total += table._widths[i]; }
+  var host = table.closest(".grid-scroll");
+  var avail = host ? host.clientWidth : 0;
+  var slack = (avail && total < avail) ? (avail - total) : 0;
+  for(i=0;i<cols.length;i++){
+    cols[i].style.width = (table._widths[i] + (i === cols.length-1 ? slack : 0)) + "px";
   }
-  table.style.width = total + "px";
-  table.style.minWidth = "100%";
+  table.style.width = (total + slack) + "px";
+  table.style.minWidth = "";
+}
+
+/* the container width decides the slack, so re-apply when the window changes */
+function reflowGrids(){
+  $$("table.grid").forEach(function(t){ if(t._widths) applyWidths(t); });
 }
 
 function wireResize(table, guideId){
@@ -1590,10 +1641,13 @@ function wireResize(table, guideId){
 
     function place(){
       if(!guide || !dragging) return;
-      var x = 0;
-      for(var k=0;k<=i;k++){ x += table._widths[k]; }
+      var th = table.querySelectorAll("thead th")[i];
+      if(!th) return;
+      var r = th.getBoundingClientRect(), sr = scroller.getBoundingClientRect();
       guide.style.display = "block";
-      guide.style.left = (x - scroller.scrollLeft) + "px";
+      guide.style.left = Math.min(Math.max(r.right, sr.left), sr.right) + "px";
+      guide.style.top = sr.top + "px";
+      guide.style.height = sr.height + "px";
     }
     place();
 
@@ -1765,7 +1819,8 @@ function teamCols(){
     {key:"cn",   label:"Connected",     width:106, render:function(r){ return '<span class="num">'+r.connected+"</span>"; }},
     {key:"fu",   label:"Follow-ups",    width:110, render:function(r){ return '<span class="num">'+r.followups+"</span>"; }},
     {key:"cv",   label:"Converted",     width:106, render:function(r){ return '<span class="num">'+r.converted+"</span>"; }},
-    {key:"td",   label:"Today",         width:118, render:function(r){ return '<span class="cell-money">'+money(r.today)+"</span>"; }},
+    {key:"td",   label:"Today",         width:112, render:function(r){ return '<span class="cell-money">'+money(r.today)+"</span>"; }},
+    {key:"wk",   label:"This week",     width:124, render:function(r){ return '<span class="cell-money">'+money(r.week)+"</span>"; }},
     {key:"mo",   label:"This month",    width:130, render:function(r){ return '<span class="cell-money">'+money(r.month)+"</span>"; }},
     {key:"all",  label:"All time",      width:138, render:function(r){ return '<span class="cell-money" style="color:var(--ink)">'+money(r.all)+"</span>"; }}
   ];
@@ -1837,6 +1892,7 @@ function renderOwner(){
       followups:mine.filter(function(l){return l.status==="follow_up";}).length,
       converted:cv.length,
       today:sum(cv.filter(function(l){return l.daysAgo===0;})),
+      week:sum(cv.filter(function(l){return l.daysAgo<=6;})),
       month:sum(cv.filter(function(l){return l.daysAgo<=30;})),
       all:sum(cv)
     };
@@ -1849,11 +1905,12 @@ function renderOwner(){
   var week  = sum(conv.filter(function(l){ return l.daysAgo <= 6; }));
   var month = sum(conv.filter(function(l){ return l.daysAgo <= 30; }));
   var year  = gross;
+  function deals(n){ return n + (n === 1 ? " deal" : " deals"); }
   $("#moneyGrid").innerHTML = [
-    {k:"Today",      v:today, s:conv.filter(function(l){return l.daysAgo===0;}).length+" deals"},
-    {k:"This week",  v:week,  s:conv.filter(function(l){return l.daysAgo<=6;}).length+" deals"},
-    {k:"This month", v:month, s:conv.filter(function(l){return l.daysAgo<=30;}).length+" deals"},
-    {k:"This year",  v:year,  s:conv.length+" deals"}
+    {k:"Today",      v:today, s:deals(conv.filter(function(l){return l.daysAgo===0;}).length)},
+    {k:"This week",  v:week,  s:deals(conv.filter(function(l){return l.daysAgo<=6;}).length)},
+    {k:"This month", v:month, s:deals(conv.filter(function(l){return l.daysAgo<=30;}).length)},
+    {k:"This year",  v:year,  s:deals(conv.length)}
   ].map(function(x){
     return '<div class="money-tile"><div class="kpi-label">'+x.k+"</div>"+
       '<div class="kpi-value">'+money(x.v)+"</div>"+
@@ -1870,15 +1927,29 @@ function renderOwner(){
     });
   }
   var max = Math.max.apply(null, buckets.map(function(b){ return b.v; })) || 1;
-  $("#bars").innerHTML = buckets.map(function(b,i){
+  $("#bars").innerHTML = buckets.map(function(b){
     var h = b.v ? Math.max(4, Math.round(b.v/max*100)) : 2;
     var isToday = b.d === 0;
-    return '<div class="bar-col'+(b.v?"":" is-zero")+(isToday?" is-today":"")+'" title="'+(isToday?"Today":ago(b.d))+' · '+money(b.v)+'">'+
-      (b.v && (b.v===max || isToday) ? '<div class="bar-value">'+money(b.v)+"</div>" : "")+
+    var callOut = b.v && (b.v === max || isToday);
+    return '<div class="bar-col'+(b.v?"":" is-zero")+(isToday?" is-today":"")+
+      '" title="'+(isToday?"Today":ago(b.d))+' \u00b7 '+money(b.v)+'">'+
+      '<div class="bar-value'+(callOut?" is-shown":"")+'">'+money(b.v)+"</div>"+
       '<div class="bar" style="height:'+h+'%"></div>'+
       '<div class="bar-label">'+(isToday?"Today":days[(new Date().getDay()+6-b.d)%7])+"</div></div>";
   }).join("");
-  $("#weekTotal").textContent = money(week) + " this week";
+  $("#weekTotal").textContent = money(week) + " this week \u00b7 " +
+    deals(conv.filter(function(l){ return l.daysAgo <= 6; }).length);
+
+  // who closed it — the same team figures, ranked, readable at a glance
+  var top = team.slice().sort(function(a,b){ return b.all - a.all; });
+  var topMax = Math.max.apply(null, top.map(function(t){ return t.all; })) || 1;
+  $("#hbars").innerHTML = top.map(function(t){
+    return '<div class="hbar'+(t.all?"":" is-zero")+'">'+
+      '<span class="hbar-nm">'+esc(t.name)+"</span>"+
+      '<span class="hbar-track"><span class="hbar-fill" style="width:'+
+        (t.all ? Math.max(3, Math.round(t.all/topMax*100)) : 3)+'%"></span></span>'+
+      '<span class="hbar-v">'+money(t.all)+"</span></div>";
+  }).join("");
 }
 
 /* The Overview page is a summary that points at the other pages, not a copy of
@@ -2018,7 +2089,7 @@ document.addEventListener("click", function(e){
   if(openMenu && !e.target.closest(".menu") && !e.target.closest("[data-edit]") &&
      !e.target.closest("[data-assign]") && !e.target.closest("[data-verify]")) closeMenu();
 });
-window.addEventListener("resize", closeMenu);
+window.addEventListener("resize", function(){ closeMenu(); reflowGrids(); });
 
 /* --------------------------------------------------------------- events */
 function rerender(){

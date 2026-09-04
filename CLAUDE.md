@@ -325,6 +325,53 @@ nested inside another one.
 
 ---
 
+# ROUND 5 — the dashboard, and why the resize guide lied (2026-09-04)
+
+## The drag guide was drawn in the wrong coordinate space
+
+Two separate faults, both from `min-width:100%` on the table.
+
+1. **The guide sat left of the cursor.** The browser stretched every column
+   proportionally to fill the container whenever the grid's natural width was
+   narrower than its box — Team tracking is 1114px in a ~1350px box, so a 1.2x
+   stretch. `_widths` no longer described the screen, and `place()` computed the
+   guide from `_widths`. It now reads the header cell's own
+   `getBoundingClientRect().right`, which is true whatever the stretch.
+2. **A 70px drag moved the edge ~95px**, for the same reason.
+
+`applyWidths()` no longer sets `min-width`. Slack goes to the **last column only**,
+so `_widths` always matches the screen and dragging is one-to-one. `reflowGrids()`
+re-applies on window resize, since the container width decides the slack.
+
+The guide is also `position:fixed` now with its top/height taken from the scroller.
+As an absolutely-positioned child it was laid out against the *content* origin, so
+it drifted out of view as soon as a grid was scrolled vertically.
+
+## Column separators
+
+`border-right: var(--line-2)` on body cells, `var(--line)` on headers — light, but
+enough that you can see the edge before hunting for it.
+
+## Team tracking
+
+**This week** added between Today and This month.
+
+## Sales dashboard, rebuilt
+
+It was a narrow chart beside a 2x2 tile block, with dead space either side.
+
+- Four money tiles across the **full width**, one row.
+- Under them, `.dash-grid` at 1.55fr / 1fr: **Last 7 days** beside **Who closed it**.
+- Bars capped at 44px (`max-width` + `margin:0 auto`) — seven days across a wide
+  card read as bars, not blocks.
+- **Selective labels**, per the dataviz guidance: the best day and today are always
+  called out, every other bar reveals its value on hover. Labels sit in the flow
+  above their own bar, so a small bar's number is never stranded at chart-top.
+- **Who closed it** is the same `team` figures, ranked, as horizontal bars. Every
+  row is labelled because a ranked list is read by row, not by axis.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.
