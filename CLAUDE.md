@@ -404,6 +404,38 @@ its strips would otherwise be 0px tall when it is first shown.
 
 ---
 
+# ROUND 7 — drag to fold, and the content uses the room (2026-09-04)
+
+## The sidebar folds by feel, not by button
+
+`setSideWidth()` now watches the width it is handed: drag the edge left past
+`SIDE_SNAP` (150px) and the sidebar folds to icons on its own, drag it back out
+and it opens. The chevron still does the same thing in one click, and the drag
+handle **stays available while folded** (it used to be `display:none` in
+`.is-mini`, which meant a folded sidebar could only be reopened by the button).
+
+`wirePaneResize()` gained a `commit` callback so a drag can persist the folded
+state alongside the width, and it calls `reflowGrids()` on release so the grid
+takes up the freed space immediately.
+
+## A little more width, not all of it
+
+`#screen-project .wrap` goes from the 1180px reading measure to **1360px**. On a
+1440px laptop with both sidebars folded the leads grid goes 1144 → **1262px** and
+the dead margin either side disappears; on a 27" monitor the cap still stops a
+table sprawling edge to edge. Adarsh explicitly wanted "a little, not too much" —
+**this is one number to revert if it reads as too wide.**
+
+## Bug: a literal escape in two tooltips
+
+`title="Drag to resize \u00b7 double-click to reset"` was written into two HTML
+attributes, where `\u00b7` is just eight characters — the tooltip read the escape
+out loud. It is only decoded inside a JS string literal. Both now carry a real "·".
+**Watch for this**: several strings in the JS legitimately use `\u00b7` / `\u2014`,
+so a blind find-and-replace across the file would break them.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.

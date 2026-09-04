@@ -306,8 +306,7 @@ input,select{font:inherit;color:inherit}
 .sidebar.is-mini .side-nm,
 .sidebar.is-mini .count,
 .sidebar.is-mini .side-label,
-.sidebar.is-mini .side-foot,
-.sidebar.is-mini .pane-rz{display:none}
+.sidebar.is-mini .side-foot{display:none}
 .sidebar.is-mini .side-head{padding:0 0 6px;justify-content:center}
 .sidebar.is-mini .side-link{width:40px;justify-content:center;padding:0}
 .sidebar.is-mini .side-link.is-on::before{left:-12px}
@@ -477,7 +476,10 @@ input,select{font:inherit;color:inherit}
 .grid-scroll--page{--grid-h:calc(100dvh - 212px);min-height:300px}
 /* The grid owns the scrolling on a page view, so the page itself should not
    also scroll — otherwise you get two scrollbars fighting over 40px. */
-#screen-project .wrap{padding-bottom:28px}
+/* A touch wider than the 1180px reading measure: the grids are the point on
+   these pages, and on a laptop with both sidebars folded this uses the room
+   without letting a table sprawl across a 27" monitor. One number to revert. */
+#screen-project .wrap{padding-bottom:28px;max-width:1360px}
 table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:13px}
 table.grid th,table.grid td{
   padding:0 12px;height:38px;text-align:left;vertical-align:middle;
@@ -1015,7 +1017,7 @@ table.hist .what{font-weight:500}
     <nav class="rail" id="projRail" aria-label="Projects">
       <div class="rail-list" id="projRailList"></div>
       <button class="rail-toggle" id="railToggle" aria-label="Show project names"></button>
-      <span class="pane-rz" id="railRz" title="Drag to widen \u00b7 double-click to reset"></span>
+      <span class="pane-rz" id="railRz" title="Drag to widen · double-click to reset"></span>
     </nav>
     <nav class="sidebar" id="sideNav">
       <div class="side-head">
@@ -1043,7 +1045,7 @@ table.hist .what{font-weight:500}
         <span class="side-nm">Sales dashboard</span><span class="side-tip">Sales dashboard</span>
       </button>
       <div class="side-foot">Prototype — sample data. Every number below is calculated from the rows in the tables.</div>
-      <span class="pane-rz" id="sideRz" title="Drag to resize \u00b7 double-click to reset"></span>
+      <span class="pane-rz" id="sideRz" title="Drag to resize · double-click to reset"></span>
     </nav>
 
     <div class="workspace" id="ownerScroll">
@@ -2577,6 +2579,7 @@ function renderRail(){
    wide enough to hold them. */
 var RAIL_MIN = 56, RAIL_MAX = 300, RAIL_DEF = 64, RAIL_WIDE = 132;
 var SIDE_MIN = 168, SIDE_MAX = 380, SIDE_DEF = 214;
+var SIDE_SNAP = 150, SIDE_MINI = 64;   // drag narrower than SNAP and it folds
 
 function setRailWidth(w){
   w = Math.max(RAIL_MIN, Math.min(RAIL_MAX, Math.round(w)));
@@ -2586,13 +2589,21 @@ function setRailWidth(w){
   paintRailToggle();
   return w;
 }
+/* Dragging is the primary gesture: pull the edge left past SIDE_SNAP and the
+   sidebar folds to icons by itself, pull it back out and it opens again. The
+   chevron does the same thing in one click for anyone who would rather not drag. */
 function setSideWidth(w){
+  if(w < SIDE_SNAP){
+    setSideMini(true, false);
+    return SIDE_MINI;
+  }
+  setSideMini(false, false);
   w = Math.max(SIDE_MIN, Math.min(SIDE_MAX, Math.round(w)));
   document.documentElement.style.setProperty("--side-w", w + "px");
   return w;
 }
 
-function wirePaneResize(handleId, paneId, apply, storeKey, def){
+function wirePaneResize(handleId, paneId, apply, storeKey, def, commit){
   var h = $("#"+handleId), pane = $("#"+paneId);
   if(!h || !pane) return;
   h.addEventListener("pointerdown", function(e){
@@ -2612,6 +2623,8 @@ function wirePaneResize(handleId, paneId, apply, storeKey, def){
       if(frame){ cancelAnimationFrame(frame); frame = null; }
       var w = apply(latest);
       storeSet(storeKey, String(w));
+      if(commit) commit();
+      reflowGrids();
       try { h.releasePointerCapture(ev.pointerId); } catch(_){}
       h.classList.remove("is-drag");
       document.body.classList.remove("is-resizing");
@@ -2627,7 +2640,11 @@ function wirePaneResize(handleId, paneId, apply, storeKey, def){
     window.addEventListener("mouseup", up, true);
     window.addEventListener("pointercancel", up, true);
   });
-  h.addEventListener("dblclick", function(){ apply(def); storeSet(storeKey, String(def)); });
+  h.addEventListener("dblclick", function(){
+    apply(def); storeSet(storeKey, String(def));
+    if(commit) commit();
+    reflowGrids();
+  });
 }
 
 var CHEV_L = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
@@ -2644,8 +2661,7 @@ function setSideMini(on, persist){
     b.setAttribute("title", on ? "Expand sidebar" : "Collapse to icons");
     b.setAttribute("aria-label", b.getAttribute("title"));
   }
-  if(persist !== false) storeSet("metrol-crm-side-mini", on ? "1" : "0");
-  reflowGrids();
+  if(persist !== false){ storeSet("metrol-crm-side-mini", on ? "1" : "0"); reflowGrids(); }
 }
 
 function paintRailToggle(){
@@ -2663,7 +2679,9 @@ function initPanes(){
   setRailWidth(isNaN(r) ? RAIL_DEF : r);
   setSideWidth(isNaN(d) ? SIDE_DEF : d);
   wirePaneResize("railRz", "projRail", setRailWidth, "metrol-crm-rail-w", RAIL_DEF);
-  wirePaneResize("sideRz", "sideNav",  setSideWidth, "metrol-crm-side-w", SIDE_DEF);
+  wirePaneResize("sideRz", "sideNav", setSideWidth, "metrol-crm-side-w", SIDE_DEF, function(){
+    storeSet("metrol-crm-side-mini", $("#sideNav").classList.contains("is-mini") ? "1" : "0");
+  });
 
   setSideMini(storeGet("metrol-crm-side-mini") === "1", false);
   var st = $("#sideToggle");
