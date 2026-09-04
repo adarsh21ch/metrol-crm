@@ -1,0 +1,870 @@
+/* ---------------------------------------------------------------- tokens */
+:root{
+  --ground:#F5F5F5;
+  --surface:#FFFFFF;
+  --surface-2:#FAFAFA;
+  --surface-3:#F0F0F0;
+  --ink:#0A0A0A;
+  --ink-2:#4A4A4A;
+  --ink-3:#767676;
+  --line:#E4E4E4;
+  --line-2:#EEEEEE;
+  /* Brand yellow is a FILL. Text sitting on it is always --accent-on (black). */
+  /* Where yellow would have to be text or an icon on a light ground, use      */
+  /* --accent-ink: the same hue darkened until it is actually readable.        */
+  --accent:#F5C518;
+  --accent-hover:#E3B510;
+  --accent-on:#0A0A0A;
+  --accent-soft:#FFF8DC;
+  --accent-line:#F0DFA8;
+  --accent-ink:#7A5A00;
+  /* primary button: black on light, near-white on dark */
+  --pri:#101010;
+  --pri-hover:#2B2B2B;
+  --pri-on:#FFFFFF;
+  /* Status/quality colours. Deepened text and firmer fills so a chip reads at
+     a glance on white — the pale-on-pale version washed out in light mode. */
+  --good:#046C4E;   --good-soft:#D7F5E3;  --good-line:#8FDCB4;
+  --warn:#7A4E00;   --warn-soft:#FCEBC2;  --warn-line:#E2BB66;
+  --bad:#A81E12;    --bad-soft:#FCE0DC;   --bad-line:#F0A79D;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 1px 2px rgba(0,0,0,.05), 0 10px 28px -14px rgba(0,0,0,.24);
+  --shadow-lg:0 24px 60px -20px rgba(0,0,0,.32);
+  --r:7px;
+  --topbar-h:58px;
+  --rail-w:64px;
+  --side-w:214px;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display:"Archivo", var(--sans);
+  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0A0A0A;
+    --surface:#141414;
+    --surface-2:#1A1A1A;
+    --surface-3:#232323;
+    --ink:#F2F2F2;
+    --ink-2:#B0B0B0;
+    --ink-3:#8A8A8A;
+    --line:#2C2C2C;
+    --line-2:#212121;
+    --accent:#FFD84D;
+    --accent-hover:#FFE175;
+    --accent-on:#0A0A0A;
+    --accent-soft:#2A2410;
+    --accent-line:#4A3F16;
+    --accent-ink:#FFD84D;
+    --pri:#F4F4F5;
+    --pri-hover:#FFFFFF;
+    --pri-on:#0A0A0A;
+    --good:#4ADE9E;   --good-soft:#0D3326;  --good-line:#226E4E;
+    --warn:#F2C14E;   --warn-soft:#332812;  --warn-line:#6E5522;
+    --bad:#FF8A78;    --bad-soft:#3A1B17;   --bad-line:#7E362B;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+    --shadow-lg:0 24px 60px -20px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0A0A0A;
+  --surface:#141414;
+  --surface-2:#1A1A1A;
+  --surface-3:#232323;
+  --ink:#F2F2F2;
+  --ink-2:#B0B0B0;
+  --ink-3:#8A8A8A;
+  --line:#2C2C2C;
+  --line-2:#212121;
+  --accent:#FFD84D;
+  --accent-hover:#FFE175;
+  --accent-on:#0A0A0A;
+  --accent-soft:#2A2410;
+  --accent-line:#4A3F16;
+  --accent-ink:#FFD84D;
+  --pri:#F4F4F5;
+  --pri-hover:#FFFFFF;
+  --pri-on:#0A0A0A;
+  --good:#4ADE9E;   --good-soft:#0D3326;  --good-line:#226E4E;
+  --warn:#F2C14E;   --warn-soft:#332812;  --warn-line:#6E5522;
+  --bad:#FF8A78;    --bad-soft:#3A1B17;   --bad-line:#7E362B;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow-md:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+  --shadow-lg:0 24px 60px -20px rgba(0,0,0,.8);
+}
+
+/* ------------------------------------------------------------------ base */
+*{box-sizing:border-box}
+/* The prototype ran inside the Artifact viewer, whose reset supplies this rule.
+   Standing on its own, nothing does — and .backdrop{display:flex} then beats the
+   hidden attribute, so every modal painted at once over the sign-in screen. */
+[hidden]{display:none!important}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.018em;font-weight:600}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.num{font-variant-numeric:tabular-nums}
+.eyebrow{
+  font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
+
+/* --------------------------------------------------------------- screens */
+.screen{display:none}
+.screen.is-active{display:block}
+.screen--app.is-active{display:flex;flex-direction:column;height:100dvh}
+
+/* --------------------------------------------------------------- buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;justify-content:center;
+  height:34px;padding:0 14px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  font-size:13px;font-weight:500;white-space:nowrap;
+  transition:background .14s ease, border-color .14s ease, transform .14s ease;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--ink-3)}
+.btn:active{transform:translateY(.5px)}
+.btn--primary{background:var(--pri);border-color:var(--pri);color:var(--pri-on)}
+.btn--primary:hover{background:var(--pri-hover);border-color:var(--pri-hover)}
+.btn--ghost{background:transparent;border-color:transparent;color:var(--ink-2)}
+.btn--ghost:hover{background:var(--surface-3);border-color:transparent;color:var(--ink)}
+.btn--sm{height:28px;padding:0 10px;font-size:12px}
+.btn--lg{height:42px;padding:0 20px;font-size:14px}
+.btn--block{width:100%}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;font-weight:500;color:var(--ink-2)}
+.input{
+  height:38px;padding:0 12px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--surface);width:100%;
+  transition:border-color .14s ease, box-shadow .14s ease;
+}
+.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+.seg{display:inline-flex;background:var(--surface-3);border-radius:var(--r);padding:2px;gap:2px}
+.seg button{
+  height:26px;padding:0 10px;border:0;border-radius:5px;background:transparent;
+  font-size:12px;font-weight:500;color:var(--ink-3);
+}
+.seg button.is-on{background:var(--accent);color:var(--accent-on);box-shadow:var(--shadow-sm);font-weight:600}
+
+.avatar{
+  width:26px;height:26px;flex:0 0 26px;border-radius:50%;
+  display:grid;place-items:center;
+  background:var(--surface-3);color:var(--ink-2);
+  font-size:10px;font-weight:600;letter-spacing:.02em;
+  border:1px solid var(--line);
+}
+.avatar--lg{width:34px;height:34px;flex-basis:34px;font-size:12px}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  height:23px;padding:0 9px;border-radius:20px;
+  font-size:11.5px;font-weight:600;letter-spacing:.005em;white-space:nowrap;
+  border:1px solid transparent;
+}
+.chip::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+.chip--good{background:var(--good-soft);color:var(--good);border-color:var(--good-line)}
+.chip--warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line)}
+.chip--bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-line)}
+/* "Connected" carries no green/amber/red meaning, so it stays neutral. It is
+   the same fill as New/Dead but at full ink strength — an in-progress lead
+   reads stronger than a parked one without a hard outline or a black block. */
+.chip--accent{background:var(--surface-3);color:var(--ink);border-color:var(--line)}
+.chip--mute{background:var(--surface-3);color:var(--ink-3);border-color:var(--line)}
+.chip--none{background:transparent;color:var(--ink-3);border-color:var(--line);border-style:dashed}
+.chip--none::before{display:none}
+
+/* --------------------------------------------------------------- landing */
+.landing{min-height:100dvh;display:flex;flex-direction:column;background:var(--surface)}
+.landing-bar{
+  height:66px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;border-bottom:1px solid var(--line-2);
+}
+.brand{display:flex;align-items:center;gap:10px}
+.monogram{
+  width:28px;height:28px;border-radius:6px;display:grid;place-items:center;
+  background:var(--ink);color:var(--ground);
+  font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:-.02em;
+}
+.brand-name{font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:-.01em}
+.landing-main{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:72px 28px;gap:34px;text-align:center;
+}
+.logo-plate{
+  width:min(760px,100%);
+  border:1px solid var(--line);border-radius:10px;
+  background:var(--surface-2);
+  padding:46px 32px;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+}
+.logo-lockup{
+  display:flex;align-items:center;gap:18px;
+}
+.logo-lockup .monogram{
+  width:46px;height:46px;border-radius:9px;font-size:23px;
+  background:var(--accent);color:#0A0A0A;
+}
+.logo-word{
+  font-family:var(--display);font-weight:700;
+  font-size:clamp(30px,6vw,46px);letter-spacing:-.03em;line-height:1;
+}
+.logo-note{font-size:11px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;font-weight:500}
+.landing-copy{max-width:60ch;display:flex;flex-direction:column;gap:14px;align-items:center}
+.landing-copy h1{font-size:clamp(22px,3.4vw,29px);line-height:1.2}
+.landing-copy p{color:var(--ink-2);font-size:15px;line-height:1.65}
+.landing-foot{
+  border-top:1px solid var(--line-2);padding:20px 28px;
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  font-size:12.5px;color:var(--ink-3);
+}
+.landing-foot a{color:var(--ink-3);text-decoration:none}
+.landing-foot a:hover{color:var(--ink)}
+
+/* ------------------------------------------------------------------ auth */
+.auth{min-height:100dvh;display:grid;place-items:center;padding:28px}
+.auth-card{
+  width:min(384px,100%);background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;box-shadow:var(--shadow-md);padding:30px;
+  display:flex;flex-direction:column;gap:20px;
+}
+.auth-head{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.auth-head h2{font-size:19px}
+.auth-head p{font-size:13px;color:var(--ink-3)}
+.auth-form{display:flex;flex-direction:column;gap:14px}
+.auth-alt{border-top:1px dashed var(--line);padding-top:16px;display:flex;flex-direction:column;gap:9px}
+.auth-alt-label{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.auth-alt-row{display:flex;gap:8px}
+
+/* ------------------------------------------------------------- app shell */
+.topbar{
+  height:var(--topbar-h);flex:0 0 var(--topbar-h);
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:var(--surface);border-bottom:1px solid var(--line);
+}
+.topbar-title{display:flex;align-items:center;gap:10px;min-width:0}
+.topbar-title h2{font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.user-chip{display:flex;align-items:center;gap:9px;padding-left:12px;border-left:1px solid var(--line)}
+.user-chip .name{font-size:13px;font-weight:500;line-height:1.15}
+.user-chip .role{font-size:11px;color:var(--ink-3);line-height:1.15}
+.icon-btn{
+  width:32px;height:32px;display:grid;place-items:center;border-radius:6px;
+  border:1px solid transparent;background:transparent;color:var(--ink-2);
+}
+.icon-btn:hover{background:var(--surface-3);color:var(--ink)}
+
+.shell{flex:1;display:flex;min-height:0}
+.sidebar{
+  position:relative;
+  width:var(--side-w);flex:0 0 var(--side-w);background:var(--surface);
+  border-right:1px solid var(--line);
+  padding:16px 12px;display:flex;flex-direction:column;gap:3px;
+}
+/* Pane resizer. Same lesson as the column handle: keep it inside its own pane
+   and pull the indicator onto the edge, rather than overhanging the border. */
+.pane-rz{
+  position:absolute;top:0;right:0;width:9px;height:100%;
+  cursor:col-resize;z-index:26;display:flex;justify-content:flex-end;touch-action:none;
+}
+.pane-rz::after{
+  content:"";width:2px;height:100%;margin-right:-1px;
+  background:transparent;transition:background .12s ease;
+}
+.pane-rz:hover::after,.pane-rz.is-drag::after{background:var(--accent)}
+.side-head{display:flex;align-items:center;gap:4px;padding:0 2px 6px}
+.side-label{
+  padding:6px 8px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.side-toggle,.rail-toggle{
+  width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:6px;
+  border:1px solid transparent;background:transparent;color:var(--ink-3);
+}
+.side-toggle:hover,.rail-toggle:hover{background:var(--surface-3);color:var(--ink)}
+.rail-toggle{margin-top:8px;align-self:center}
+
+/* Collapsed: icons only, names on hover, so the workspace gets the room back. */
+.sidebar.is-mini{width:64px;flex:0 0 64px;align-items:center}
+.sidebar.is-mini .side-nm,
+.sidebar.is-mini .count,
+.sidebar.is-mini .side-label,
+.sidebar.is-mini .side-foot{display:none}
+.sidebar.is-mini .side-head{padding:0 0 6px;justify-content:center}
+.sidebar.is-mini .side-link{width:40px;justify-content:center;padding:0}
+.sidebar.is-mini .side-link.is-on::before{left:-12px}
+
+.side-link{
+  display:flex;align-items:center;gap:10px;
+  height:34px;padding:0 10px;border-radius:6px;border:0;background:transparent;
+  color:var(--ink-2);font-size:13px;font-weight:500;text-align:left;width:100%;
+  position:relative;transition:background .13s ease,color .13s ease;
+}
+.side-link:hover{background:var(--surface-3);color:var(--ink)}
+.side-link.is-on{background:var(--accent);color:var(--accent-on);font-weight:600}
+.side-link.is-on::before{
+  content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:2.5px;
+  background:var(--ink);border-radius:0 2px 2px 0;
+}
+.side-link .count{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.side-link.is-on .count{color:rgba(0,0,0,.62)}
+.side-foot{margin-top:auto;padding:10px;border-top:1px solid var(--line-2);font-size:11.5px;color:var(--ink-3)}
+
+.workspace{flex:1;overflow-y:auto;scroll-behavior:smooth;min-width:0}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 24px 80px;display:flex;flex-direction:column;gap:34px}
+
+/* --------------------------------------------------- sidebar 1: proj rail */
+.rail{
+  position:relative;
+  width:var(--rail-w);flex:0 0 var(--rail-w);background:var(--surface);
+  border-right:1px solid var(--line);
+  padding:12px;display:flex;flex-direction:column;
+}
+.rail-list{
+  flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px;
+  overflow-y:auto;overflow-x:hidden;scrollbar-width:none;
+}
+.rail-list::-webkit-scrollbar{display:none}
+.rail.is-wide .rail-list{align-items:stretch}
+.rail-sep{width:100%;max-width:28px;height:1px;background:var(--line);flex:none;margin:3px 0}
+.rail.is-wide .rail-sep{max-width:none}
+.rail-btn{
+  position:relative;width:40px;height:40px;flex:none;border-radius:9px;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  font-family:var(--display);font-size:12.5px;font-weight:700;letter-spacing:-.01em;
+  transition:background .13s ease,color .13s ease,border-color .13s ease;
+}
+.rail-mark{flex:none;display:grid;place-items:center;width:18px}
+.rail-name{
+  display:none;font-family:var(--sans);font-size:12.5px;font-weight:500;letter-spacing:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.rail.is-wide .rail-btn{width:100%;justify-content:flex-start;padding:0 10px}
+.rail.is-wide .rail-name{display:block}
+
+.rail-btn:hover{background:var(--surface-3);color:var(--ink);border-color:var(--ink-3)}
+.rail-btn.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on)}
+.rail-btn.is-on::before{
+  content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:2.5px;
+  background:var(--ink);border-radius:0 2px 2px 0;
+}
+/* One tooltip node, fixed to the viewport. It used to live inside each button,
+   which worked in the sidebar but not the projects rail: .rail-list is a
+   scroller, and a scroller clips, so the rail's tooltip was cut off at 64px the
+   moment it tried to sit beside the icon. Nothing can clip this one. */
+.hover-tip{
+  position:fixed;z-index:120;pointer-events:none;
+  background:var(--ink);color:var(--ground);
+  padding:5px 9px;border-radius:6px;font-family:var(--sans);font-size:11.5px;font-weight:500;
+  letter-spacing:0;white-space:nowrap;box-shadow:var(--shadow-md);
+  opacity:0;transform:translateX(-4px);
+  transition:opacity .12s ease, transform .12s ease;
+}
+.hover-tip.is-on{opacity:1;transform:translateX(0)}
+.proj-select{
+  display:none;height:32px;max-width:190px;padding:0 8px;border-radius:6px;
+  border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:500;
+}
+
+/* -------------------------------------------------------------- sections */
+.section{display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}
+/* Inside a project each section is a PAGE of its own, not a band in one long
+   scroll — the sidebar switches between them. Scoped to the project screen so
+   the salesperson dashboard keeps its stacked sections. */
+#screen-project .wrap > .section{display:none}
+#screen-project .wrap > .section.is-on{display:flex}
+
+/* pagination */
+.foot-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.foot-right .grid-hint{margin-left:0}
+.pager{display:inline-flex;align-items:center;gap:4px}
+.pager-btn{
+  width:25px;height:25px;display:grid;place-items:center;border-radius:5px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
+  font-size:15px;line-height:1;
+}
+.pager-btn:hover:not(:disabled){background:var(--surface-3);color:var(--ink);border-color:var(--ink-3)}
+.pager-btn:disabled{opacity:.35;cursor:default}
+.pager-now{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;padding:0 3px}
+
+/* overview dashboard */
+.ov-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;align-items:start}
+.ov-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 15px 15px;display:flex;flex-direction:column;gap:12px;
+}
+.ov-card h4{font-size:13.5px}
+.ov-head{display:flex;align-items:baseline;gap:10px}
+.ov-head .sub{font-size:11.5px;color:var(--ink-3);margin-left:auto}
+.ov-actions{display:flex;flex-direction:column;gap:6px}
+.ov-row{
+  display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:var(--r);
+  border:1px solid var(--line-2);background:var(--surface-2);width:100%;text-align:left;
+  transition:border-color .13s ease,background .13s ease;
+}
+.ov-row:hover{border-color:var(--accent);background:var(--accent-soft)}
+.ov-n{
+  font-family:var(--display);font-size:19px;font-weight:600;letter-spacing:-.02em;
+  min-width:26px;font-variant-numeric:tabular-nums;
+}
+.ov-n.is-zero{color:var(--ink-3)}
+.ov-l{font-size:12.5px;color:var(--ink-2)}
+.ov-cta{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--ink-3);white-space:nowrap}
+.ov-row:hover .ov-cta{color:var(--accent-ink)}
+.ov-feed{display:flex;flex-direction:column}
+.ov-ev{
+  display:flex;align-items:baseline;gap:10px;padding:7px 0;
+  border-bottom:1px solid var(--line-2);font-size:12.5px;
+}
+.ov-ev:last-child{border-bottom:0}
+.ov-ev-nm{font-weight:500;min-width:116px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-ev-what{color:var(--ink-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-ev-what b{color:var(--ink);font-weight:600}
+.ov-ev-by{color:var(--ink-3);font-size:11.5px;white-space:nowrap}
+.ov-ev-at{color:var(--ink-3);font-family:var(--mono);font-size:11px;white-space:nowrap}
+.section-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.section-head h3{font-size:16.5px}
+.section-head .sub{font-size:12.5px;color:var(--ink-3)}
+.section-tools{margin-left:auto;display:flex;align-items:center;gap:8px}
+.search{position:relative;display:flex;align-items:center}
+.search .input{height:30px;font-size:12.5px;padding-left:30px;width:210px}
+.search svg{position:absolute;left:9px;color:var(--ink-3);pointer-events:none}
+
+/* ------------------------------------------------------------ kpi strip */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.kpi{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:13px 14px 14px;display:flex;flex-direction:column;gap:7px;
+  border-top:2px solid var(--ink);
+}
+.kpi--accent{border-top-color:var(--accent)}
+.kpi-label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.kpi-value{font-family:var(--display);font-size:26px;font-weight:600;letter-spacing:-.028em;line-height:1;font-variant-numeric:tabular-nums}
+.kpi-sub{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:5px}
+.kpi-sub b{color:var(--ink-2);font-weight:600}
+
+/* ------------------------------------------------------------ data grid */
+.grid-shell{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;box-shadow:var(--shadow-sm);
+}
+.grid-scroll{overflow:auto;max-height:var(--grid-h,none);position:relative}
+/* On its own page the grid fills the window rather than sitting in a 466px
+   box with dead space under it. It keeps its own scroller so the sticky
+   header stays put while you go down all 50 rows. */
+.grid-scroll--page{--grid-h:calc(100dvh - 212px);min-height:300px}
+/* The grid owns the scrolling on a page view, so the page itself should not
+   also scroll — otherwise you get two scrollbars fighting over 40px. */
+/* A touch wider than the 1180px reading measure: the grids are the point on
+   these pages, and on a laptop with both sidebars folded this uses the room
+   without letting a table sprawl across a 27" monitor. One number to revert. */
+#screen-project .wrap{padding-bottom:28px;max-width:1360px}
+table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:13px}
+table.grid th,table.grid td{
+  padding:0 12px;height:38px;text-align:left;vertical-align:middle;
+  border-bottom:1px solid var(--line-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.dense-comfortable table.grid th,.dense-comfortable table.grid td{height:48px}
+table.grid thead th{
+  position:sticky;top:0;z-index:3;
+  background:var(--surface-2);
+  font-size:11px;font-weight:600;letter-spacing:.055em;text-transform:uppercase;color:var(--ink-3);
+  border-bottom:1px solid var(--line);
+  height:36px;user-select:none;
+}
+/* A light rule between columns, so the edge you are meant to grab is visible
+   before you go looking for it. Header rules a shade firmer than body rules. */
+table.grid th:not(:last-child),
+table.grid td:not(:last-child){border-right:1px solid var(--line-2)}
+table.grid thead th:not(:last-child){border-right:1px solid var(--line)}
+table.grid tbody tr:last-child td{border-bottom:0}
+table.grid tbody tr:hover td{background:var(--surface-2)}
+table.grid tbody tr.is-new td{background:var(--accent-soft)}
+table.grid tbody tr.is-new:hover td{background:var(--accent-soft)}
+.cell-strong{font-weight:500;color:var(--ink)}
+.cell-mute{color:var(--ink-3)}
+.cell-mono{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:-.01em}
+.cell-money{font-family:var(--mono);font-size:12.5px;font-weight:500;font-variant-numeric:tabular-nums}
+.cell-idx{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+.td-flex{display:flex;align-items:center;gap:8px;height:100%;min-width:0}
+.td-flex span{overflow:hidden;text-overflow:ellipsis}
+.new-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-ink);flex:none}
+
+/* resize handles */
+th.rz-col{position:relative}
+/* Column resize. The grab zone runs the FULL height of the grid rather than
+   living in the header, so a boundary can be caught beside row 10 the way it
+   would be in a spreadsheet. The strips sit in their own layer above the
+   table, which also keeps them clear of the sticky header's stacking context
+   — the reason the old in-header handle had half of it painted over. */
+.rz-layer{position:absolute;top:0;left:0;pointer-events:none;z-index:6}
+.rz-strip{
+  position:absolute;top:0;bottom:0;width:11px;pointer-events:auto;
+  cursor:col-resize;display:flex;justify-content:center;touch-action:none;
+}
+.rz-strip::after{
+  content:"";width:2px;height:100%;
+  background:transparent;transition:background .12s ease;
+}
+.rz-strip:hover::after,.rz-strip.is-drag::after{background:var(--ink);opacity:.34}
+/* Fixed, not absolute: an absolutely-positioned guide inside a scroller is
+   laid out against the content origin, so it drifted away from the cursor as
+   soon as the grid was scrolled. Its position now comes from the header cell's
+   own rectangle, which is true whatever the scroll offset. */
+.rz-guide{
+  position:fixed;width:2px;background:var(--ink);
+  opacity:.5;pointer-events:none;z-index:60;display:none;
+}
+body.is-resizing{cursor:col-resize;user-select:none}
+
+/* editable cells */
+/* An editable chip keeps the chip's own fill, so the colour still reads at a
+   glance; the caret and a hover ring are what mark it editable. It used to
+   force background:transparent, which is why light mode looked washed out. */
+.cell-edit{
+  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+  border-radius:20px;font-size:11.5px;font-weight:600;max-width:100%;
+  transition:box-shadow .13s ease;
+}
+.cell-edit svg{opacity:.55;flex:none}
+.cell-edit:hover{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--ink-3)}
+.cell-edit:hover svg{opacity:1}
+.cell-dash{color:var(--ink-3)}
+/* The assignee reads as table text at table size. No pill, no outline — the
+   caret on hover is the only thing saying it can be changed. */
+.assignee{
+  display:inline-flex;align-items:center;gap:8px;max-width:100%;
+  border:0;background:transparent;padding:0;
+  font-size:13px;font-weight:500;color:var(--ink);
+}
+.assignee-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.assignee svg{opacity:0;flex:none;color:var(--ink-3);transition:opacity .12s ease}
+.assignee:hover svg{opacity:1}
+.assignee:hover .assignee-nm{text-decoration:underline;text-underline-offset:2px}
+.assign-btn{
+  border:0;background:transparent;padding:0;
+  font-size:13px;font-weight:500;color:var(--ink-3);
+}
+.assign-btn:hover{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px}
+.yn{font-size:13px;font-weight:500;color:var(--ink)}
+.yn.is-no{color:var(--ink-3);font-weight:400}
+
+.grid-foot{
+  display:flex;align-items:center;gap:10px;padding:9px 13px;
+  border-top:1px solid var(--line);background:var(--surface-2);
+  font-size:11.5px;color:var(--ink-3);
+}
+.grid-hint{margin-left:auto;display:flex;align-items:center;gap:6px}
+kbd{
+  font-family:var(--mono);font-size:10.5px;background:var(--surface);
+  border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--ink-2);
+}
+
+/* ------------------------------------------------------- sales dashboard */
+/* The money tiles run the full width across the top and the charts sit under
+   them, rather than a narrow chart beside a 2x2 block with dead space either
+   side. One row of four reads as a summary; the charts get the room. */
+.money-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.dash-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:12px;align-items:stretch}
+.money-tile{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;display:flex;flex-direction:column;gap:8px;
+}
+.money-tile .kpi-value{font-size:23px}
+.chart-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:15px 16px 12px;display:flex;flex-direction:column;gap:14px;
+}
+.chart-head{display:flex;align-items:baseline;gap:10px}
+.chart-head h4{font-size:13.5px}
+.chart-head .sub{font-size:11.5px;color:var(--ink-3);margin-left:auto;font-variant-numeric:tabular-nums}
+.bars{display:flex;align-items:flex-end;gap:10px;height:198px;position:relative;padding-top:18px}
+.bar-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:6px;position:relative}
+/* Capped so seven days across a wide card read as bars, not blocks. */
+.bar{
+  width:100%;max-width:44px;margin:0 auto;
+  background:var(--accent);border-radius:4px 4px 0 0;min-height:2px;
+  transition:opacity .13s ease, filter .13s ease;
+}
+.bar-col.is-zero .bar{background:var(--line);}
+.bar-col:hover .bar{opacity:.75}
+.bar-label{font-size:10.5px;color:var(--ink-3);text-align:center;font-variant-numeric:tabular-nums}
+.bar-col.is-today .bar-label{color:var(--ink);font-weight:600}
+/* Selective labels: the best day and today are always called out, the rest
+   appear on hover. They sit in the flow above their own bar, so a small bar's
+   number is never stranded at the top of the chart. */
+.bar-value{
+  font-family:var(--mono);font-size:10px;color:var(--ink-2);white-space:nowrap;
+  text-align:center;opacity:0;transition:opacity .12s ease;
+}
+.bar-value.is-shown{opacity:1}
+.bar-col:hover .bar-value{opacity:1}
+.bar-col:hover .bar{filter:brightness(.94)}
+
+/* who closed it — a ranked list, so every row carries its own label */
+.hbars{display:flex;flex-direction:column;gap:11px}
+.hbar{display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:10px}
+.hbar-nm{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbar-track{height:9px;border-radius:5px;background:var(--surface-3);overflow:hidden}
+.hbar-fill{display:block;height:100%;border-radius:5px;background:var(--accent);min-width:3px}
+.hbar-v{font-family:var(--mono);font-size:11.5px;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.hbar.is-zero .hbar-fill{background:var(--line)}
+.chart-base{height:1px;background:var(--line);margin-top:-7px}
+
+/* ---------------------------------------------------------- project grid */
+.page-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.page-head h1{font-size:23px}
+.page-head .sub{font-size:13px;color:var(--ink-3)}
+.proj-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.proj-grid[hidden]{display:none}
+.proj-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:9px;
+  padding:0;display:flex;flex-direction:column;text-align:left;overflow:hidden;
+  transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.proj-body{padding:14px 15px 15px;display:flex;flex-direction:column;gap:12px;flex:1}
+.proj-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.proj-top{display:flex;align-items:flex-start;gap:10px}
+.proj-top h3{font-size:15.5px;line-height:1.25}
+.proj-top .chip{margin-left:auto}
+.proj-desc{font-size:12.5px;color:var(--ink-2);line-height:1.55;min-height:39px}
+.proj-stats{display:flex;gap:18px;padding-top:12px;border-top:1px solid var(--line-2);margin-top:auto}
+.proj-stat{display:flex;flex-direction:column;gap:2px}
+.proj-stat .v{font-family:var(--display);font-size:16px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.proj-stat .k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.proj-foot{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}
+.stack{display:flex}
+.stack .avatar{width:22px;height:22px;flex-basis:22px;font-size:9px;margin-left:-6px;border:1.5px solid var(--surface)}
+.stack .avatar:first-child{margin-left:0}
+
+/* ------------------------------------------------------ project thumbnail */
+.proj-media{
+  aspect-ratio:16/9;width:100%;background:var(--surface-3);
+  border-bottom:1px solid var(--line);position:relative;overflow:hidden;flex:none;
+}
+.proj-media img{width:100%;height:100%;object-fit:cover;display:block}
+.proj-ph{
+  width:100%;height:100%;display:grid;place-items:center;gap:4px;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 9px, rgba(128,128,128,.055) 9px 18px),
+    var(--surface-3);
+}
+.proj-ph b{
+  font-family:var(--display);font-size:23px;font-weight:700;letter-spacing:-.02em;
+  color:var(--ink-3);line-height:1;
+}
+.proj-ph i{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);font-style:normal;opacity:.72}
+.thumb-sm{
+  display:block;width:44px;height:29px;border-radius:4px;overflow:hidden;flex:none;
+  border:1px solid var(--line);background:var(--surface-3);
+}
+.thumb-sm img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb-sm .proj-ph b{font-size:11px}
+.thumb-sm .proj-ph i{display:none}
+table.grid tbody tr.row-link{cursor:pointer}
+
+/* ----------------------------------------------------------- lead banner */
+.banner{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;
+  background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:var(--r);
+}
+.banner .t{font-size:13px;font-weight:600;color:var(--accent-ink)}
+.banner .d{font-size:12.5px;color:var(--ink-2)}
+.banner .btn{margin-left:auto}
+
+/* ---------------------------------------------------------------- modals */
+.backdrop{
+  position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);
+  display:flex;align-items:center;justify-content:center;padding:22px;
+  backdrop-filter:blur(2px);
+}
+.modal{
+  width:min(430px,100%);background:var(--surface);border:1px solid var(--line);
+  border-radius:11px;box-shadow:var(--shadow-lg);overflow:hidden;
+  display:flex;flex-direction:column;max-height:86dvh;
+}
+.modal-head{padding:16px 18px 14px;border-bottom:1px solid var(--line-2);display:flex;flex-direction:column;gap:3px}
+.modal-head h3{font-size:15.5px}
+.modal-head p{font-size:12.5px;color:var(--ink-3)}
+.modal-body{padding:14px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.modal-foot{padding:13px 18px;border-top:1px solid var(--line-2);display:flex;gap:8px;justify-content:flex-end;background:var(--surface-2)}
+.modal--wide{width:min(760px,100%)}
+.drop{
+  border:1.5px dashed var(--line);border-radius:var(--r);background:var(--surface-2);
+  padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:4px;
+  text-align:center;cursor:pointer;transition:border-color .13s ease,background .13s ease;
+}
+.drop:hover,.drop.is-over{border-color:var(--accent);background:var(--accent-soft)}
+.drop b{font-size:13px}
+.drop span{font-size:12px;color:var(--ink-3)}
+.drop.has-file{border-style:solid;border-color:var(--good-line);background:var(--good-soft)}
+.drop.has-file b{color:var(--good)}
+.imp-note{font-size:12px;color:var(--ink-3);line-height:1.6}
+.imp-note b{color:var(--ink-2);font-weight:600}
+.imp-note code{
+  font-family:var(--mono);font-size:11px;background:var(--surface-3);
+  padding:1px 5px;border-radius:4px;color:var(--ink-2);
+}
+.imp-result{
+  font-size:12.5px;padding:9px 11px;border-radius:var(--r);
+  background:var(--surface-3);border:1px solid var(--line);line-height:1.55;
+}
+.imp-result.is-bad{background:var(--bad-soft);border-color:var(--bad-line);color:var(--bad)}
+.imp-result.is-ok{background:var(--good-soft);border-color:var(--good-line);color:var(--good)}
+.hist-meta{
+  display:flex;flex-wrap:wrap;gap:8px 18px;padding:10px 12px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);
+}
+.hist-meta div{display:flex;flex-direction:column;gap:2px}
+.hist-meta .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.hist-meta .v{font-size:12.5px;font-weight:500}
+.hist-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table.hist{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+table.hist th,table.hist td{
+  padding:8px 11px;text-align:left;vertical-align:middle;
+  border-bottom:1px solid var(--line-2);white-space:nowrap;
+}
+table.hist thead th{
+  background:var(--surface-2);font-size:10px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line);
+}
+table.hist tbody tr:last-child td{border-bottom:0}
+table.hist .when{color:var(--ink-3);font-family:var(--mono);font-size:11.5px}
+table.hist .what{font-weight:500}
+.hist-arrow{color:var(--ink-3);padding:0 2px}
+.name-btn{
+  border:0;background:transparent;padding:0;text-align:left;
+  font-weight:500;color:var(--ink);border-bottom:1px dashed var(--line);
+}
+.name-btn:hover{border-bottom-color:var(--ink-3);color:var(--ink)}
+
+/* menus */
+.menu{
+  position:fixed;z-index:90;background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;box-shadow:var(--shadow-lg);padding:5px;min-width:196px;
+  max-height:340px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:2px;
+}
+.menu-person{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-size:12.5px;font-weight:500}
+.menu-person span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-person--none{color:var(--ink-3)}
+.menu button{
+  display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;
+  border:0;background:transparent;border-radius:5px;font-size:12.5px;text-align:left;width:100%;
+}
+.menu button:hover{background:var(--surface-3)}
+.menu .tick{margin-left:auto;color:var(--accent-ink);display:none}
+.menu button.is-on .tick{display:block}
+.menu-label{padding:6px 9px 4px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+/* toast */
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(10px);
+  z-index:120;background:var(--ink);color:var(--ground);
+  padding:10px 15px;border-radius:8px;font-size:12.5px;font-weight:500;
+  box-shadow:var(--shadow-lg);opacity:0;transition:opacity .18s ease, transform .18s ease;
+  pointer-events:none;max-width:min(440px,90vw);
+}
+.toast.is-on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* --------------------------------------------------------- prototype nav */
+.proto{position:fixed;right:16px;bottom:16px;z-index:100;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.proto-panel{
+  background:var(--ink);color:var(--ground);border-radius:10px;padding:9px;
+  box-shadow:var(--shadow-lg);width:214px;display:flex;flex-direction:column;gap:2px;
+}
+.proto-panel .proto-label{
+  padding:5px 8px 6px;font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;opacity:.55;font-weight:600;
+}
+.proto-panel button{
+  display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border:0;border-radius:6px;
+  background:transparent;color:inherit;font-size:12px;text-align:left;width:100%;opacity:.82;
+}
+.proto-panel button:hover{background:rgba(255,255,255,.11);opacity:1}
+.proto-panel button.is-on{background:rgba(255,255,255,.16);opacity:1;font-weight:600}
+.proto-panel .sep{height:1px;background:rgba(255,255,255,.14);margin:5px 4px}
+.proto-toggle{
+  display:flex;align-items:center;gap:7px;height:34px;padding:0 13px;border-radius:20px;
+  background:var(--ink);color:var(--ground);border:0;font-size:12px;font-weight:600;
+  box-shadow:var(--shadow-lg);letter-spacing:.01em;
+}
+.proto-dot{width:6px;height:6px;border-radius:50%;background:#3FC194}
+
+/* ------------------------------------------------------------ responsive */
+.mobile-nav{display:none}
+@media (max-width:1080px){
+  .ov-grid{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .dash-grid{grid-template-columns:1fr}
+  .money-grid{grid-template-columns:repeat(2,1fr)}
+  .proj-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:860px){
+  /* On a phone, one scroll beats two: let the grid grow and the page carry it,
+     rather than nesting a touch scroller inside another one. */
+  .grid-scroll--page{--grid-h:none}
+  .sidebar{display:none}
+  /* both sidebars collapse: sections into the chip strip, projects into a
+     topbar dropdown that takes the title's place. */
+  .rail{display:none}
+  .topbar-title{display:none}
+  .proj-select{display:block;flex:1 1 auto;min-width:0;max-width:none}
+  /* The density switch is a desktop reading preference. On a phone it costs
+     the topbar more room than the project dropdown can spare, and the 38px
+     compact row is already the right height for a small screen. */
+  #density,#densityM{display:none}
+  .mobile-nav{
+    display:flex;gap:6px;overflow-x:auto;padding:9px 14px;
+    background:var(--surface);border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:20;scrollbar-width:none;
+  }
+  .mobile-nav::-webkit-scrollbar{display:none}
+  .mobile-nav button{
+    flex:none;height:29px;padding:0 12px;border-radius:20px;
+    border:1px solid var(--line);background:var(--surface);
+    font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap;
+  }
+  .mobile-nav button.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on);font-weight:600}
+  .wrap{padding:16px 14px 70px;gap:26px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .kpi-value{font-size:22px}
+  .money-grid{grid-template-columns:1fr 1fr}
+  .topbar{padding:0 12px;gap:8px}
+  .user-chip .name,.user-chip .role{display:none}
+  .user-chip{padding-left:8px}
+  .section-tools{width:100%;margin-left:0}
+  .search .input{width:100%}
+  .search{flex:1}
+  .landing-bar{padding:0 16px}
+  .landing-main{padding:44px 16px;gap:26px}
+  .logo-plate{padding:32px 20px}
+  .proj-grid{grid-template-columns:1fr}
+  .proto{right:12px;bottom:12px}
+}
+@media (max-width:520px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .money-grid{grid-template-columns:1fr}
+}
+
+/* Sign-in failures have somewhere to go now that the form is real. */
+.auth-err{
+  margin-top:2px;font-size:12.5px;color:var(--bad);
+  background:var(--bad-soft);border:1px solid var(--bad-line);
+  border-radius:var(--r);padding:8px 10px;
+}
