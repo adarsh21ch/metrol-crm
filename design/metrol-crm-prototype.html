@@ -288,7 +288,38 @@ input,select{font:inherit;color:inherit}
   background:transparent;transition:background .12s ease;
 }
 .pane-rz:hover::after,.pane-rz.is-drag::after{background:var(--accent)}
-.side-label{padding:6px 10px 8px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.side-head{display:flex;align-items:center;gap:4px;padding:0 2px 6px}
+.side-label{
+  padding:6px 8px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.side-toggle,.rail-toggle{
+  width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:6px;
+  border:1px solid transparent;background:transparent;color:var(--ink-3);
+}
+.side-toggle:hover,.rail-toggle:hover{background:var(--surface-3);color:var(--ink)}
+.rail-toggle{margin-top:8px;align-self:center}
+
+/* Collapsed: icons only, names on hover, so the workspace gets the room back. */
+.sidebar.is-mini{width:64px;flex:0 0 64px;align-items:center}
+.sidebar.is-mini .side-nm,
+.sidebar.is-mini .count,
+.sidebar.is-mini .side-label,
+.sidebar.is-mini .side-foot,
+.sidebar.is-mini .pane-rz{display:none}
+.sidebar.is-mini .side-head{padding:0 0 6px;justify-content:center}
+.sidebar.is-mini .side-link{width:40px;justify-content:center;padding:0}
+.sidebar.is-mini .side-link.is-on::before{left:-12px}
+.side-tip{
+  position:absolute;left:calc(100% + 9px);top:50%;transform:translateY(-50%) translateX(-3px);
+  background:var(--ink);color:var(--ground);
+  padding:5px 9px;border-radius:6px;font-size:11.5px;font-weight:500;letter-spacing:0;
+  white-space:nowrap;pointer-events:none;z-index:60;opacity:0;
+  transition:opacity .12s ease, transform .12s ease;box-shadow:var(--shadow-md);
+}
+.sidebar.is-mini .side-link:hover .side-tip,
+.sidebar.is-mini .side-link:focus-visible .side-tip{opacity:1;transform:translateY(-50%) translateX(0)}
 .side-link{
   display:flex;align-items:center;gap:10px;
   height:34px;padding:0 10px;border-radius:6px;border:0;background:transparent;
@@ -481,25 +512,21 @@ table.grid tbody tr.is-new:hover td{background:var(--accent-soft)}
 
 /* resize handles */
 th.rz-col{position:relative}
-/* The handle must stay INSIDE its own <th>. Every sticky header cell is its
-   own stacking context at z-index:3, so a handle that overhangs to the right
-   (it used to sit at right:-5px) has that half painted over by the next
-   header — elementFromPoint returns the TH and the drag never starts. Kept
-   flush right, the whole 12px is live; ::after is nudged back onto the
-   column edge so the indicator still lines up with the border. */
-.rz{
-  position:absolute;top:0;right:0;width:12px;height:100%;
-  cursor:col-resize;z-index:4;display:flex;justify-content:flex-end;
-  touch-action:none;
+/* Column resize. The grab zone runs the FULL height of the grid rather than
+   living in the header, so a boundary can be caught beside row 10 the way it
+   would be in a spreadsheet. The strips sit in their own layer above the
+   table, which also keeps them clear of the sticky header's stacking context
+   — the reason the old in-header handle had half of it painted over. */
+.rz-layer{position:absolute;top:0;left:0;pointer-events:none;z-index:6}
+.rz-strip{
+  position:absolute;top:0;bottom:0;width:11px;pointer-events:auto;
+  cursor:col-resize;display:flex;justify-content:center;touch-action:none;
 }
-.rz::after{
-  content:"";width:2px;height:60%;align-self:center;border-radius:2px;
-  margin-right:-1px;
+.rz-strip::after{
+  content:"";width:2px;height:100%;
   background:transparent;transition:background .12s ease;
 }
-/* The drag affordance stays ink: a yellow hairline on white is too faint,
-   and column resize is the one interaction that must never regress. */
-.rz:hover::after,.rz.is-drag::after{background:var(--ink)}
+.rz-strip:hover::after,.rz-strip.is-drag::after{background:var(--ink);opacity:.34}
 /* Fixed, not absolute: an absolutely-positioned guide inside a scroller is
    laid out against the content origin, so it drifted away from the cursor as
    soon as the grid was scrolled. Its position now comes from the header cell's
@@ -987,29 +1014,33 @@ table.hist .what{font-weight:500}
   <div class="shell">
     <nav class="rail" id="projRail" aria-label="Projects">
       <div class="rail-list" id="projRailList"></div>
+      <button class="rail-toggle" id="railToggle" aria-label="Show project names"></button>
       <span class="pane-rz" id="railRz" title="Drag to widen \u00b7 double-click to reset"></span>
     </nav>
     <nav class="sidebar" id="sideNav">
-      <div class="side-label">Funding Room</div>
+      <div class="side-head">
+        <div class="side-label">Funding Room</div>
+        <button class="side-toggle" id="sideToggle" aria-label="Collapse sidebar"></button>
+      </div>
       <button class="side-link is-on" data-sec="sec-overview">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-        Overview
+        <span class="side-nm">Overview</span><span class="side-tip">Overview</span>
       </button>
       <button class="side-link" data-sec="sec-leads">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
-        Leads <span class="count" id="navLeads">0</span>
+        <span class="side-nm">Leads</span> <span class="count" id="navLeads">0</span><span class="side-tip">Leads</span>
       </button>
       <button class="side-link" data-sec="sec-sales">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 .9-5 2.8c0 3.7 10 2.2 10 5.9 0 2-2.2 3.1-5 3.1s-5-1.1-5-3.1"/></svg>
-        Sales <span class="count" id="navSales">0</span>
+        <span class="side-nm">Sales</span> <span class="count" id="navSales">0</span><span class="side-tip">Sales</span>
       </button>
       <button class="side-link" data-sec="sec-team">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 20V10M9 20V4M15 20v-7M21 20v-11"/></svg>
-        Team tracking
+        <span class="side-nm">Team tracking</span><span class="side-tip">Team tracking</span>
       </button>
       <button class="side-link" data-sec="sec-dash">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
-        Sales dashboard
+        <span class="side-nm">Sales dashboard</span><span class="side-tip">Sales dashboard</span>
       </button>
       <div class="side-foot">Prototype — sample data. Every number below is calculated from the rows in the tables.</div>
       <span class="pane-rz" id="sideRz" title="Drag to resize \u00b7 double-click to reset"></span>
@@ -1575,9 +1606,8 @@ function buildTable(tableId, cols, rows, guideId, opts){
     return '<col style="width:'+table._widths[i]+'px">';
   }).join("");
 
-  headRow.innerHTML = cols.map(function(c,i){
-    var last = i === cols.length-1;
-    return '<th class="rz-col">'+esc(c.label)+(last?"":'<span class="rz" data-i="'+i+'" title="Drag to resize · double-click to reset"></span>')+'</th>';
+  headRow.innerHTML = cols.map(function(c){
+    return '<th class="rz-col">'+esc(c.label)+"</th>";
   }).join("");
 
   body.innerHTML = rows.map(function(r){
@@ -1612,6 +1642,36 @@ function applyWidths(table){
   }
   table.style.width = (total + slack) + "px";
   table.style.minWidth = "";
+  renderResizeStrips(table);
+}
+
+/* One drag strip per column boundary, spanning the whole grid. Elements are
+   reused rather than rebuilt, so a strip is never replaced mid-drag while it
+   still holds the pointer capture. */
+function renderResizeStrips(table){
+  var scroller = table.closest(".grid-scroll");
+  if(!scroller || !table._widths) return;
+  var layer = scroller.querySelector(".rz-layer");
+  if(!layer){
+    layer = document.createElement("div");
+    layer.className = "rz-layer";
+    scroller.appendChild(layer);
+  }
+  var need = Math.max(0, table._widths.length - 1), i;
+  if(layer.children.length !== need){
+    var html = "";
+    for(i = 0; i < need; i++){
+      html += '<span class="rz-strip" data-i="'+i+'" title="Drag to resize \u00b7 double-click to reset"></span>';
+    }
+    layer.innerHTML = html;
+  }
+  var x = 0;
+  for(i = 0; i < need; i++){
+    x += table._widths[i];
+    layer.children[i].style.left = (x - 5) + "px";
+  }
+  layer.style.width = table.offsetWidth + "px";
+  layer.style.height = table.offsetHeight + "px";
 }
 
 /* the container width decides the slack, so re-apply when the window changes */
@@ -1620,13 +1680,13 @@ function reflowGrids(){
 }
 
 function wireResize(table, guideId){
-  if(table._resizeWired) return;
-  table._resizeWired = true;
   var guide = guideId ? $("#"+guideId) : null;
   var scroller = table.closest(".grid-scroll");
+  if(!scroller || scroller._resizeWired) return;
+  scroller._resizeWired = true;
 
-  table.addEventListener("pointerdown", function(e){
-    var h = e.target.closest(".rz");
+  scroller.addEventListener("pointerdown", function(e){
+    var h = e.target.closest(".rz-strip");
     if(!h) return;
     e.preventDefault();
     var i = parseInt(h.dataset.i,10);
@@ -1686,8 +1746,8 @@ function wireResize(table, guideId){
     window.addEventListener("pointercancel", up, true);
   });
 
-  table.addEventListener("dblclick", function(e){
-    var h = e.target.closest(".rz");
+  scroller.addEventListener("dblclick", function(e){
+    var h = e.target.closest(".rz-strip");
     if(!h) return;
     var i = parseInt(h.dataset.i,10);
     table._widths[i] = table._defaults[i];
@@ -1710,6 +1770,7 @@ function showPane(id){
   $$("[data-sec]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.sec === id); });
   var sc = $("#ownerScroll");
   if(sc) sc.scrollTop = 0;
+  reflowGrids();   // a hidden pane measures zero, so re-place its drag strips
 }
 
 /* ------------------------------------------------------------ pagination */
@@ -2522,6 +2583,7 @@ function setRailWidth(w){
   document.documentElement.style.setProperty("--rail-w", w + "px");
   var rail = $("#projRail");
   if(rail) rail.classList.toggle("is-wide", w >= RAIL_WIDE);
+  paintRailToggle();
   return w;
 }
 function setSideWidth(w){
@@ -2568,6 +2630,33 @@ function wirePaneResize(handleId, paneId, apply, storeKey, def){
   h.addEventListener("dblclick", function(){ apply(def); storeSet(storeKey, String(def)); });
 }
 
+var CHEV_L = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+var CHEV_R = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+
+/* Either sidebar can be dropped to icons only, which hands the width back to
+   the grid. Both remember the choice. */
+function setSideMini(on, persist){
+  var nav = $("#sideNav"), b = $("#sideToggle");
+  if(!nav) return;
+  nav.classList.toggle("is-mini", !!on);
+  if(b){
+    b.innerHTML = on ? CHEV_R : CHEV_L;
+    b.setAttribute("title", on ? "Expand sidebar" : "Collapse to icons");
+    b.setAttribute("aria-label", b.getAttribute("title"));
+  }
+  if(persist !== false) storeSet("metrol-crm-side-mini", on ? "1" : "0");
+  reflowGrids();
+}
+
+function paintRailToggle(){
+  var b = $("#railToggle"), rail = $("#projRail");
+  if(!b || !rail) return;
+  var wide = rail.classList.contains("is-wide");
+  b.innerHTML = wide ? CHEV_L : CHEV_R;
+  b.setAttribute("title", wide ? "Show icons only" : "Show project names");
+  b.setAttribute("aria-label", b.getAttribute("title"));
+}
+
 function initPanes(){
   var r = parseInt(storeGet("metrol-crm-rail-w"), 10);
   var d = parseInt(storeGet("metrol-crm-side-w"), 10);
@@ -2575,6 +2664,20 @@ function initPanes(){
   setSideWidth(isNaN(d) ? SIDE_DEF : d);
   wirePaneResize("railRz", "projRail", setRailWidth, "metrol-crm-rail-w", RAIL_DEF);
   wirePaneResize("sideRz", "sideNav",  setSideWidth, "metrol-crm-side-w", SIDE_DEF);
+
+  setSideMini(storeGet("metrol-crm-side-mini") === "1", false);
+  var st = $("#sideToggle");
+  if(st) st.addEventListener("click", function(){
+    setSideMini(!$("#sideNav").classList.contains("is-mini"));
+  });
+  var rt = $("#railToggle");
+  if(rt) rt.addEventListener("click", function(){
+    var wide = $("#projRail").classList.contains("is-wide");
+    var w = setRailWidth(wide ? RAIL_DEF : 208);
+    storeSet("metrol-crm-rail-w", String(w));
+    reflowGrids();
+  });
+  paintRailToggle();
 }
 
 function renderProjSelect(){

@@ -372,6 +372,38 @@ It was a narrow chart beside a 2x2 tile block, with dead space either side.
 
 ---
 
+# ROUND 6 — collapsing sidebars, and resize from anywhere (2026-09-04)
+
+## Both sidebars collapse to icons
+
+- **Section nav**: a chevron beside the "FUNDING ROOM" label toggles `.is-mini` —
+  64px, icons only, names on hover via `.side-tip`, the active marker kept. The
+  drag handle hides while collapsed (the toggle owns the width then).
+- **Projects rail**: `#railToggle` at its foot flips between 64px and 208px; the
+  drag still works and the chevron follows whatever the width ends up being.
+- Both remember: `metrol-crm-side-mini`, `metrol-crm-rail-w`.
+- Collapsing both hands **150px back to the grid** at 1440px — enough that the
+  Assigned-to column stops being clipped.
+
+## Column resize now works from any row
+
+The handle used to live inside the header `<th>`. There is now an `.rz-layer`
+above the table holding one `.rz-strip` per boundary, each spanning the grid's
+full height — so a boundary can be grabbed beside row 10, spreadsheet-style,
+and double-click-to-reset works from there too.
+
+Two things this quietly fixed: the strips sit in their own stacking context, so
+the old "half the handle is dead because the next sticky `<th>` paints over it"
+problem cannot recur; and `renderResizeStrips()` **reuses** its elements rather
+than rebuilding them, because replacing a strip mid-drag would drop the pointer
+capture and kill the drag.
+
+`applyWidths()` calls it, so anything that moves a column moves the strips.
+`showPane()` calls `reflowGrids()` because a hidden pane measures zero height and
+its strips would otherwise be 0px tall when it is first shown.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.
