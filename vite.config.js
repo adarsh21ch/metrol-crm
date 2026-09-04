@@ -10,12 +10,12 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(dir, 'src/react') } },
   build: {
     rollupOptions: {
-      // Two entries on purpose: index.html is the vanilla build that is live
-      // right now, app.html is the React port. They swap at cutover, so the
-      // working version is never the thing under construction.
+      // index.html is the React app. legacy.html is the vanilla build it
+      // replaced, kept reachable for a little while as a fallback — delete it
+      // (and src/app.js) once nobody has needed it.
       input: {
         main: path.resolve(dir, 'index.html'),
-        app: path.resolve(dir, 'app.html'),
+        legacy: path.resolve(dir, 'legacy.html'),
       },
     },
   },

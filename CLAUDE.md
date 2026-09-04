@@ -575,8 +575,8 @@ The app ships two builds from one repo while the port is proven:
 
 | Path | Build | State |
 |---|---|---|
-| `/` | the vanilla prototype wired to Supabase | live, in daily use |
-| `/app.html` | the React port | complete, needs testing against real data |
+| `/` | the React app | live — this is the product |
+| `/legacy.html` | the vanilla prototype wired to Supabase | fallback only; delete it, and `src/app.js`, once nobody has needed it |
 
 Both load the **same** `src/prototype.css`. The design is never retyped, so the
 two cannot drift, and the port is a translation of markup and behaviour rather
@@ -605,6 +605,7 @@ Every section renders; search narrows and re-pages; a 120px column drag moves
 the edge exactly 120px; both panes fold and remember it; the theme flips and
 survives a reload; no horizontal overflow on a phone; zero console errors.
 
-**Not verified:** anything against the real database. Supabase is unreachable
-from the build environment, so the port has never talked to Postgres. That is
-what the next test is for, and why `/` has not been replaced yet.
+Verified against the real database on 4 Sept by signing in as the owner: the
+project, leads and KPIs all loaded, and assigning a lead and verifying a payment
+both wrote through and came back in Recent activity. That round trip is what the
+cutover was waiting on.

@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metrol CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  // Stamp the theme before first paint so a dark user never sees a white flash.
+  try {
+    var t = localStorage.getItem('metrol-theme')
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t)
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<!-- ============================================================ LANDING -->
+<div class="screen is-active" id="screen-landing">
+  <div class="landing">
+    <div class="landing-bar">
+      <div class="brand">
+        <div class="monogram">M</div>
+        <div class="brand-name">Metrol Media</div>
+      </div>
+      <button class="btn btn--primary btn--sm" data-go="signin">Sign in</button>
+    </div>
+
+    <div class="landing-main">
+      <div class="logo-plate">
+        <div class="logo-lockup">
+          <div class="monogram">M</div>
+          <div class="logo-word">METROL MEDIA</div>
+        </div>
+        <div class="logo-note">Placeholder — your logo file drops in here</div>
+      </div>
+
+      <div class="landing-copy">
+        <div class="eyebrow">Internal systems</div>
+        <h1>The workspace where Metrol Media runs its projects.</h1>
+        <p>Leads, follow-ups, conversions and team performance for every client project — in one place, updated by the people doing the work. Access is limited to Metrol Media staff.</p>
+        <button class="btn btn--primary btn--lg" data-go="signin">Sign in to dashboard</button>
+      </div>
+    </div>
+
+    <div class="landing-foot">
+      <div>© 2026 Metrol Media · metrol.in</div>
+      <div style="display:flex;gap:18px"><a href="#" onclick="return false">Privacy</a><a href="#" onclick="return false">Support</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================= SIGN IN -->
+<div class="screen" id="screen-signin">
+  <div class="auth">
+    <div class="auth-card">
+      <div class="auth-head">
+        <div class="monogram" style="margin-bottom:6px">M</div>
+        <h2>Sign in</h2>
+        <p>Metrol Media staff accounts only.</p>
+      </div>
+      <div class="auth-form">
+        <div class="field">
+          <label for="authEmail">Email</label>
+          <input class="input" id="authEmail" type="email" placeholder="you@metrol.in" autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="authPass">Password</label>
+          <input class="input" id="authPass" type="password" placeholder="Your password" autocomplete="current-password">
+        </div>
+        <button class="btn btn--primary btn--block btn--lg" id="authGo">Sign in</button>
+        <p id="authErr" class="auth-err" hidden></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ PROJECTS -->
+<div class="screen screen--app" id="screen-projects">
+  <div class="topbar">
+    <div class="brand">
+      <div class="monogram">M</div>
+      <div class="brand-name">Metrol Media</div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" data-theme-toggle title="Dark mode" aria-label="Switch to dark mode"></button>
+      <div class="user-chip">
+        <div class="avatar avatar--lg">MM</div>
+        <div><div class="name">Owner</div><div class="role">owner@metrol.in</div></div>
+      </div>
+      <button class="icon-btn" title="Sign out" data-go="landing" aria-label="Sign out">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="shell">
+    <div class="workspace">
+      <div class="wrap">
+        <div class="page-head">
+          <h1>Projects</h1>
+          <div class="sub" id="projCount">6 active projects</div>
+          <div class="section-tools">
+            <div class="seg" id="projView">
+              <button class="is-on" data-projview="cards">Cards</button>
+              <button data-projview="list">List</button>
+            </div>
+            <button class="btn btn--primary btn--sm" data-modal="newproject">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              New project
+            </button>
+          </div>
+        </div>
+        <div class="proj-grid" id="projGrid"></div>
+        <div class="grid-shell" id="projListShell" hidden>
+          <div class="grid-scroll">
+            <div class="rz-guide" id="guideProjects"></div>
+            <table class="grid" id="projListGrid">
+              <colgroup></colgroup>
+              <thead><tr></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="grid-foot"><span id="projListFoot">—</span>
+            <span class="grid-hint">Click a row to open the project</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================== PROJECT DASHBOARD -->
+<div class="screen screen--app" id="screen-project">
+  <div class="topbar">
+    <button class="icon-btn" data-go="projects" title="Back to projects" aria-label="Back to projects">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="topbar-title">
+      <h2>Funding Room</h2>
+      <span class="chip chip--good">Active</span>
+    </div>
+    <select class="proj-select" id="projSelect" aria-label="Switch project"></select>
+    <div class="topbar-right">
+      <button class="icon-btn" data-theme-toggle title="Dark mode" aria-label="Switch to dark mode"></button>
+      <div class="seg" id="density">
+        <button class="is-on" data-density="compact">Compact</button>
+        <button data-density="comfortable">Comfortable</button>
+      </div>
+      <div class="user-chip">
+        <div class="avatar avatar--lg">MM</div>
+        <div><div class="name">Owner</div><div class="role">owner@metrol.in</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <nav class="rail" id="projRail" aria-label="Projects">
+      <div class="rail-list" id="projRailList"></div>
+      <button class="rail-toggle" id="railToggle" aria-label="Show project names"></button>
+      <span class="pane-rz" id="railRz" title="Drag to widen · double-click to reset"></span>
+    </nav>
+    <nav class="sidebar" id="sideNav">
+      <div class="side-head">
+        <div class="side-label">Funding Room</div>
+        <button class="side-toggle" id="sideToggle" aria-label="Collapse sidebar"></button>
+      </div>
+      <button class="side-link is-on" data-sec="sec-overview" data-tip="Overview">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span class="side-nm">Overview</span>
+      </button>
+      <button class="side-link" data-sec="sec-leads" data-tip="Leads">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+        <span class="side-nm">Leads</span> <span class="count" id="navLeads">0</span>
+      </button>
+      <button class="side-link" data-sec="sec-sales" data-tip="Sales">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 .9-5 2.8c0 3.7 10 2.2 10 5.9 0 2-2.2 3.1-5 3.1s-5-1.1-5-3.1"/></svg>
+        <span class="side-nm">Sales</span> <span class="count" id="navSales">0</span>
+      </button>
+      <button class="side-link" data-sec="sec-team" data-tip="Team tracking">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 20V10M9 20V4M15 20v-7M21 20v-11"/></svg>
+        <span class="side-nm">Team tracking</span>
+      </button>
+      <button class="side-link" data-sec="sec-dash" data-tip="Sales dashboard">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        <span class="side-nm">Sales dashboard</span>
+      </button>
+      <div class="side-foot">Prototype — sample data. Every number below is calculated from the rows in the tables.</div>
+      <span class="pane-rz" id="sideRz" title="Drag to resize · double-click to reset"></span>
+    </nav>
+
+    <div class="workspace" id="ownerScroll">
+      <div class="mobile-nav" id="mobileNav">
+        <button class="is-on" data-sec="sec-overview">Overview</button>
+        <button data-sec="sec-leads">Leads</button>
+        <button data-sec="sec-sales">Sales</button>
+        <button data-sec="sec-team">Team tracking</button>
+        <button data-sec="sec-dash">Sales dashboard</button>
+      </div>
+
+      <div class="wrap">
+        <!-- overview -->
+        <div class="section is-on" id="sec-overview">
+          <div class="section-head">
+            <h3>Overview</h3>
+            <div class="sub">Everything in this project, right now</div>
+          </div>
+          <div class="kpis" id="kpiRow"></div>
+          <div class="ov-grid">
+            <div class="ov-card">
+              <div class="ov-head"><h4>Needs attention</h4></div>
+              <div class="ov-actions" id="ovAttention"></div>
+            </div>
+            <div class="ov-card">
+              <div class="ov-head"><h4>Recent activity</h4><span class="sub">Across every lead here</span></div>
+              <div class="ov-feed" id="ovFeed"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- leads -->
+        <div class="section" id="sec-leads">
+          <div class="section-head">
+            <h3>Leads</h3>
+            <div class="sub" id="leadsSub">—</div>
+            <div class="section-tools">
+              <div class="search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <input class="input" id="leadSearch" type="search" placeholder="Search name, email or phone">
+              </div>
+              <button class="btn btn--sm" data-modal="import">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
+                Import
+              </button>
+              <button class="btn btn--sm btn--primary" data-modal="newlead">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Add lead
+              </button>
+            </div>
+          </div>
+          <div class="grid-shell">
+            <div class="grid-scroll grid-scroll--page">
+              <div class="rz-guide" id="guideLeads"></div>
+              <table class="grid" id="leadsGrid">
+                <colgroup></colgroup>
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="grid-foot">
+              <span id="leadsFoot">—</span>
+              <span class="foot-right">
+                <span class="grid-hint">
+                  Drag a column edge to resize · <kbd>double-click</kbd> to reset
+                </span>
+                <span class="pager" id="leadsPager"></span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- sales -->
+        <div class="section" id="sec-sales">
+          <div class="section-head">
+            <h3>Sales</h3>
+            <div class="sub" id="salesSub">—</div>
+          </div>
+          <div class="grid-shell">
+            <div class="grid-scroll">
+              <div class="rz-guide" id="guideSales"></div>
+              <table class="grid" id="salesGrid">
+                <colgroup></colgroup>
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="grid-foot"><span id="salesFoot">—</span>
+              <span class="foot-right"><span class="pager" id="salesPager"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- team tracking -->
+        <div class="section" id="sec-team">
+          <div class="section-head">
+            <h3>Team tracking</h3>
+            <div class="sub">One row per salesperson — all figures calculated from their leads</div>
+          </div>
+          <div class="grid-shell">
+            <div class="grid-scroll">
+              <div class="rz-guide" id="guideTeam"></div>
+              <table class="grid" id="teamGrid">
+                <colgroup></colgroup>
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="grid-foot"><span id="teamFoot">—</span></div>
+          </div>
+        </div>
+
+        <!-- sales dashboard -->
+        <div class="section" id="sec-dash">
+          <div class="section-head">
+            <h3>Sales dashboard</h3>
+            <div class="sub">Verified and pending payments combined</div>
+          </div>
+          <div class="money-grid" id="moneyGrid"></div>
+          <div class="dash-grid">
+            <div class="chart-card">
+              <div class="chart-head">
+                <h4>Last 7 days</h4>
+                <div class="sub" id="weekTotal">—</div>
+              </div>
+              <div class="bars" id="bars"></div>
+              <div class="chart-base"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head">
+                <h4>Who closed it</h4>
+                <div class="sub">All time</div>
+              </div>
+              <div class="hbars" id="hbars"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================================================== MEMBER DASHBOARD -->
+<div class="screen screen--app" id="screen-member">
+  <div class="topbar">
+    <div class="brand">
+      <div class="monogram">M</div>
+      <div class="brand-name">Metrol Media</div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" data-theme-toggle title="Dark mode" aria-label="Switch to dark mode"></button>
+      <div class="seg" id="densityM">
+        <button class="is-on" data-density="compact">Compact</button>
+        <button data-density="comfortable">Comfortable</button>
+      </div>
+      <div class="user-chip">
+        <div class="avatar avatar--lg">MV</div>
+        <div><div class="name">Mohit Verma</div><div class="role">Sales</div></div>
+      </div>
+      <button class="icon-btn" title="Sign out" data-go="landing" aria-label="Sign out">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="shell">
+    <div class="workspace">
+      <div class="wrap">
+        <div class="page-head">
+          <h1>My leads</h1>
+          <div class="sub">Assigned to you by the owner</div>
+        </div>
+
+        <div class="banner" id="memberBanner" hidden>
+          <div>
+            <div class="t" id="bannerTitle">2 new leads assigned to you</div>
+            <div class="d">Call them and set a status so the owner can see where they stand.</div>
+          </div>
+          <button class="btn btn--sm" id="bannerDismiss">Got it</button>
+        </div>
+
+        <div class="kpis" id="memberKpis"></div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>Leads</h3>
+            <div class="sub" id="memberLeadsSub">—</div>
+          </div>
+          <div class="grid-shell">
+            <div class="grid-scroll">
+              <div class="rz-guide" id="guideMember"></div>
+              <table class="grid" id="memberGrid">
+                <colgroup></colgroup>
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="grid-foot">
+              <span id="memberFoot">—</span>
+              <span class="grid-hint">Tap <b style="color:var(--ink-2)">Status</b> or <b style="color:var(--ink-2)">Quality</b> to update a lead</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>My sales</h3>
+            <div class="sub" id="memberSalesSub">—</div>
+          </div>
+          <div class="grid-shell">
+            <div class="grid-scroll">
+              <div class="rz-guide" id="guideMemberSales"></div>
+              <table class="grid" id="memberSalesGrid">
+                <colgroup></colgroup>
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="grid-foot"><span id="memberSalesFoot">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================== MODALS -->
+<div class="backdrop" id="saleModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saleTitle">
+    <div class="modal-head">
+      <h3 id="saleTitle">Record sale</h3>
+      <p id="saleLeadName">—</p>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="saleAmount">Sale amount (₹)</label>
+        <input class="input" id="saleAmount" type="number" inputmode="numeric" placeholder="e.g. 125000">
+      </div>
+      <p style="font-size:12px;color:var(--ink-3);line-height:1.5">The owner verifies the payment once it lands. Until then it shows as <b style="color:var(--warn)">Pending</b> in the Sales section.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn--sm" data-close>Cancel</button>
+      <button class="btn btn--sm btn--primary" id="saleSave">Save sale</button>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="newprojectModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="npTitle">
+    <div class="modal-head">
+      <h3 id="npTitle">New project</h3>
+      <p>Projects hold their own leads, sales and team.</p>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label for="npName">Project name</label><input class="input" id="npName" placeholder="e.g. Funding Room"></div>
+      <div class="field"><label for="npDesc">Short description</label><input class="input" id="npDesc" placeholder="What this project is running"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn--sm" data-close>Cancel</button>
+      <button class="btn btn--sm btn--primary" data-close-toast="Prototype — creating projects gets wired up in the build.">Create project</button>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="newleadModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nlTitle">
+    <div class="modal-head">
+      <h3 id="nlTitle">Add lead</h3>
+      <p>Funding Room</p>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label for="nlName">Name</label><input class="input" id="nlName" placeholder="Full name"></div>
+      <div class="field"><label for="nlPhone">Phone</label><input class="input" id="nlPhone" placeholder="+91 "></div>
+      <div class="field"><label for="nlEmail">Email</label><input class="input" id="nlEmail" type="email" placeholder="name@email.com"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn--sm" data-close>Cancel</button>
+      <button class="btn btn--sm btn--primary" data-close-toast="Prototype — adding leads gets wired up in the build.">Add lead</button>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="importModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <div class="modal-head">
+      <h3 id="impTitle">Import leads</h3>
+      <p>An Excel sheet (.xlsx) or a CSV, one lead per row.</p>
+    </div>
+    <div class="modal-body">
+      <input type="file" id="impFile" accept=".xlsx,.xls,.csv,text/csv" hidden>
+      <div class="drop" id="impDrop" role="button" tabindex="0">
+        <b id="impDropName">Choose a file</b>
+        <span id="impDropHint">or drop it here — .xlsx or .csv</span>
+      </div>
+      <p class="imp-note">
+        The first row must be a header. It looks for <b>Name</b>, <b>Phone</b>, <b>Email</b>
+        and optionally <b>Assign to</b> — any other columns are ignored.
+        Leads already in this project with the same phone number are skipped.
+      </p>
+      <div class="field">
+        <label for="impAssign">Assign every imported lead to</label>
+        <select class="input" id="impAssign"></select>
+      </div>
+      <div class="imp-result" id="impResult" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn--sm" data-close>Cancel</button>
+      <button class="btn btn--sm btn--primary" id="impGo" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="historyModal" hidden>
+  <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+    <div class="modal-head">
+      <h3 id="histTitle">Lead history</h3>
+      <p id="histSub">Every change to this lead, oldest first</p>
+    </div>
+    <div class="modal-body">
+      <div class="hist-meta" id="histMeta"></div>
+      <div class="hist-wrap">
+        <table class="hist">
+          <thead><tr><th>When</th><th>What changed</th><th>From</th><th>To</th><th>By</th></tr></thead>
+          <tbody id="histBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn--sm" data-close>Close</button></div>
+  </div>
+</div>
+
+<div class="hover-tip" id="hoverTip"></div>
+<div class="toast" id="toast"></div>
+
+<div class="proto">
+  <div class="proto-panel" id="protoPanel" hidden>
+    <div class="proto-label">Screens</div>
+    <button data-go="landing">1 · metrol.in landing</button>
+    <button data-go="signin">2 · Sign in</button>
+    <button data-go="projects">3 · Owner — projects</button>
+    <button data-go="project">4 · Owner — project dashboard</button>
+    <button data-go="member">5 · Salesperson dashboard</button>
+    <div class="sep"></div>
+    <div class="proto-label">Theme</div>
+    <button data-theme-set="light">Light</button>
+    <button data-theme-set="dark">Dark</button>
+    <button data-theme-set="system">Match device</button>
+  </div>
+  <button class="proto-toggle" id="protoToggle"><span class="proto-dot"></span> Prototype</button>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
