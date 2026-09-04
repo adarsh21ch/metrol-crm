@@ -17,9 +17,19 @@ So: **spend effort on polish and smoothness, not on extra modules.** No feature 
 ## Current state
 
 - **`design/metrol-crm-prototype.html`** — a single-file clickable prototype covering all 5 screens. This is the design source of truth. It is **not** the app; no real code is scaffolded yet.
-- Published as an Artifact: https://claude.ai/code/artifact/6cf4afe7-4d07-4b9e-8619-175b16c13949
-  To update that same link, publish with `url` set to it. Publishing without `url` from a new conversation creates a *separate* artifact.
-- Verified working: column resize (drag/dbl-click reset/min clamp), live KPI recalculation, assign modal, status+quality dropdowns, convert→record-sale→owner-sees-it flow, light/dark, mobile.
+- **Current Artifact: https://claude.ai/code/artifact/ba33a3c3-1d12-4f96-91bf-985da26362a9**
+  Publish with `url` set to that to keep the link. Publishing without `url` from a
+  new conversation creates a *separate* artifact.
+- **The original artifact (6cf4afe7-4d07-4b9e-8619-175b16c13949) is stranded.**
+  It was published from a different Claude account. From this account it reads back
+  as "not found", so it cannot be republished to and the link the client may already
+  hold will never update. Either re-send the new link, or redo a publish from the
+  account that owns the old one.
+- Verified working, re-tested in Chromium after the changes below: column resize
+  (drag, drag that leaves the handle, double-click reset, 64px min clamp), live KPI
+  recalculation, assign modal, status+quality dropdowns, convert→record-sale→owner-
+  sees-it flow, light/dark in all three states, mobile at 390px with no page-level
+  horizontal scroll.
 
 ### How to preview it locally
 
@@ -72,9 +82,10 @@ Then open `file:///Users/apple/metrol-crm/.preview.html` in the Browser pane. De
 
 ---
 
-# NEXT UP — requested changes, not yet done
+# DONE — the four requested changes (2026-09-04)
 
-These came from Adarsh on 2026-09-04 after reviewing the prototype. Apply them to `design/metrol-crm-prototype.html`, then republish to the **same** artifact URL above.
+All four are built, browser-tested and published. Kept for reference; the notes
+under each one record the judgement calls, which the client has not yet seen.
 
 ## 1. Rebrand to the Metrol Media palette (black / white / yellow)
 
@@ -104,6 +115,93 @@ Right now, switching projects means going back to the home screen. Instead:
 ## 4. Light/dark mode toggle as a real product control
 
 Currently the theme switch only lives in the black "Prototype" panel. Add a proper **sun/moon toggle button in the app topbar**, and persist the choice to `localStorage` (wrap reads/writes in try/catch — it throws in some contexts). Keep all three theme states working: explicit light, explicit dark, and unstamped "follow the device".
+
+---
+
+# How those four were actually built
+
+## Palette
+
+Two tokens were added because the brief's contrast rule needs them:
+
+- `--accent-ink` — the yellow darkened until it is legible **as text** (`#7A5A00`
+  light, and the plain bright yellow on dark, where yellow-on-black is already
+  fine). Everywhere the old design used `color:var(--accent)` on a light ground —
+  active sidebar count, banner title, menu tick, assign-button hover — now uses
+  this. `--accent` itself is only ever a fill.
+- `--pri` / `--pri-hover` / `--pri-on` — the primary button, black-on-light and
+  near-white-on-dark, so yellow is not spent on the most common button.
+
+Two judgement calls worth confirming with Adarsh:
+
+1. **`.chip--accent` ("Connected", and the Connected Yes/No cell) is now an ink
+   outline, not yellow.** Yellow there would have sat right next to the amber
+   Follow-up and Average chips and read as the same signal. Yellow is reserved for
+   active/selected state, exactly as the brief asks.
+2. **The drag-resize handle and its guide line are ink, not yellow.** A 2px yellow
+   hairline on white is close to invisible, and this is the never-regress feature.
+
+Green / amber / red are untouched, as instructed.
+
+## Projects screen
+
+`repeat(3,1fr)` on desktop, 2 up to 1080px, 1 up to 860px. Cards gained a 16:9
+`.proj-media` header. A project photo is an **inline SVG data URI** — a published
+Artifact's CSP blocks images from any outside host, so a real uploaded photo has to
+be stored and served the same self-contained way. `p2` and `p4` deliberately have no
+photo so the "no photo yet" placeholder is visible in both views. List view reuses
+`buildTable`, so its columns resize like every other grid.
+
+## Two sidebars
+
+A 64px icon rail (`#projRail`) sits left of the section sidebar — the narrow option
+from the brief, because the leads grid is 1144px and the workspace is 1162px at
+1440px wide, so it only just fits. **If Adarsh wants full project names instead,
+widen `--rail-w` to ~200px and expect the leads table to start scrolling
+horizontally.** Below 860px the rail is replaced by `#projSelect` in the topbar.
+
+## Theme
+
+`applyTheme(v, persist)` / `effectiveTheme()` / `paintTheme()`, keyed on
+`localStorage["metrol-crm-theme"]`, every access in try/catch. The topbar button
+flips light↔dark; the prototype panel still offers "Match device", which clears the
+key and the attribute.
+
+---
+
+# Two pre-existing bugs found and fixed
+
+Neither was caused by the four changes; both were in the resize feature.
+
+1. **Half of every column-resize handle was dead.** `.rz` sat at `right:-5px`, so it
+   overhung into the next `<th>` — and because each sticky header cell is its own
+   stacking context at `z-index:3`, that overhanging half was painted over by the
+   next header. `elementFromPoint` at the handle's centre returned the `TH`, so
+   `e.target.closest(".rz")` was null and the drag never started. The handle is now
+   flush right and fully inside its own cell, with `::after` nudged back onto the
+   column edge so the indicator still lines up. Verified live across the handle's
+   whole width.
+2. **`up()` could drop the final frame.** A `pointermove` schedules a rAF that
+   `pointerup` then cancels, leaving `_widths` correct but the DOM one frame stale.
+   `up()` now paints once after cancelling.
+
+---
+
+# NEXT UP — nothing assigned yet
+
+Open items, smallest first. None of these were asked for; do not build them unasked.
+
+- **The overlapping avatar stack in the project card footer is hard to read**
+  (`.stack .avatar`, 22px at `margin-left:-6px`). Pre-existing, unchanged. Worth
+  raising with Adarsh rather than silently redesigning.
+- **The density switch is hidden below 860px.** The topbar could not fit the back
+  button, the project dropdown, density, theme and the user chip at 390px. Density
+  is a desktop reading preference and the 38px compact row is right on a phone —
+  but it is a removal, so it needs a yes.
+- **Project photos are placeholders.** Real upload needs a decision on where files
+  live (Supabase Storage is the obvious answer) before it is worth wiring.
+- The four client questions below are still unanswered, and the lead-source one
+  still blocks scaffolding the real app.
 
 ---
 

@@ -6,48 +6,61 @@
 <style>
 /* ---------------------------------------------------------------- tokens */
 :root{
-  --ground:#F6F7F9;
+  --ground:#F5F5F5;
   --surface:#FFFFFF;
-  --surface-2:#FAFBFC;
-  --surface-3:#F1F3F6;
-  --ink:#101418;
-  --ink-2:#454E5A;
-  --ink-3:#727C8A;
-  --line:#E3E7EC;
-  --line-2:#EEF1F4;
-  --accent:#1E4FD8;
-  --accent-hover:#1A44BC;
-  --accent-on:#FFFFFF;
-  --accent-soft:#ECF1FE;
-  --accent-line:#C6D6FA;
+  --surface-2:#FAFAFA;
+  --surface-3:#F0F0F0;
+  --ink:#0A0A0A;
+  --ink-2:#4A4A4A;
+  --ink-3:#767676;
+  --line:#E4E4E4;
+  --line-2:#EEEEEE;
+  /* Brand yellow is a FILL. Text sitting on it is always --accent-on (black). */
+  /* Where yellow would have to be text or an icon on a light ground, use      */
+  /* --accent-ink: the same hue darkened until it is actually readable.        */
+  --accent:#F5C518;
+  --accent-hover:#E3B510;
+  --accent-on:#0A0A0A;
+  --accent-soft:#FFF8DC;
+  --accent-line:#F0DFA8;
+  --accent-ink:#7A5A00;
+  /* primary button: black on light, near-white on dark */
+  --pri:#101010;
+  --pri-hover:#2B2B2B;
+  --pri-on:#FFFFFF;
   --good:#0B7A58;   --good-soft:#E2F3EC;  --good-line:#B7E0CF;
   --warn:#8F6206;   --warn-soft:#FBF0D8;  --warn-line:#EBD2A0;
   --bad:#BC392E;    --bad-soft:#FBEAE8;   --bad-line:#F0C4BF;
-  --shadow-sm:0 1px 2px rgba(16,20,24,.06);
-  --shadow-md:0 1px 2px rgba(16,20,24,.05), 0 10px 28px -14px rgba(16,20,24,.24);
-  --shadow-lg:0 24px 60px -20px rgba(16,20,24,.32);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 1px 2px rgba(0,0,0,.05), 0 10px 28px -14px rgba(0,0,0,.24);
+  --shadow-lg:0 24px 60px -20px rgba(0,0,0,.32);
   --r:7px;
   --topbar-h:58px;
+  --rail-w:64px;
   --sans:"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --display:"Archivo", var(--sans);
   --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --ground:#0B0F14;
-    --surface:#131922;
-    --surface-2:#171E28;
-    --surface-3:#1D2531;
-    --ink:#E8EDF4;
-    --ink-2:#A9B4C2;
-    --ink-3:#7B8695;
-    --line:#232C38;
-    --line-2:#1A222C;
-    --accent:#6E99FF;
-    --accent-hover:#87ACFF;
-    --accent-on:#0B0F14;
-    --accent-soft:#15233C;
-    --accent-line:#2B4271;
+    --ground:#0A0A0A;
+    --surface:#141414;
+    --surface-2:#1A1A1A;
+    --surface-3:#232323;
+    --ink:#F2F2F2;
+    --ink-2:#B0B0B0;
+    --ink-3:#8A8A8A;
+    --line:#2C2C2C;
+    --line-2:#212121;
+    --accent:#FFD84D;
+    --accent-hover:#FFE175;
+    --accent-on:#0A0A0A;
+    --accent-soft:#2A2410;
+    --accent-line:#4A3F16;
+    --accent-ink:#FFD84D;
+    --pri:#F4F4F5;
+    --pri-hover:#FFFFFF;
+    --pri-on:#0A0A0A;
     --good:#3FC194;   --good-soft:#0F2A21;  --good-line:#1E4C3B;
     --warn:#E0A93F;   --warn-soft:#2A2113;  --warn-line:#4C3D1C;
     --bad:#F0796B;    --bad-soft:#2C1715;   --bad-line:#4E2A26;
@@ -57,20 +70,24 @@
   }
 }
 :root[data-theme="dark"]{
-  --ground:#0B0F14;
-  --surface:#131922;
-  --surface-2:#171E28;
-  --surface-3:#1D2531;
-  --ink:#E8EDF4;
-  --ink-2:#A9B4C2;
-  --ink-3:#7B8695;
-  --line:#232C38;
-  --line-2:#1A222C;
-  --accent:#6E99FF;
-  --accent-hover:#87ACFF;
-  --accent-on:#0B0F14;
-  --accent-soft:#15233C;
-  --accent-line:#2B4271;
+  --ground:#0A0A0A;
+  --surface:#141414;
+  --surface-2:#1A1A1A;
+  --surface-3:#232323;
+  --ink:#F2F2F2;
+  --ink-2:#B0B0B0;
+  --ink-3:#8A8A8A;
+  --line:#2C2C2C;
+  --line-2:#212121;
+  --accent:#FFD84D;
+  --accent-hover:#FFE175;
+  --accent-on:#0A0A0A;
+  --accent-soft:#2A2410;
+  --accent-line:#4A3F16;
+  --accent-ink:#FFD84D;
+  --pri:#F4F4F5;
+  --pri-hover:#FFFFFF;
+  --pri-on:#0A0A0A;
   --good:#3FC194;   --good-soft:#0F2A21;  --good-line:#1E4C3B;
   --warn:#E0A93F;   --warn-soft:#2A2113;  --warn-line:#4C3D1C;
   --bad:#F0796B;    --bad-soft:#2C1715;   --bad-line:#4E2A26;
@@ -118,8 +135,8 @@ input,select{font:inherit;color:inherit}
 }
 .btn:hover{background:var(--surface-3);border-color:var(--ink-3)}
 .btn:active{transform:translateY(.5px)}
-.btn--primary{background:var(--accent);border-color:var(--accent);color:var(--accent-on)}
-.btn--primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn--primary{background:var(--pri);border-color:var(--pri);color:var(--pri-on)}
+.btn--primary:hover{background:var(--pri-hover);border-color:var(--pri-hover)}
 .btn--ghost{background:transparent;border-color:transparent;color:var(--ink-2)}
 .btn--ghost:hover{background:var(--surface-3);border-color:transparent;color:var(--ink)}
 .btn--sm{height:28px;padding:0 10px;font-size:12px}
@@ -140,14 +157,14 @@ input,select{font:inherit;color:inherit}
   height:26px;padding:0 10px;border:0;border-radius:5px;background:transparent;
   font-size:12px;font-weight:500;color:var(--ink-3);
 }
-.seg button.is-on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+.seg button.is-on{background:var(--accent);color:var(--accent-on);box-shadow:var(--shadow-sm);font-weight:600}
 
 .avatar{
   width:26px;height:26px;flex:0 0 26px;border-radius:50%;
   display:grid;place-items:center;
-  background:var(--accent-soft);color:var(--accent);
+  background:var(--surface-3);color:var(--ink-2);
   font-size:10px;font-weight:600;letter-spacing:.02em;
-  border:1px solid var(--accent-line);
+  border:1px solid var(--line);
 }
 .avatar--lg{width:34px;height:34px;flex-basis:34px;font-size:12px}
 
@@ -161,7 +178,9 @@ input,select{font:inherit;color:inherit}
 .chip--good{background:var(--good-soft);color:var(--good);border-color:var(--good-line)}
 .chip--warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line)}
 .chip--bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-line)}
-.chip--accent{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+/* "Connected" is not one of the green/amber/red semantics and must not read
+   as the amber Follow-up chip, so it is an ink outline. Yellow stays state. */
+.chip--accent{background:transparent;color:var(--ink);border-color:var(--ink)}
 .chip--mute{background:var(--surface-3);color:var(--ink-3);border-color:var(--line)}
 .chip--none{background:transparent;color:var(--ink-3);border-color:var(--line);border-style:dashed}
 .chip--none::before{display:none}
@@ -193,7 +212,10 @@ input,select{font:inherit;color:inherit}
 .logo-lockup{
   display:flex;align-items:center;gap:18px;
 }
-.logo-lockup .monogram{width:46px;height:46px;border-radius:9px;font-size:23px}
+.logo-lockup .monogram{
+  width:46px;height:46px;border-radius:9px;font-size:23px;
+  background:var(--accent);color:#0A0A0A;
+}
 .logo-word{
   font-family:var(--display);font-weight:700;
   font-size:clamp(30px,6vw,46px);letter-spacing:-.03em;line-height:1;
@@ -257,17 +279,52 @@ input,select{font:inherit;color:inherit}
   position:relative;transition:background .13s ease,color .13s ease;
 }
 .side-link:hover{background:var(--surface-3);color:var(--ink)}
-.side-link.is-on{background:var(--accent-soft);color:var(--accent)}
+.side-link.is-on{background:var(--accent);color:var(--accent-on);font-weight:600}
 .side-link.is-on::before{
   content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:2.5px;
-  background:var(--accent);border-radius:0 2px 2px 0;
+  background:var(--ink);border-radius:0 2px 2px 0;
 }
 .side-link .count{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
-.side-link.is-on .count{color:var(--accent)}
+.side-link.is-on .count{color:rgba(0,0,0,.62)}
 .side-foot{margin-top:auto;padding:10px;border-top:1px solid var(--line-2);font-size:11.5px;color:var(--ink-3)}
 
 .workspace{flex:1;overflow-y:auto;scroll-behavior:smooth;min-width:0}
 .wrap{max-width:1180px;margin:0 auto;padding:24px 24px 80px;display:flex;flex-direction:column;gap:34px}
+
+/* --------------------------------------------------- sidebar 1: proj rail */
+.rail{
+  width:var(--rail-w);flex:0 0 var(--rail-w);background:var(--surface);
+  border-right:1px solid var(--line);
+  padding:12px 0;display:flex;flex-direction:column;align-items:center;gap:6px;
+  overflow-y:auto;overflow-x:visible;scrollbar-width:none;
+}
+.rail::-webkit-scrollbar{display:none}
+.rail-sep{width:28px;height:1px;background:var(--line);flex:none;margin:3px 0}
+.rail-btn{
+  position:relative;width:40px;height:40px;flex:none;border-radius:9px;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);
+  display:grid;place-items:center;
+  font-family:var(--display);font-size:12.5px;font-weight:700;letter-spacing:-.01em;
+  transition:background .13s ease,color .13s ease,border-color .13s ease;
+}
+.rail-btn:hover{background:var(--surface-3);color:var(--ink);border-color:var(--ink-3)}
+.rail-btn.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on)}
+.rail-btn.is-on::before{
+  content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:2.5px;
+  background:var(--ink);border-radius:0 2px 2px 0;
+}
+.rail-tip{
+  position:absolute;left:calc(100% + 9px);top:50%;transform:translateY(-50%) translateX(-3px);
+  background:var(--ink);color:var(--ground);
+  padding:5px 9px;border-radius:6px;font-family:var(--sans);font-size:11.5px;font-weight:500;
+  letter-spacing:0;white-space:nowrap;pointer-events:none;z-index:60;
+  opacity:0;transition:opacity .12s ease, transform .12s ease;box-shadow:var(--shadow-md);
+}
+.rail-btn:hover .rail-tip,.rail-btn:focus-visible .rail-tip{opacity:1;transform:translateY(-50%) translateX(0)}
+.proj-select{
+  display:none;height:32px;max-width:190px;padding:0 8px;border-radius:6px;
+  border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:500;
+}
 
 /* -------------------------------------------------------------- sections */
 .section{display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}
@@ -323,23 +380,32 @@ table.grid tbody tr.is-new:hover td{background:var(--accent-soft)}
 .cell-idx{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
 .td-flex{display:flex;align-items:center;gap:8px;height:100%;min-width:0}
 .td-flex span{overflow:hidden;text-overflow:ellipsis}
-.new-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.new-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-ink);flex:none}
 
 /* resize handles */
 th.rz-col{position:relative}
+/* The handle must stay INSIDE its own <th>. Every sticky header cell is its
+   own stacking context at z-index:3, so a handle that overhangs to the right
+   (it used to sit at right:-5px) has that half painted over by the next
+   header — elementFromPoint returns the TH and the drag never starts. Kept
+   flush right, the whole 12px is live; ::after is nudged back onto the
+   column edge so the indicator still lines up with the border. */
 .rz{
-  position:absolute;top:0;right:-5px;width:11px;height:100%;
-  cursor:col-resize;z-index:4;display:flex;justify-content:center;
+  position:absolute;top:0;right:0;width:12px;height:100%;
+  cursor:col-resize;z-index:4;display:flex;justify-content:flex-end;
   touch-action:none;
 }
 .rz::after{
   content:"";width:2px;height:60%;align-self:center;border-radius:2px;
+  margin-right:-1px;
   background:transparent;transition:background .12s ease;
 }
-.rz:hover::after,.rz.is-drag::after{background:var(--accent)}
+/* The drag affordance stays ink: a yellow hairline on white is too faint,
+   and column resize is the one interaction that must never regress. */
+.rz:hover::after,.rz.is-drag::after{background:var(--ink)}
 .rz-guide{
-  position:absolute;top:0;bottom:0;width:2px;background:var(--accent);
-  opacity:.65;pointer-events:none;z-index:9;display:none;
+  position:absolute;top:0;bottom:0;width:2px;background:var(--ink);
+  opacity:.55;pointer-events:none;z-index:9;display:none;
 }
 body.is-resizing{cursor:col-resize;user-select:none}
 
@@ -357,7 +423,7 @@ body.is-resizing{cursor:col-resize;user-select:none}
   border-radius:20px;border:1px dashed var(--line);background:transparent;
   font-size:11.5px;font-weight:500;color:var(--ink-3);
 }
-.assign-btn:hover{border-color:var(--accent);color:var(--accent);border-style:solid;background:var(--accent-soft)}
+.assign-btn:hover{border-color:var(--accent-line);color:var(--accent-ink);border-style:solid;background:var(--accent-soft)}
 
 .grid-foot{
   display:flex;align-items:center;gap:10px;padding:9px 13px;
@@ -405,18 +471,20 @@ kbd{
 .page-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
 .page-head h1{font-size:23px}
 .page-head .sub{font-size:13px;color:var(--ink-3)}
-.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:14px}
+.proj-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.proj-grid[hidden]{display:none}
 .proj-card{
   background:var(--surface);border:1px solid var(--line);border-radius:9px;
-  padding:16px;display:flex;flex-direction:column;gap:13px;text-align:left;
+  padding:0;display:flex;flex-direction:column;text-align:left;overflow:hidden;
   transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
-.proj-card:hover{border-color:var(--accent-line);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.proj-body{padding:14px 15px 15px;display:flex;flex-direction:column;gap:12px;flex:1}
+.proj-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
 .proj-top{display:flex;align-items:flex-start;gap:10px}
 .proj-top h3{font-size:15.5px;line-height:1.25}
 .proj-top .chip{margin-left:auto}
 .proj-desc{font-size:12.5px;color:var(--ink-2);line-height:1.55;min-height:39px}
-.proj-stats{display:flex;gap:18px;padding-top:12px;border-top:1px solid var(--line-2)}
+.proj-stats{display:flex;gap:18px;padding-top:12px;border-top:1px solid var(--line-2);margin-top:auto}
 .proj-stat{display:flex;flex-direction:column;gap:2px}
 .proj-stat .v{font-family:var(--display);font-size:16px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .proj-stat .k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
@@ -425,18 +493,44 @@ kbd{
 .stack .avatar{width:22px;height:22px;flex-basis:22px;font-size:9px;margin-left:-6px;border:1.5px solid var(--surface)}
 .stack .avatar:first-child{margin-left:0}
 
+/* ------------------------------------------------------ project thumbnail */
+.proj-media{
+  aspect-ratio:16/9;width:100%;background:var(--surface-3);
+  border-bottom:1px solid var(--line);position:relative;overflow:hidden;flex:none;
+}
+.proj-media img{width:100%;height:100%;object-fit:cover;display:block}
+.proj-ph{
+  width:100%;height:100%;display:grid;place-items:center;gap:4px;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 9px, rgba(128,128,128,.055) 9px 18px),
+    var(--surface-3);
+}
+.proj-ph b{
+  font-family:var(--display);font-size:23px;font-weight:700;letter-spacing:-.02em;
+  color:var(--ink-3);line-height:1;
+}
+.proj-ph i{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);font-style:normal;opacity:.72}
+.thumb-sm{
+  display:block;width:44px;height:29px;border-radius:4px;overflow:hidden;flex:none;
+  border:1px solid var(--line);background:var(--surface-3);
+}
+.thumb-sm img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb-sm .proj-ph b{font-size:11px}
+.thumb-sm .proj-ph i{display:none}
+table.grid tbody tr.row-link{cursor:pointer}
+
 /* ----------------------------------------------------------- lead banner */
 .banner{
   display:flex;align-items:center;gap:12px;padding:12px 14px;
   background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:var(--r);
 }
-.banner .t{font-size:13px;font-weight:600;color:var(--accent)}
+.banner .t{font-size:13px;font-weight:600;color:var(--accent-ink)}
 .banner .d{font-size:12.5px;color:var(--ink-2)}
 .banner .btn{margin-left:auto}
 
 /* ---------------------------------------------------------------- modals */
 .backdrop{
-  position:fixed;inset:0;z-index:80;background:rgba(10,14,20,.44);
+  position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);
   display:flex;align-items:center;justify-content:center;padding:22px;
   backdrop-filter:blur(2px);
 }
@@ -471,7 +565,7 @@ kbd{
   border:0;background:transparent;border-radius:5px;font-size:12.5px;text-align:left;width:100%;
 }
 .menu button:hover{background:var(--surface-3)}
-.menu .tick{margin-left:auto;color:var(--accent);display:none}
+.menu .tick{margin-left:auto;color:var(--accent-ink);display:none}
 .menu button.is-on .tick{display:block}
 .menu-label{padding:6px 9px 4px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
 
@@ -513,9 +607,19 @@ kbd{
 @media (max-width:1080px){
   .kpis{grid-template-columns:repeat(3,1fr)}
   .sales-dash{grid-template-columns:1fr}
+  .proj-grid{grid-template-columns:repeat(2,1fr)}
 }
 @media (max-width:860px){
   .sidebar{display:none}
+  /* both sidebars collapse: sections into the chip strip, projects into a
+     topbar dropdown that takes the title's place. */
+  .rail{display:none}
+  .topbar-title{display:none}
+  .proj-select{display:block;flex:1 1 auto;min-width:0;max-width:none}
+  /* The density switch is a desktop reading preference. On a phone it costs
+     the topbar more room than the project dropdown can spare, and the 38px
+     compact row is already the right height for a small screen. */
+  #density,#densityM{display:none}
   .mobile-nav{
     display:flex;gap:6px;overflow-x:auto;padding:9px 14px;
     background:var(--surface);border-bottom:1px solid var(--line);
@@ -527,7 +631,7 @@ kbd{
     border:1px solid var(--line);background:var(--surface);
     font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap;
   }
-  .mobile-nav button.is-on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}
+  .mobile-nav button.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on);font-weight:600}
   .wrap{padding:16px 14px 70px;gap:26px}
   .kpis{grid-template-columns:repeat(2,1fr)}
   .kpi-value{font-size:22px}
@@ -624,6 +728,7 @@ kbd{
       <div class="brand-name">Metrol Media</div>
     </div>
     <div class="topbar-right">
+      <button class="icon-btn" data-theme-toggle title="Dark mode" aria-label="Switch to dark mode"></button>
       <div class="user-chip">
         <div class="avatar avatar--lg">MM</div>
         <div><div class="name">Owner</div><div class="role">owner@metrol.in</div></div>
@@ -640,6 +745,10 @@ kbd{
           <h1>Projects</h1>
           <div class="sub" id="projCount">6 active projects</div>
           <div class="section-tools">
+            <div class="seg" id="projView">
+              <button class="is-on" data-projview="cards">Cards</button>
+              <button data-projview="list">List</button>
+            </div>
             <button class="btn btn--primary btn--sm" data-modal="newproject">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               New project
@@ -647,6 +756,19 @@ kbd{
           </div>
         </div>
         <div class="proj-grid" id="projGrid"></div>
+        <div class="grid-shell" id="projListShell" hidden>
+          <div class="grid-scroll">
+            <div class="rz-guide" id="guideProjects"></div>
+            <table class="grid" id="projListGrid">
+              <colgroup></colgroup>
+              <thead><tr></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="grid-foot"><span id="projListFoot">—</span>
+            <span class="grid-hint">Click a row to open the project</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -662,7 +784,9 @@ kbd{
       <h2>Funding Room</h2>
       <span class="chip chip--good">Active</span>
     </div>
+    <select class="proj-select" id="projSelect" aria-label="Switch project"></select>
     <div class="topbar-right">
+      <button class="icon-btn" data-theme-toggle title="Dark mode" aria-label="Switch to dark mode"></button>
       <div class="seg" id="density">
         <button class="is-on" data-density="compact">Compact</button>
         <button data-density="comfortable">Comfortable</button>
@@ -675,6 +799,7 @@ kbd{
   </div>
 
   <div class="shell">
+    <nav class="rail" id="projRail" aria-label="Projects"></nav>
     <nav class="sidebar" id="sideNav">
       <div class="side-label">Funding Room</div>
       <button class="side-link is-on" data-sec="sec-overview">
@@ -822,6 +947,7 @@ kbd{
       <div class="brand-name">Metrol Media</div>
     </div>
     <div class="topbar-right">
+      <button class="icon-btn" data-theme-toggle title="Dark mode" aria-label="Switch to dark mode"></button>
       <div class="seg" id="densityM">
         <button class="is-on" data-density="compact">Compact</button>
         <button data-density="comfortable">Comfortable</button>
@@ -1002,12 +1128,14 @@ var MEMBERS = [
 ];
 
 var PROJECTS = [
-  {id:"p1", name:"Funding Room",      desc:"Investor lead generation across Meta and Google campaigns.", team:5, updated:"2 hours ago", status:"Active", live:true},
+  // c1/c2 stand in for a real uploaded project photo. p2 and p4 deliberately
+  // have none, so the "no photo yet" placeholder is visible in both views.
+  {id:"p1", name:"Funding Room",      desc:"Investor lead generation across Meta and Google campaigns.", team:5, updated:"2 hours ago", status:"Active", live:true, c1:"#232326", c2:"#4A4A52"},
   {id:"p2", name:"Prime Estates",     desc:"Site-visit bookings for the Gurugram residential launch.",  team:3, updated:"Yesterday",   status:"Active", leads:186, customers:22, gross:1120000},
-  {id:"p3", name:"Skillveda Academy", desc:"Admission enquiries for the digital marketing batch.",      team:4, updated:"4 hours ago", status:"Active", leads:412, customers:96, gross:864000},
+  {id:"p3", name:"Skillveda Academy", desc:"Admission enquiries for the digital marketing batch.",      team:4, updated:"4 hours ago", status:"Active", leads:412, customers:96, gross:864000, c1:"#1B2420", c2:"#3E5148"},
   {id:"p4", name:"Aarogya Clinics",   desc:"Appointment leads across three Indore branches.",           team:2, updated:"3 days ago",  status:"Active", leads:97,  customers:31, gross:372000},
-  {id:"p5", name:"Nova Motors",       desc:"Test-drive bookings for the EV showroom launch.",           team:2, updated:"Last week",   status:"Paused", leads:64,  customers:9,  gross:585000},
-  {id:"p6", name:"Metrol Retainers",  desc:"Inbound agency enquiries coming from metrol.in.",           team:2, updated:"Today",      status:"Active", leads:38,  customers:7,  gross:1260000}
+  {id:"p5", name:"Nova Motors",       desc:"Test-drive bookings for the EV showroom launch.",           team:2, updated:"Last week",   status:"Paused", leads:64,  customers:9,  gross:585000, c1:"#241E1E", c2:"#4E3F3F"},
+  {id:"p6", name:"Metrol Retainers",  desc:"Inbound agency enquiries coming from metrol.in.",           team:2, updated:"Today",      status:"Active", leads:38,  customers:7,  gross:1260000, c1:"#1E1E1E", c2:"#3C3C3C"}
 ];
 
 // status: new | connected | follow_up | converted | dead
@@ -1073,6 +1201,47 @@ function isConnected(l){ return l.status !== "new"; }
 function projectLeads(){ return LEADS.filter(function(l){ return l.project === CURRENT_PROJECT; }); }
 function converted(list){ return list.filter(function(l){ return l.status === "converted"; }); }
 
+/* ------------------------------------------------------------------ theme */
+/* Three states are kept alive: explicit light, explicit dark, and no
+   data-theme attribute at all, which means "follow the device". The topbar
+   button flips between light and dark; "Match device" clears the choice.   */
+var THEME_KEY = "metrol-crm-theme";
+var MQ_DARK = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+var ICON_MOON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+var ICON_SUN  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>';
+
+function storeGet(k){ try { return window.localStorage.getItem(k); } catch(_){ return null; } }
+function storeSet(k,v){
+  try { if(v == null) window.localStorage.removeItem(k); else window.localStorage.setItem(k,v); } catch(_){}
+}
+function effectiveTheme(){
+  var a = document.documentElement.getAttribute("data-theme");
+  if(a === "light" || a === "dark") return a;
+  return (MQ_DARK && MQ_DARK.matches) ? "dark" : "light";
+}
+function paintTheme(){
+  var eff = effectiveTheme();
+  var set = document.documentElement.getAttribute("data-theme") || "system";
+  $$("[data-theme-set]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.themeSet === set); });
+  $$("[data-theme-toggle]").forEach(function(b){
+    b.innerHTML = (eff === "dark") ? ICON_SUN : ICON_MOON;
+    var label = (eff === "dark") ? "Switch to light mode" : "Switch to dark mode";
+    b.setAttribute("aria-label", label);
+    b.setAttribute("title", (eff === "dark") ? "Light mode" : "Dark mode");
+  });
+}
+function applyTheme(v, persist){
+  if(v === "light" || v === "dark") document.documentElement.setAttribute("data-theme", v);
+  else document.documentElement.removeAttribute("data-theme");
+  if(persist !== false) storeSet(THEME_KEY, (v === "light" || v === "dark") ? v : null);
+  paintTheme();
+}
+if(MQ_DARK){
+  var onScheme = function(){ paintTheme(); };
+  if(MQ_DARK.addEventListener) MQ_DARK.addEventListener("change", onScheme);
+  else if(MQ_DARK.addListener) MQ_DARK.addListener(onScheme);
+}
+
 var toastTimer;
 function toast(msg){
   var t = $("#toast");
@@ -1084,7 +1253,8 @@ function toast(msg){
 
 /* ------------------------------------------------------------ table core */
 /* Columns: {key,label,width,min,render(row)} */
-function buildTable(tableId, cols, rows, guideId){
+function buildTable(tableId, cols, rows, guideId, opts){
+  opts = opts || {};
   var table = $("#"+tableId);
   var colgroup = table.querySelector("colgroup");
   var headRow  = table.querySelector("thead tr");
@@ -1104,8 +1274,10 @@ function buildTable(tableId, cols, rows, guideId){
   }).join("");
 
   body.innerHTML = rows.map(function(r){
-    var cls = r.isNew ? ' class="is-new"' : "";
-    return "<tr"+cls+' data-id="'+r.id+'">' + cols.map(function(c){
+    var cls = (r.isNew ? "is-new " : "") + (opts.rowClass || "");
+    cls = cls.replace(/\s+$/, "");
+    var attrs = opts.rowAttrs ? opts.rowAttrs(r) : "";
+    return "<tr"+(cls ? ' class="'+cls+'"' : "")+' data-id="'+r.id+'"'+attrs+">" + cols.map(function(c){
       return "<td>"+c.render(r)+"</td>";
     }).join("") + "</tr>";
   }).join("");
@@ -1168,7 +1340,10 @@ function wireResize(table, guideId){
     }
     function up(ev){
       dragging = false;
+      // A pointermove can schedule a frame that pointerup then cancels, which
+      // would leave _widths correct but the DOM one frame stale. Paint once.
       if(frame){ cancelAnimationFrame(frame); frame = null; }
+      applyWidths(table);
       try { h.releasePointerCapture(ev.pointerId); } catch(_){}
       h.classList.remove("is-drag");
       document.body.classList.remove("is-resizing");
@@ -1565,8 +1740,9 @@ document.addEventListener("click", function(e){
   var dn = t.closest("[data-density]");
   if(dn){
     var on = dn.dataset.density === "comfortable";
-    $$(".seg").forEach(function(seg){
-      $$("button", seg).forEach(function(b){ b.classList.toggle("is-on", b.dataset.density === dn.dataset.density); });
+    // scoped to density buttons — the Cards/List segment is a .seg too
+    $$("[data-density]").forEach(function(b){
+      b.classList.toggle("is-on", b.dataset.density === dn.dataset.density);
     });
     $$(".screen--app").forEach(function(s){ s.classList.toggle("dense-comfortable", on); });
     return;
@@ -1580,15 +1756,38 @@ document.addEventListener("click", function(e){
     return;
   }
 
-  // theme
+  // projects: cards / list
+  var pv = t.closest("[data-projview]");
+  if(pv){
+    PROJ_VIEW = pv.dataset.projview;
+    $$("[data-projview]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.projview === PROJ_VIEW); });
+    renderProjects();
+    return;
+  }
+
+  // theme — topbar sun/moon
+  if(t.closest("[data-theme-toggle]")){
+    applyTheme(effectiveTheme() === "dark" ? "light" : "dark");
+    return;
+  }
+
+  // theme — prototype panel, including "match device"
   var th = t.closest("[data-theme-set]");
   if(th){
     var v = th.dataset.themeSet;
-    if(v === "system") document.documentElement.removeAttribute("data-theme");
-    else document.documentElement.setAttribute("data-theme", v);
-    $$("[data-theme-set]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.themeSet === v); });
+    applyTheme(v === "system" ? null : v);
     return;
   }
+});
+
+$("#projSelect").addEventListener("change", function(){
+  var v = this.value;
+  if(v === "__all"){ goTo("projects"); return; }
+  var picked = null;
+  for(var i=0;i<PROJECTS.length;i++){ if(PROJECTS[i].id === v) picked = PROJECTS[i]; }
+  if(picked && picked.live){ goTo("project"); return; }
+  toast("Prototype — Funding Room is the fully wired-up example.");
+  renderProjSelect();
 });
 
 $("#bannerDismiss").addEventListener("click", function(){ $("#memberBanner").hidden = true; });
@@ -1670,34 +1869,131 @@ function goTo(name){
   $$("#protoPanel [data-go]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.go === name); });
   closeMenu(); closeModals();
   if(name === "projects") renderProjects();
-  if(name === "project"){ renderOwner(); $("#ownerScroll").scrollTop = 0; }
+  if(name === "project"){ renderOwner(); renderRail(); renderProjSelect(); $("#ownerScroll").scrollTop = 0; }
   if(name === "member") renderMember();
   window.scrollTo(0,0);
 }
 
-function renderProjects(){
+var PROJ_VIEW = "cards";
+
+function initialsOf(name){
+  var w = String(name).trim().split(/\s+/);
+  if(w.length < 2) return w[0].slice(0,2).toUpperCase();
+  return (w[0].charAt(0) + w[1].charAt(0)).toUpperCase();
+}
+
+/* A project photo is drawn inline as an SVG data URI. The published Artifact
+   blocks images from outside hosts, so nothing here may be a remote URL —
+   a real uploaded photo would be stored and served the same self-contained way. */
+function coverURI(p, withLabel){
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" preserveAspectRatio="xMidYMid slice">'+
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'+
+      '<stop offset="0" stop-color="'+p.c1+'"/><stop offset="1" stop-color="'+p.c2+'"/>'+
+    '</linearGradient></defs>'+
+    '<rect width="480" height="270" fill="url(#g)"/>'+
+    '<circle cx="398" cy="58" r="88" fill="#F5C518" opacity="0.17"/>'+
+    '<path d="M0 208 L136 148 L266 198 L392 126 L480 164 L480 270 L0 270 Z" fill="#000000" opacity="0.24"/>'+
+    // at 44px wide the baked-in label is an illegible smudge, so list thumbnails drop it
+    (withLabel ? '<text x="28" y="232" font-family="Archivo, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#FFFFFF" opacity="0.9">'+
+      initialsOf(p.name)+'</text>' : "")+
+    '</svg>';
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+function mediaHTML(p, small){
+  if(p.c1) return '<img src="'+coverURI(p, !small)+'" alt="">';
+  return '<div class="proj-ph"><b>'+initialsOf(p.name)+'</b><i>No photo yet</i></div>';
+}
+
+function projCols(){
+  return [
+    {key:"idx",  label:"#",           width:52,  render:function(r){ return '<span class="cell-idx">'+r.sn+"</span>"; }},
+    {key:"th",   label:"Photo",       width:78,  render:function(r){ return '<span class="thumb-sm">'+mediaHTML(r, true)+"</span>"; }},
+    {key:"nm",   label:"Project",     width:186, render:function(r){ return '<span class="cell-strong">'+esc(r.name)+"</span>"; }},
+    {key:"ds",   label:"Description", width:300, render:function(r){ return '<span class="cell-mute">'+esc(r.desc)+"</span>"; }},
+    {key:"ld",   label:"Leads",       width:92,  render:function(r){ return '<span class="num">'+inr.format(r._leads)+"</span>"; }},
+    {key:"cu",   label:"Customers",   width:112, render:function(r){ return '<span class="num">'+inr.format(r._cust)+"</span>"; }},
+    {key:"gr",   label:"Gross sale",  width:132, render:function(r){ return '<span class="cell-money">'+money(r._gross)+"</span>"; }},
+    {key:"st",   label:"Status",      width:104, render:function(r){
+      return '<span class="chip '+(r.status==="Active"?"chip--good":"chip--mute")+'">'+r.status+"</span>";
+    }}
+  ];
+}
+
+function projectRows(){
   var live = projectLeads();
   var liveConv = converted(live);
-  $("#projGrid").innerHTML = PROJECTS.map(function(p){
-    var leads = p.live ? live.length : p.leads;
-    var cust  = p.live ? liveConv.length : p.customers;
-    var gross = p.live ? sum(liveConv) : p.gross;
-    var team  = MEMBERS.slice(0, p.team);
+  return PROJECTS.map(function(p,i){
+    var o = {};
+    for(var k in p){ if(Object.prototype.hasOwnProperty.call(p,k)) o[k] = p[k]; }
+    o.sn = i + 1;
+    o._leads = p.live ? live.length     : p.leads;
+    o._cust  = p.live ? liveConv.length : p.customers;
+    o._gross = p.live ? sum(liveConv)   : p.gross;
+    return o;
+  });
+}
+
+function renderProjects(){
+  var rows = projectRows();
+
+  $("#projGrid").innerHTML = rows.map(function(p){
+    var team = MEMBERS.slice(0, p.team);
     return '<button class="proj-card" data-project="'+p.id+'" data-live="'+(p.live?"1":"0")+'">'+
-      '<div class="proj-top"><h3>'+esc(p.name)+"</h3>"+
-        '<span class="chip '+(p.status==="Active"?"chip--good":"chip--mute")+'">'+p.status+"</span></div>"+
-      '<p class="proj-desc">'+esc(p.desc)+"</p>"+
-      '<div class="proj-stats">'+
-        '<div class="proj-stat"><span class="v">'+inr.format(leads)+'</span><span class="k">Leads</span></div>'+
-        '<div class="proj-stat"><span class="v">'+inr.format(cust)+'</span><span class="k">Customers</span></div>'+
-        '<div class="proj-stat"><span class="v">'+money(gross)+'</span><span class="k">Gross sale</span></div>'+
+      '<div class="proj-media">'+mediaHTML(p)+"</div>"+
+      '<div class="proj-body">'+
+        '<div class="proj-top"><h3>'+esc(p.name)+"</h3>"+
+          '<span class="chip '+(p.status==="Active"?"chip--good":"chip--mute")+'">'+p.status+"</span></div>"+
+        '<p class="proj-desc">'+esc(p.desc)+"</p>"+
+        '<div class="proj-stats">'+
+          '<div class="proj-stat"><span class="v">'+inr.format(p._leads)+'</span><span class="k">Leads</span></div>'+
+          '<div class="proj-stat"><span class="v">'+inr.format(p._cust)+'</span><span class="k">Customers</span></div>'+
+          '<div class="proj-stat"><span class="v">'+money(p._gross)+'</span><span class="k">Gross sale</span></div>'+
+        "</div>"+
+        '<div class="proj-foot"><span class="stack">'+team.map(function(m){
+          return '<span class="avatar">'+m.initials+"</span>";
+        }).join("")+"</span><span>"+p.team+" people · updated "+p.updated+"</span></div>"+
       "</div>"+
-      '<div class="proj-foot"><span class="stack">'+team.map(function(m){
-        return '<span class="avatar">'+m.initials+"</span>";
-      }).join("")+"</span><span>"+p.team+" people · updated "+p.updated+"</span></div>"+
     "</button>";
   }).join("");
+
+  buildTable("projListGrid", projCols(), rows, "guideProjects", {
+    rowClass:"row-link",
+    rowAttrs:function(r){ return ' data-project="'+r.id+'" data-live="'+(r.live?"1":"0")+'"'; }
+  });
+  $("#projListFoot").textContent = rows.length + " projects";
+
+  var cards = PROJ_VIEW === "cards";
+  $("#projGrid").hidden = !cards;
+  $("#projListShell").hidden = cards;
   $("#projCount").textContent = PROJECTS.filter(function(p){return p.status==="Active";}).length + " active projects";
+}
+
+/* --------------------------------------------------- sidebar 1: proj rail */
+function renderRail(){
+  var rail = $("#projRail");
+  if(!rail) return;
+  rail.innerHTML =
+    '<button class="rail-btn" data-go="projects">'+
+      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">'+
+      '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'+
+      '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'+
+      '<span class="rail-tip">All projects</span></button>'+
+    '<div class="rail-sep"></div>'+
+    PROJECTS.map(function(p){
+      var on = p.name === CURRENT_PROJECT;
+      return '<button class="rail-btn'+(on?" is-on":"")+'" data-project="'+p.id+'" data-live="'+(p.live?"1":"0")+'"'+
+        ' aria-label="'+esc(p.name)+'"'+(on?' aria-current="true"':"")+'>'+
+        initialsOf(p.name)+'<span class="rail-tip">'+esc(p.name)+"</span></button>";
+    }).join("");
+}
+
+function renderProjSelect(){
+  var sel = $("#projSelect");
+  if(!sel) return;
+  sel.innerHTML = '<option value="__all">\u2190 All projects</option>' + PROJECTS.map(function(p){
+    return '<option value="'+p.id+'"'+(p.name===CURRENT_PROJECT?" selected":"")+">"+esc(p.name)+"</option>";
+  }).join("");
 }
 
 /* ------------------------------------------------------------ scroll spy */
@@ -1722,9 +2018,11 @@ function renderProjects(){
 })();
 
 /* ------------------------------------------------------------------ init */
+applyTheme(storeGet(THEME_KEY), false);   // remembered choice, or follow device
 renderProjects();
+renderRail();
+renderProjSelect();
 renderOwner();
 renderMember();
-$$("[data-theme-set]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.themeSet === "system"); });
 })();
 </script>
