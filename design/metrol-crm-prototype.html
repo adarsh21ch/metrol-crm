@@ -2386,6 +2386,180 @@ function openAssignMenu(anchor, id){
   });
 }
 
+/* ------------------------------------------------------------- importing */
+/* Adarsh runs Metrol's Meta ads, so leads arrive in bulk far more often than
+   one at a time. CSV is parsed here; .xlsx goes through SheetJS, and if that
+   script did not load the modal says so rather than failing silently. */
+var impRows = null;
+
+function parseCSV(text){
+  var rows = [], row = [], cur = "", q = false;
+  for(var i = 0; i < text.length; i++){
+    var c = text.charAt(i);
+    if(q){
+      if(c === '"'){ if(text.charAt(i+1) === '"'){ cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if(c === '"'){ q = true; }
+    else if(c === ","){ row.push(cur); cur = ""; }
+    else if(c === "\n"){ row.push(cur); rows.push(row); row = []; cur = ""; }
+    else if(c !== "\r"){ cur += c; }
+  }
+  if(cur !== "" || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(function(r){
+    return r.some(function(x){ return String(x == null ? "" : x).trim() !== ""; });
+  });
+}
+
+function mapImport(rows){
+  if(!rows || rows.length < 2) return {error:"That file has no rows under the header."};
+  var head = rows[0].map(function(h){ return String(h == null ? "" : h).trim().toLowerCase(); });
+  function col(names){
+    for(var i = 0; i < names.length; i++){
+      var k = head.indexOf(names[i]);
+      if(k > -1) return k;
+    }
+    return -1;
+  }
+  var iName  = col(["name","full name","lead name","customer","customer name"]);
+  var iPhone = col(["phone","mobile","phone number","mobile number","contact","contact number"]);
+  var iEmail = col(["email","e-mail","email address","mail"]);
+  var iOwner = col(["assign to","assigned to","owner","salesperson","sales person"]);
+  if(iName < 0 && iPhone < 0){
+    return {error:'No "Name" or "Phone" column in the header row. Rename the header and try again.'};
+  }
+  function cell(r, i){ return i < 0 ? "" : String(r[i] == null ? "" : r[i]).trim(); }
+
+  var seen = {}, out = [], dupes = 0, blanks = 0;
+  projectLeads().forEach(function(l){ seen[String(l.phone).replace(/\D/g,"")] = true; });
+
+  rows.slice(1).forEach(function(r){
+    var name = cell(r, iName), phone = cell(r, iPhone);
+    if(!name && !phone){ blanks++; return; }
+    var key = phone.replace(/\D/g,"");
+    if(key && seen[key]){ dupes++; return; }
+    if(key) seen[key] = true;
+    var ownerName = cell(r, iOwner).toLowerCase();
+    var owner = null;
+    MEMBERS.forEach(function(m){ if(ownerName && m.name.toLowerCase() === ownerName) owner = m.id; });
+    out.push({
+      name: name || "(no name)",
+      email: cell(r, iEmail) || "\u2014",
+      phone: phone || "\u2014",
+      owner: owner
+    });
+  });
+  return {leads:out, dupes:dupes, blanks:blanks};
+}
+
+function impSay(msg, kind){
+  var el = $("#impResult");
+  el.hidden = false;
+  el.className = "imp-result" + (kind ? " is-" + kind : "");
+  el.innerHTML = msg;
+}
+
+function impLoad(file){
+  if(!file) return;
+  impRows = null;
+  $("#impGo").disabled = true;
+  $("#impDrop").classList.add("has-file");
+  $("#impDropName").textContent = file.name;
+  $("#impDropHint").textContent = "Reading\u2026";
+
+  var done = function(rows, err){
+    if(err){ impSay(esc(err), "bad"); $("#impDropHint").textContent = "Pick another file"; return; }
+    var m = mapImport(rows);
+    if(m.error){ impSay(esc(m.error), "bad"); $("#impDropHint").textContent = "Pick another file"; return; }
+    impRows = m.leads;
+    $("#impDropHint").textContent = "Ready to import";
+    var bits = ["<b>" + m.leads.length + "</b> lead" + (m.leads.length === 1 ? "" : "s") + " found"];
+    if(m.dupes)  bits.push(m.dupes + " skipped as duplicate phone numbers");
+    if(m.blanks) bits.push(m.blanks + " blank rows ignored");
+    impSay(bits.join(" \u00b7 "), m.leads.length ? "ok" : "bad");
+    $("#impGo").disabled = !m.leads.length;
+  };
+
+  var lower = file.name.toLowerCase();
+  if(/\.(xlsx|xls)$/.test(lower)){
+    if(!window.XLSX){
+      done(null, "The Excel reader could not load. Save the sheet as CSV and import that.");
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function(){
+      try {
+        var wb = XLSX.read(new Uint8Array(fr.result), {type:"array"});
+        done(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:""}), null);
+      } catch(_){ done(null, "That file could not be read as a spreadsheet."); }
+    };
+    fr.onerror = function(){ done(null, "The file could not be opened."); };
+    fr.readAsArrayBuffer(file);
+  } else {
+    var fr2 = new FileReader();
+    fr2.onload = function(){
+      try { done(parseCSV(String(fr2.result)), null); }
+      catch(_){ done(null, "That file could not be read as CSV."); }
+    };
+    fr2.onerror = function(){ done(null, "The file could not be opened."); };
+    fr2.readAsText(file);
+  }
+}
+
+function openImport(){
+  impRows = null;
+  $("#impGo").disabled = true;
+  $("#impFile").value = "";
+  $("#impResult").hidden = true;
+  $("#impDrop").classList.remove("has-file","is-over");
+  $("#impDropName").textContent = "Choose a file";
+  $("#impDropHint").textContent = "or drop it here \u2014 .xlsx or .csv";
+  $("#impAssign").innerHTML = '<option value="">Leave unassigned</option>' +
+    MEMBERS.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+"</option>"; }).join("");
+  $("#importModal").hidden = false;
+}
+
+function runImport(){
+  if(!impRows || !impRows.length) return;
+  var bulk = $("#impAssign").value || null;
+  var nextId = LEADS.reduce(function(mx, l){ return Math.max(mx, l.id); }, 0);
+  var n = 0;
+  impRows.forEach(function(r){
+    var owner = r.owner || bulk || null;
+    var l = {
+      id: ++nextId, name: r.name, email: r.email, phone: r.phone,
+      status: "new", quality: null, owner: owner,
+      project: CURRENT_PROJECT, source: "Excel import", isNew: true
+    };
+    LEADS.push(l);
+    logEvent(l.id, "Lead created", "", "Excel import", "Owner");
+    if(owner) logEvent(l.id, "Assigned", "Unassigned", member(owner).name, "Owner");
+    n++;
+  });
+  impRows = null;
+  closeModals();
+  rerender();
+  renderProjects();
+  toast(n + " lead" + (n === 1 ? "" : "s") + " imported into " + CURRENT_PROJECT +
+        (bulk ? " and assigned to " + member(bulk).name : ""));
+}
+
+$("#impDrop").addEventListener("click", function(){ $("#impFile").click(); });
+$("#impDrop").addEventListener("keydown", function(e){
+  if(e.key === "Enter" || e.key === " "){ e.preventDefault(); $("#impFile").click(); }
+});
+$("#impFile").addEventListener("change", function(){ impLoad(this.files && this.files[0]); });
+["dragenter","dragover"].forEach(function(t){
+  $("#impDrop").addEventListener(t, function(e){ e.preventDefault(); this.classList.add("is-over"); });
+});
+["dragleave","drop"].forEach(function(t){
+  $("#impDrop").addEventListener(t, function(e){ e.preventDefault(); this.classList.remove("is-over"); });
+});
+$("#impDrop").addEventListener("drop", function(e){
+  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) impLoad(f);
+});
+$("#impGo").addEventListener("click", runImport);
+
 /* ------------------------------------------------------------- history UI */
 function openHistory(id){
   var l = lead(id);
@@ -2417,28 +2591,37 @@ function openHistory(id){
 /* Back-fill a plausible trail for the sample leads, so the history table shows
    a real journey instead of being empty until someone clicks something. */
 function seedHistory(){
-  var DAY = 86400000, now = Date.now();
+  var DAY = 86400000, HR = 3600000, now = Date.now();
+  /* Nothing back-filled may be stamped later than this. A lead closed TODAY has
+     ct === now, and the old code then added 0.05 and 0.4 of a day to it for the
+     sale and the payment — putting both in the FUTURE. Sorted newest-first they
+     sat above anything the user actually did, so a real change looked like it
+     had not registered. Every seeded time is now clamped into the past. */
+  var CAP = now - 5 * 60000;
+  function past(t){ return Math.min(t, CAP); }
+
   LEADS.forEach(function(l, i){
     if(!l.source) l.source = SOURCES[i % SOURCES.length];
     var closed = (l.daysAgo == null) ? null : l.daysAgo;
     var age = (closed == null) ? 3 + (i % 12) : closed + 2 + (i % 5);
     var t = now - age * DAY;
     var who = l.owner ? member(l.owner).name : "\u2014";
-    logEvent(l.id, "Lead created", "", l.source, "System", t);
-    if(l.owner){ t += 0.25*DAY; logEvent(l.id, "Assigned", "Unassigned", who, "Owner", t); }
+    logEvent(l.id, "Lead created", "", l.source, "System", past(t));
+    if(l.owner){ t += 0.25*DAY; logEvent(l.id, "Assigned", "Unassigned", who, "Owner", past(t)); }
     if(l.status !== "new"){
-      t += 0.5*DAY; logEvent(l.id, "Status", "New", "Connected", who, t);
+      t += 0.5*DAY; logEvent(l.id, "Status", "New", "Connected", who, past(t));
     }
     if(l.quality){
-      t += 0.15*DAY; logEvent(l.id, "Quality", "Not set", QUALITY[l.quality].label, who, t);
+      t += 0.15*DAY; logEvent(l.id, "Quality", "Not set", QUALITY[l.quality].label, who, past(t));
     }
-    if(l.status === "follow_up"){ t += 0.4*DAY; logEvent(l.id, "Status", "Connected", "Follow-up", who, t); }
-    if(l.status === "dead"){     t += 0.4*DAY; logEvent(l.id, "Status", "Connected", "Dead", who, t); }
+    if(l.status === "follow_up"){ t += 0.4*DAY; logEvent(l.id, "Status", "Connected", "Follow-up", who, past(t)); }
+    if(l.status === "dead"){     t += 0.4*DAY; logEvent(l.id, "Status", "Connected", "Dead", who, past(t)); }
     if(l.status === "converted"){
-      var ct = now - closed * DAY;
-      logEvent(l.id, "Status", "Connected", "Converted", who, ct);
-      logEvent(l.id, "Sale recorded", "", money(l.amount), who, ct + 0.05*DAY);
-      if(l.verified) logEvent(l.id, "Payment", "Pending", "Verified", "Owner", ct + 0.4*DAY);
+      // a deal closed today is anchored six hours back so its own chain still fits
+      var ct = now - closed * DAY - (closed === 0 ? 6 * HR : 0);
+      logEvent(l.id, "Status", "Connected", "Converted", who, past(ct));
+      logEvent(l.id, "Sale recorded", "", money(l.amount), who, past(ct + 0.03*DAY));
+      if(l.verified) logEvent(l.id, "Payment", "Pending", "Verified", "Owner", past(ct + 0.12*DAY));
     }
   });
 }

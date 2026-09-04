@@ -455,6 +455,48 @@ widened rail or an expanded sidebar shows no tooltip. Keyboard focus raises it t
 
 ---
 
+# ROUND 9 — two real faults (2026-09-04)
+
+## Recent activity looked dead. It wasn't — the seed data was in the future.
+
+`seedHistory()` anchored a converted lead's chain at `ct = now - daysAgo*DAY`,
+then added offsets. For a deal **closed today** `ct === now`, so "Sale recorded"
+landed at `now + 72 minutes` and "Payment Verified" at `now + 9.6 hours`. The feed
+sorts newest-first, so those future rows sat permanently on top and a real change
+was pushed below the fold — it *was* recorded, it just never showed.
+
+Every seeded timestamp is now clamped by `past()` to at most `now - 5min`, and a
+deal closed today is anchored six hours back so its own chain still fits behind it.
+**If you ever add seeded events, run them through `past()`.**
+
+## The Excel importer had been deleted since round 3
+
+Worse, and mine. Round 3 removed the assign modal with a text slice from
+`var assignId = null;` to the `/* history UI */` marker — and the entire importer
+block sat inside that range. `parseCSV`, `mapImport`, `impSay`, `impLoad`,
+`openImport` and `runImport` all went, 174 lines, while the button and modal markup
+stayed. Clicking Import threw `openImport is not defined` for six rounds.
+
+It went unnoticed because the round-2 test covered import and no test after it did.
+Restored verbatim from `3e2ddc4`.
+
+**Two rules out of this:**
+1. Never delete code by slicing between two markers without printing what is in
+   the range first. Delete by exact match.
+2. **Before publishing, walk every flow, not just the one that changed.** The list:
+   sign in → project → all five pages → paginate → search → import → assign,
+   reassign, unassign → status/quality from the salesperson view → verify a payment
+   → open a lead's history → check Recent activity updated → resize a column from a
+   body row → fold both sidebars → theme toggle → reload → mobile at 390px.
+   Zero console errors is part of the pass.
+
+## Reconciliation now checked, not assumed
+
+Team tracking's All-time column sums to ₹13,28,000, matching the This-year tile
+exactly. Worth re-checking whenever the sample data changes.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.
