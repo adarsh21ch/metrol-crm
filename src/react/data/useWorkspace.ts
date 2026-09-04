@@ -41,15 +41,20 @@ export function useWorkspace() {
       })
       return
     }
-    const { data: userRes } = await supabase.auth.getUser()
-    const uid = userRes?.user?.id ?? null
+    // getSession reads the JWT out of localStorage; getUser posts it to the
+    // server to be revalidated. That was a whole network round trip in front of
+    // every other query, on every load, for an id we already had.
+    const { data: sessionRes } = await supabase.auth.getSession()
+    const uid = sessionRes?.session?.user?.id ?? null
 
     const [profRes, projRes, leadRes, memRes, evRes] = await Promise.all([
       uid ? supabase.from('profiles').select('*').eq('id', uid).single() : Promise.resolve({ data: null, error: null }),
       supabase.from('projects').select('*').order('created_at', { ascending: true }),
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
       supabase.from('project_members').select('project_id, profiles(*)'),
-      supabase.from('events').select('*').order('at', { ascending: true }),
+      // Bounded: the feed shows eight. A lead's full trail is fetched by the
+      // history drawer when it opens, so this never has to grow without limit.
+      supabase.from('events').select('*').order('at', { ascending: false }).limit(200),
     ])
 
     const err = projRes.error || leadRes.error || memRes.error
@@ -106,7 +111,7 @@ export function useWorkspace() {
         convertedAt: l.converted_at,
         createdAt: l.created_at,
       })),
-      events: (evRes.data ?? []).map((e: any): LeadEvent => ({
+      events: [...(evRes.data ?? [])].reverse().map((e: any): LeadEvent => ({
         id: e.id,
         leadId: e.lead_id,
         what: e.what,

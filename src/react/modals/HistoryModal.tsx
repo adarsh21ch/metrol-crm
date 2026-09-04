@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Modal } from '@/components/Modal'
+import { supabase } from '@/lib/supabase'
+import { isDemo } from '@/data/demo'
 import { fmtWhen, money } from '@/lib/format'
 import { QUALITY, STATUS, type Lead, type LeadEvent, type Member } from '@/lib/types'
 
@@ -13,8 +16,26 @@ export function HistoryModal({
   projectName: string
   onClose: () => void
 }) {
-  const mine = events
-    .filter((e) => e.leadId === lead.id)
+  // The workspace only keeps the most recent events, so an old lead's trail is
+  // fetched here. What is already loaded shows immediately; the rest arrives.
+  const [extra, setExtra] = useState<LeadEvent[] | null>(null)
+  useEffect(() => {
+    if (isDemo()) return
+    let dead = false
+    supabase.from('events').select('*').eq('lead_id', lead.id).order('at', { ascending: true })
+      .then(({ data }) => {
+        if (dead || !data) return
+        setExtra(data.map((e: any): LeadEvent => ({
+          id: e.id, leadId: e.lead_id, what: e.what,
+          from: e.from_val ?? '', to: e.to_val ?? '', by: e.by_name ?? '—',
+          at: new Date(e.at).getTime(),
+        })))
+      })
+    return () => { dead = true }
+  }, [lead.id])
+
+  const mine = (extra ?? events.filter((e) => e.leadId === lead.id))
+    .slice()
     .sort((a, b) => a.at - b.at || a.id - b.id)
 
   const owner = members.find((m) => m.id === lead.ownerId)

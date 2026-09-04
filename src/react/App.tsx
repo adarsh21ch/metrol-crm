@@ -5,6 +5,7 @@ import { useWorkspace } from '@/data/useWorkspace'
 import { isDemo } from '@/data/demo'
 import { useToast } from '@/components/Toast'
 import { SignIn } from '@/screens/SignIn'
+import { Landing } from '@/screens/Landing'
 import { Projects } from '@/screens/Projects'
 import { ProjectShell } from '@/screens/ProjectShell'
 import { Member } from '@/screens/Member'
@@ -17,6 +18,7 @@ type Route = { name: 'projects' } | { name: 'project'; id: string }
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
+  const [showSignIn, setShowSignIn] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true) })
@@ -25,7 +27,12 @@ export default function App() {
   }, [])
 
   if (!ready) return <Booting />
-  if (!session && !isDemo()) return <SignIn onDone={() => { /* the auth listener re-renders us */ }} />
+  if (!session && !isDemo()) {
+    // The landing page is the front door; the form is one click behind it.
+    return showSignIn
+      ? <SignIn onDone={() => { /* the auth listener re-renders us */ }} />
+      : <Landing onSignIn={() => setShowSignIn(true)} />
+  }
   return <SignedIn />
 }
 

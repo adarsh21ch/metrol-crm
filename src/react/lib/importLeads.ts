@@ -88,12 +88,26 @@ export function mapImport(
 
 /** .csv is parsed here; .xlsx goes through SheetJS, and if that script did not
  *  load the caller is told so rather than failing silently. */
-export function readSheet(file: File): Promise<string[][]> {
+let sheetJs: Promise<void> | null = null
+
+/** Fetched the first time somebody opens a spreadsheet, and never again. */
+function loadSheetJs(): Promise<void> {
+  if (typeof XLSX !== 'undefined') return Promise.resolve()
+  if (sheetJs) return sheetJs
+  sheetJs = new Promise<void>((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+    s.onload = () => resolve()
+    s.onerror = () => { sheetJs = null; reject(new Error('The Excel reader could not load. Save the sheet as CSV and import that.')) }
+    document.head.appendChild(s)
+  })
+  return sheetJs
+}
+
+export async function readSheet(file: File): Promise<string[][]> {
   const lower = file.name.toLowerCase()
   if (/\.(xlsx|xls)$/.test(lower)) {
-    if (typeof XLSX === 'undefined') {
-      return Promise.reject(new Error('The Excel reader could not load. Save the sheet as CSV and import that.'))
-    }
+    await loadSheetJs()
     return new Promise((resolve, reject) => {
       const fr = new FileReader()
       fr.onload = () => {

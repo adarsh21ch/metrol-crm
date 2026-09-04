@@ -868,3 +868,10 @@ table.hist .what{font-weight:500}
   background:var(--bad-soft);border:1px solid var(--bad-line);
   border-radius:var(--r);padding:8px 10px;
 }
+
+/* An uploaded logo sits in the same plate the lettering did, and is bounded so
+   a large file cannot blow the layout out. */
+.logo-img{
+  max-width:min(320px,72%);max-height:150px;
+  object-fit:contain;display:block;margin:0 auto;
+}
