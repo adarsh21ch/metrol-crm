@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { isConfigured, supabase } from '@/lib/supabase'
 
-export function SignIn({ onDone }: { onDone: () => void }) {
+export function SignIn({ onDone, onCreateAccount }: { onDone: () => void; onCreateAccount?: () => void }) {
   const [email, setEmail] = useState('')
   const [pass, setPass] = useState('')
   const [busy, setBusy] = useState(false)
@@ -42,6 +42,13 @@ export function SignIn({ onDone }: { onDone: () => void }) {
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
+          {onCreateAccount && (
+            <div className="auth-alt">
+              <button className="btn btn--sm btn--block" type="button" onClick={onCreateAccount}>
+                New team member? Create an account
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

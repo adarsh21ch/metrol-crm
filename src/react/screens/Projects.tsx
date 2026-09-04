@@ -130,7 +130,10 @@ export function Projects({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) =
                       </div>
                       <div className="proj-foot">
                         <span className="stack">
-                          {p.team.map((id) => <Avatar key={id}>{initials(ws.memberName(id))}</Avatar>)}
+                          {p.team.map((id) => {
+                            const m = ws.members.find((x) => x.id === id)
+                            return <Avatar key={id} src={m?.avatarUrl}>{m ? m.initials : initials(ws.memberName(id))}</Avatar>
+                          })}
                         </span>
                         <span>
                           {p.team.length} {p.team.length === 1 ? 'person' : 'people'} · updated {agoWords(p.updatedAt)}

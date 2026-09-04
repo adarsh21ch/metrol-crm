@@ -5,8 +5,14 @@ export const Caret = () => (
        strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
 )
 
-export const Avatar = ({ children, lg }: { children: React.ReactNode; lg?: boolean }) => (
-  <span className={'avatar' + (lg ? ' avatar--lg' : '')}>{children}</span>
+/** A photo when one exists, initials otherwise — never both, and the caller
+ *  never has to know which it got. */
+export const Avatar = ({
+  children, lg, src,
+}: { children: React.ReactNode; lg?: boolean; src?: string | null }) => (
+  <span className={'avatar' + (lg ? ' avatar--lg' : '')}>
+    {src ? <img src={src} alt="" /> : children}
+  </span>
 )
 
 export const Chip = ({ cls, children }: { cls: string; children: React.ReactNode }) => (

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
-import { Chip, IconBtn } from '@/components/bits'
+import { Avatar, Chip, IconBtn } from '@/components/bits'
 import { usePanes } from '@/lib/usePanes'
 import { initials } from '@/lib/format'
 import { isConverted, type Lead } from '@/lib/types'
@@ -10,6 +10,7 @@ import { ImportModal } from '@/modals/ImportModal'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { AddLeadModal } from '@/modals/AddLeadModal'
+import { ProfileModal } from '@/modals/ProfileModal'
 import { Overview } from './sections/Overview'
 import { Leads } from './sections/Leads'
 import { Sales } from './sections/Sales'
@@ -44,6 +45,7 @@ export function ProjectShell({
   const [addOpen, setAddOpen] = useState(false)
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [sec, setSec] = useState<SecId>('overview')
   const [dense, setDense] = useState<'compact' | 'comfortable'>(() => {
     try { return localStorage.getItem('metrol-crm-dense') === 'comfortable' ? 'comfortable' : 'compact' } catch { return 'compact' }
@@ -95,13 +97,13 @@ export function ProjectShell({
             <button className={dense === 'compact' ? 'is-on' : ''} onClick={() => setDense('compact')}>Compact</button>
             <button className={dense === 'comfortable' ? 'is-on' : ''} onClick={() => setDense('comfortable')}>Comfortable</button>
           </div>
-          <div className="user-chip">
-            <div className="avatar avatar--lg">{initials(ws.me?.name ?? '?')}</div>
+          <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
+            <Avatar lg src={ws.me?.avatarUrl}>{initials(ws.me?.name ?? '?')}</Avatar>
             <div>
               <div className="name">{isOwner ? 'Owner' : (ws.me?.name ?? '')}</div>
               <div className="role">{ws.me?.email}</div>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -229,6 +231,8 @@ export function ProjectShell({
           onClose={() => setHistoryFor(null)}
         />
       )}
+
+      {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
     </div>
   )
 }

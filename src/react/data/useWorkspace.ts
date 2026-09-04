@@ -43,6 +43,28 @@ const toEvent = (e: any): LeadEvent => ({
   at: new Date(e.at).getTime(),
 })
 
+const toMember = (p: any): Member => ({
+  id: p.id,
+  name: p.name || String(p.email ?? '').split('@')[0] || 'Unknown',
+  initials: initials(p.name || p.email || '?'),
+  email: p.email ?? null,
+  phone: p.phone ?? null,
+  avatarUrl: p.avatar_url ?? null,
+  role: p.role,
+})
+
+/** A member becomes visible on the assign dropdown the moment their profile
+ *  exists (see the query below); this only lets them read the project ROW
+ *  itself once they actually hold a lead in it. Failures are swallowed on
+ *  purpose — this is a courtesy upsert, not the write the caller is waiting
+ *  on, and the same primary key means a repeat call is always a no-op. */
+async function ensureProjectMember(projectId: string, profileId: string) {
+  await supabase.from('project_members').upsert(
+    { project_id: projectId, profile_id: profileId },
+    { onConflict: 'project_id,profile_id', ignoreDuplicates: true },
+  )
+}
+
 const EMPTY: State = {
   me: null, members: [], projects: [], leads: [], events: [], loading: true, error: null,
 }
@@ -79,7 +101,13 @@ export function useWorkspace() {
       uid ? supabase.from('profiles').select('*').eq('id', uid).single() : Promise.resolve({ data: null, error: null }),
       supabase.from('projects').select('*').order('created_at', { ascending: true }),
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
-      supabase.from('project_members').select('project_id, profiles(*)'),
+      // Every salesperson, system-wide — not scoped through project_members.
+      // That join used to be the only route to this list, so a brand-new
+      // account was invisible to the assign dropdown until someone hand-wrote
+      // a project_members row for them. The owner's RLS already permits
+      // reading every profile (is_owner() in profiles_select), so this is not
+      // a widening — it is reading what was already allowed.
+      supabase.from('profiles').select('*').eq('role', 'member').order('created_at', { ascending: true }),
       // Bounded: the feed shows eight. A lead's full trail is fetched by the
       // history drawer when it opens, so this never has to grow without limit.
       supabase.from('events').select('*').order('at', { ascending: false }).limit(200),
@@ -91,27 +119,14 @@ export function useWorkspace() {
       return
     }
 
-    const toMember = (p: any): Member => ({
-      id: p.id,
-      name: p.name || String(p.email ?? '').split('@')[0] || 'Unknown',
-      initials: initials(p.name || p.email || '?'),
-      email: p.email ?? null,
-      role: p.role,
-    })
-
-    // PostgREST types an embedded to-one join as an array; normalise both shapes.
-    const joined = (memRes.data ?? []).flatMap((r: any) => {
-      const ps = Array.isArray(r.profiles) ? r.profiles : r.profiles ? [r.profiles] : []
-      return ps.map((p: any) => ({ member: toMember(p), projectId: r.project_id as string }))
-    })
-
     const byId = new Map<string, Member>()
-    for (const j of joined) byId.set(j.member.id, j.member)
+    for (const p of memRes.data ?? []) byId.set(p.id, toMember(p))
     const meRow = (profRes as any).data
     const me = meRow ? toMember(meRow) : null
-    // The signed-in user belongs in the list even before anyone assigns them to
-    // a project, otherwise their own name renders as "Unknown".
-    if (me && !byId.has(me.id)) byId.set(me.id, me)
+    // A signed-in member belongs in the list even before anyone assigns them
+    // to a project, otherwise their own name renders as "Unknown" — but the
+    // owner is never a salesperson, so they never belong in the assign menu.
+    if (me && me.role === 'member' && !byId.has(me.id)) byId.set(me.id, me)
 
     setS({
       me,
@@ -174,6 +189,25 @@ export function useWorkspace() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
         void load()   // rarer, and it changes the rail and the cards together
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (p: any) => {
+        // A new signup should reach the owner's assign dropdown without
+        // anyone reloading, the same way a status change reaches the board.
+        const row = p.new ?? p.old
+        if (!row) return
+        setS((prev) => {
+          if (p.eventType === 'DELETE') {
+            return { ...prev, members: prev.members.filter((m) => m.id !== row.id) }
+          }
+          if (row.role !== 'member' && row.id !== prev.me?.id) return prev
+          const m = toMember(row)
+          const known = prev.members.some((x) => x.id === m.id)
+          return {
+            ...prev,
+            members: known ? prev.members.map((x) => (x.id === m.id ? m : x)) : [...prev.members, m],
+            me: prev.me?.id === m.id ? m : prev.me,
+          }
+        })
+      })
       .subscribe()
 
     return () => { void supabase.removeChannel(channel) }
@@ -232,6 +266,8 @@ export function useWorkspace() {
     const was = memberName(l.ownerId)
     await write(l.id, { ownerId, isNew: !!ownerId }, { owner_id: ownerId })
     await log(l.id, 'Assigned', was, ownerId ? memberName(ownerId) : 'Unassigned', 'Owner')
+    // So the member can read the project's own row, not just their lead in it.
+    if (ownerId && !isDemo()) await ensureProjectMember(l.projectId, ownerId)
   }, [write, log, memberName])
 
   const setVerified = useCallback(async (l: Lead, verified: boolean) => {
@@ -282,15 +318,60 @@ export function useWorkspace() {
           at: new Date().toISOString(),
         })),
       )
+      const owners = new Set(rows.map((r) => r.ownerId).filter(Boolean) as string[])
+      await Promise.all([...owners].map((id) => ensureProjectMember(projectId, id)))
     }
     await load()
     return { added: data?.length ?? 0, error: null }
   }, [load])
 
+  /** The profile fields a person edits about themselves. */
+  const updateMe = useCallback(async (patch: { name?: string; phone?: string | null }) => {
+    if (!s.me) return 'Not signed in.'
+    const row: Record<string, unknown> = {}
+    if (patch.name !== undefined) row.name = patch.name
+    if (patch.phone !== undefined) row.phone = patch.phone
+    const { error } = await supabase.from('profiles').update(row).eq('id', s.me.id)
+    if (error) return error.message
+    setS((p) => ({
+      ...p,
+      me: p.me ? { ...p.me, ...patch, initials: patch.name ? initials(patch.name) : p.me.initials } : p.me,
+      members: p.members.map((m) => (m.id === s.me!.id ? { ...m, ...patch } : m)),
+    }))
+    return null
+  }, [s.me])
+
+  const uploadAvatar = useCallback(async (file: File) => {
+    if (!s.me) return { url: null, error: 'Not signed in.' }
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `${s.me.id}/avatar.${ext}`
+    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, {
+      upsert: true, cacheControl: '3600',
+    })
+    if (upErr) return { url: null, error: upErr.message }
+    // Busts any cached copy of the old photo at this same path.
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+    const url = data.publicUrl + '?v=' + Date.now()
+    const { error: dbErr } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', s.me.id)
+    if (dbErr) return { url: null, error: dbErr.message }
+    setS((p) => ({
+      ...p,
+      me: p.me ? { ...p.me, avatarUrl: url } : p.me,
+      members: p.members.map((m) => (m.id === s.me!.id ? { ...m, avatarUrl: url } : m)),
+    }))
+    return { url, error: null }
+  }, [s.me])
+
+  const changePassword = useCallback(async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    return error ? error.message : null
+  }, [])
+
   return {
     ...s,
     memberName,
     setStatus, setQuality, setOwner, setVerified, recordSale, addLeads,
+    updateMe, uploadAvatar, changePassword,
     reload: load,
     clearError: () => setS((p) => ({ ...p, error: null })),
   }

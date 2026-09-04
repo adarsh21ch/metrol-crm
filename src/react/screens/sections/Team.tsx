@@ -3,7 +3,7 @@ import { Avatar } from '@/components/bits'
 import { daysSince, money } from '@/lib/format'
 import { isConnected, isConverted, type Lead, type Member } from '@/lib/types'
 
-interface Row { id: string; name: string; initials: string; assigned: number; connected: number; followups: number; converted: number; today: number; week: number; month: number; all: number }
+interface Row { id: string; name: string; initials: string; avatarUrl: string | null; assigned: number; connected: number; followups: number; converted: number; today: number; week: number; month: number; all: number }
 
 export function Team({ leads, members }: { leads: Lead[]; members: Member[] }) {
   const sum = (rs: Lead[]) => rs.reduce((s, l) => s + l.amount, 0)
@@ -13,7 +13,7 @@ export function Team({ leads, members }: { leads: Lead[]; members: Member[] }) {
     const mine = leads.filter((l) => l.ownerId === m.id)
     const cv = mine.filter(isConverted)
     return {
-      id: m.id, name: m.name, initials: m.initials,
+      id: m.id, name: m.name, initials: m.initials, avatarUrl: m.avatarUrl,
       assigned: mine.length,
       connected: mine.filter(isConnected).length,
       followups: mine.filter((l) => l.status === 'follow_up').length,
@@ -26,7 +26,7 @@ export function Team({ leads, members }: { leads: Lead[]; members: Member[] }) {
   }).sort((a, b) => b.all - a.all)
 
   const cols: GridCol<Row>[] = [
-    { key: 'nm', label: 'Team member', width: 200, render: (r) => <span className="td-flex"><Avatar>{r.initials}</Avatar><span className="cell-strong">{r.name}</span></span> },
+    { key: 'nm', label: 'Team member', width: 200, render: (r) => <span className="td-flex"><Avatar src={r.avatarUrl}>{r.initials}</Avatar><span className="cell-strong">{r.name}</span></span> },
     { key: 'as', label: 'Leads', width: 88, render: (r) => <span className="num">{r.assigned}</span> },
     { key: 'cn', label: 'Connected', width: 106, render: (r) => <span className="num">{r.connected}</span> },
     { key: 'fu', label: 'Follow-ups', width: 110, render: (r) => <span className="num">{r.followups}</span> },

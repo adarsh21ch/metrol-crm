@@ -5,6 +5,7 @@ import { useWorkspace } from '@/data/useWorkspace'
 import { isDemo } from '@/data/demo'
 import { useToast } from '@/components/Toast'
 import { SignIn } from '@/screens/SignIn'
+import { SignUp } from '@/screens/SignUp'
 import { Landing } from '@/screens/Landing'
 import { Projects } from '@/screens/Projects'
 import { ProjectShell } from '@/screens/ProjectShell'
@@ -18,7 +19,7 @@ type Route = { name: 'projects' } | { name: 'project'; id: string }
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
-  const [showSignIn, setShowSignIn] = useState(false)
+  const [authView, setAuthView] = useState<'landing' | 'signin' | 'signup'>('landing')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true) })
@@ -28,10 +29,18 @@ export default function App() {
 
   if (!ready) return <Booting />
   if (!session && !isDemo()) {
-    // The landing page is the front door; the form is one click behind it.
-    return showSignIn
-      ? <SignIn onDone={() => { /* the auth listener re-renders us */ }} />
-      : <Landing onSignIn={() => setShowSignIn(true)} />
+    // The landing page is the front door; sign-in and sign-up are one click
+    // behind it, and can send you to each other without going back through it.
+    if (authView === 'signup') {
+      return <SignUp onDone={() => { /* the auth listener re-renders us */ }} onHaveAccount={() => setAuthView('signin')} />
+    }
+    if (authView === 'signin') {
+      return (
+        <SignIn onDone={() => { /* the auth listener re-renders us */ }}
+                onCreateAccount={() => setAuthView('signup')} />
+      )
+    }
+    return <Landing onSignIn={() => setAuthView('signin')} />
   }
   return <SignedIn />
 }

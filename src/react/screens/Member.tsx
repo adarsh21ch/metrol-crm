@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Menu, type MenuItem } from '@/components/Menu'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
+import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
+import { ProfileModal } from '@/modals/ProfileModal'
 import { agoDays, daysSince, money, pct } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
@@ -19,6 +20,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   const me = ws.me
   const mine = useMemo(() => ws.leads.filter((l) => l.ownerId === me?.id), [ws.leads, me])
@@ -102,10 +104,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             <button className={dense === 'compact' ? 'is-on' : ''} onClick={() => setDense('compact')}>Compact</button>
             <button className={dense === 'comfortable' ? 'is-on' : ''} onClick={() => setDense('comfortable')}>Comfortable</button>
           </div>
-          <div className="user-chip">
-            <div className="avatar avatar--lg">{me?.initials}</div>
+          <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
+            <Avatar lg src={me?.avatarUrl}>{me?.initials}</Avatar>
             <div><div className="name">{me?.name}</div><div className="role">Sales</div></div>
-          </div>
+          </button>
           <IconBtn title="Sign out" onClick={() => void supabase.auth.signOut()}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
@@ -182,6 +184,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           projectName={projectName(historyFor.projectId)}
           onClose={() => setHistoryFor(null)} />
       )}
+
+      {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
     </div>
   )
 }

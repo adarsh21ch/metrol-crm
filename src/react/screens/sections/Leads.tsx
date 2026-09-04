@@ -86,10 +86,10 @@ export function Leads({
         return isOwner ? (
           <button className="assignee" title="Change who this lead belongs to"
                   onClick={(e) => setEdit({ kind: 'assign', anchor: e.currentTarget, lead: l })}>
-            <Avatar>{m.initials}</Avatar><span className="assignee-nm">{m.name}</span><Caret />
+            <Avatar src={m.avatarUrl}>{m.initials}</Avatar><span className="assignee-nm">{m.name}</span><Caret />
           </button>
         ) : (
-          <span className="td-flex"><Avatar>{m.initials}</Avatar><span>{m.name}</span></span>
+          <span className="td-flex"><Avatar src={m.avatarUrl}>{m.initials}</Avatar><span>{m.name}</span></span>
         )
       },
     },
@@ -104,7 +104,7 @@ export function Leads({
           ? [
               ...members.map((m) => ({
                 value: m.id,
-                node: <span className="menu-person"><span className="avatar">{m.initials}</span><span>{m.name}</span></span>,
+                node: <span className="menu-person"><Avatar src={m.avatarUrl}>{m.initials}</Avatar><span>{m.name}</span></span>,
               })),
               ...(edit.lead.ownerId
                 ? [{ value: '__none', node: <span className="menu-person menu-person--none"><span>Unassign</span></span> }]

@@ -609,3 +609,64 @@ Verified against the real database on 4 Sept by signing in as the owner: the
 project, leads and KPIs all loaded, and assigning a lead and verifying a payment
 both wrote through and came back in Recent activity. That round trip is what the
 cutover was waiting on.
+
+---
+
+## Round: the assign bug, self-signup, avatars, profile editing
+
+### The bug that was actually happening
+`ws.members` (the list the assign dropdown reads) was built entirely from the
+`project_members` join table. A brand-new account is in `profiles` but not yet
+in `project_members`, so it was invisible to the assign menu until someone
+hand-wrote a row for it in SQL — and that would recur for every future signup.
+
+Fixed: members are now loaded directly from `profiles where role = 'member'`,
+system-wide. The owner's RLS already permits reading every profile
+(`is_owner()` in `profiles_select`), so this reads what was already allowed —
+it does not widen anything. `project_members` still exists and still matters:
+assigning a lead now auto-upserts a row into it, which is what lets that
+member's browser read the *project* itself (`projects_select` requires
+`is_project_member`), not just the lead they hold.
+
+While testing this fix, found and fixed a second, pre-existing bug in the same
+area: the owner was being added to the assignable list (`ws.members`), so
+"Owner" showed up as a target you could hand a lead to. An owner is never a
+salesperson, so that was always wrong; it was masked before because nobody had
+looked closely at that dropdown. Fixed in both the live query and the demo
+fixture.
+
+### Migration to run
+`supabase/migrations/0003_profiles_and_storage.sql` — adds `phone` and
+`avatar_url` to `profiles`, updates the signup trigger to store phone, and
+creates the `avatars` storage bucket with policies (anyone signed in can read
+any avatar; a user can only write into their own folder).
+
+### Self-service signup
+New screen, reachable from the landing page → Sign in → "Create an account".
+Mandatory: name, phone, email, password. Calls `supabase.auth.signUp` with
+`name`/`phone` in the metadata, which the updated trigger writes into
+`profiles`. Every self-created account is `role = 'member'` by the schema
+default, and the existing guard trigger blocks a client from ever changing
+that — there is no path from this form to an owner account.
+
+If email confirmation is on in Supabase Auth settings (the default), a new
+signup sees "check your email" rather than being signed in immediately — the
+form handles both cases depending on whether `signUp` returns a session.
+
+### Avatars
+`profiles.avatar_url`. The `Avatar` component (`components/bits.tsx`) shows
+the photo when one exists, initials otherwise — every call site (Team, Sales,
+Leads, Projects, the assign menu, both topbars) was updated to pass it. Upload
+goes through the `ProfileModal`, writing to the `avatars` bucket at
+`<uid>/avatar.<ext>` and updating `profiles.avatar_url`.
+
+### Profile editing
+`ProfileModal`, opened by clicking the user chip in the topbar (works for both
+the owner and a salesperson). Name, phone, photo upload, and change password.
+Deliberately a modal, not a new side-panel pattern — every other editor in the
+app (import, a sale, a lead's history) is already one.
+
+### Still true from before
+Realtime is live (leads, events, projects, and now profiles too — a new
+signup reaches the owner's screen without a reload). The React app at `/` is
+the product; `/legacy.html` is the retired vanilla build kept as a fallback.

@@ -44,7 +44,7 @@ export function Sales({
       render: (l) => {
         const m = members.find((x) => x.id === l.ownerId)
         return m
-          ? <span className="td-flex"><Avatar>{m.initials}</Avatar><span>{m.name}</span></span>
+          ? <span className="td-flex"><Avatar src={m.avatarUrl}>{m.initials}</Avatar><span>{m.name}</span></span>
           : <span className="cell-mute">—</span>
       },
     },

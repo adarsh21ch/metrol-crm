@@ -11,6 +11,8 @@ export interface Member {
   name: string
   initials: string
   email: string | null
+  phone: string | null
+  avatarUrl: string | null
   role: Role
 }
 

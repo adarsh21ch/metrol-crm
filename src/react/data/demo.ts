@@ -23,11 +23,13 @@ export const demoMembers: Member[] = MEMBER_NAMES.map((name, i) => ({
   name,
   initials: initials(name),
   email: name.toLowerCase().replace(/\s+/g, '.') + '@metrol.in',
+  phone: null,
+  avatarUrl: null,
   role: 'member',
 }))
 
 const OWNER: Member = {
-  id: 'owner', name: 'Owner', initials: 'MM', email: 'owner@metrol.in', role: 'owner',
+  id: 'owner', name: 'Owner', initials: 'MM', email: 'owner@metrol.in', phone: null, avatarUrl: null, role: 'owner',
 }
 
 const iso = (daysAgo: number, hourOffset = 0) =>
@@ -105,7 +107,8 @@ export const demoEvents: LeadEvent[] = (() => {
   return out.sort((a, b) => a.at - b.at)
 })()
 
-export const demoAllMembers = [OWNER, ...demoMembers]
+// The owner is never a salesperson, so they never belong in the assign menu.
+export const demoAllMembers = demoMembers
 
 export const isDemo = () =>
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
