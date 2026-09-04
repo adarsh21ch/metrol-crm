@@ -743,3 +743,73 @@ not at all for a member. Company settings loads the code, lists the six seeded
 departments, adds a seventh, and moves a person between departments with the
 change sticking. The only console error is the Google Fonts stylesheet, which
 this sandbox blocks and Vercel does not.
+
+---
+
+# Round 13 — a board view for leads, and a mobile overflow bug found along the way
+
+### The board view
+The salesperson's Leads section now has a List/Board toggle (`Leads` →
+`section-tools`, next to the search box, remembered in `localStorage` the same
+way the Projects screen remembers Cards/List). Board view lays leads out as
+one column per status — New, Connected, Follow-up, Converted, Dead — and
+dragging a card to another column calls the exact same `ws.setStatus` the
+list's status dropdown already calls. There is one write path, not two, so
+the two views can never disagree about what a lead's status is: change it in
+either one and the other updates immediately, because both are just reading
+the same `ws.leads` array.
+
+Dropping a card on Converted with no sale amount yet opens the same "Record
+sale" modal the dropdown opens — converting was never just a status flip, and
+the board doesn't get a shortcut around that rule.
+
+New component: `src/react/components/LeadsBoard.tsx`. Wired into
+`src/react/screens/Member.tsx` only, not the owner's Leads table — the owner
+never sets status or quality (the assigned salesperson does), so there was
+nothing for the owner to drag.
+
+### Built on pointer events, not HTML5 drag-and-drop
+The first version used the browser's native `draggable` attribute. It works
+with a mouse and does nothing on a touch screen — Safari iOS never fires
+`dragstart` from a touch, and Chrome Android is unreliable at best. Since this
+is a CRM a sales team will mostly run from a phone, that would have shipped a
+feature that only worked in the demo. Rewritten on `pointerdown` /
+`pointermove` / `pointerup`, the same primitives the column-resize handles in
+`DataGrid.tsx` already use — one code path for mouse, touch, and pen. A small
+movement threshold (6px) tells a drag apart from a tap, so tapping a lead's
+name still opens its history.
+
+Verified with a real mouse-drag simulation, and separately by dispatching
+synthetic `PointerEvent`s with `pointerType: 'touch'` directly at the DOM —
+this exercises the exact listeners a real finger would, rather than trusting
+that a screenshot merely renders correctly.
+
+### A pre-existing mobile bug, found while testing this — not caused by it
+Testing the board at 390px width turned up the page itself scrolling
+horizontally — on both the new board **and** the existing list view, and on
+both the owner's and the salesperson's screens. Not something this round
+introduced; it was already there. Two separate causes, both fixed:
+
+1. `.grid-shell` (the table's own wrapper) and `.section` had no
+   `min-width:0`. Both sit inside a column flex container, and a flex item's
+   default `min-width:auto` refuses to shrink below its content's natural
+   size — so a wide table widened its container instead of scrolling inside
+   its own `overflow:auto` box. Same fix applied to the new `.board` for the
+   same reason. This is the same class of bug `.workspace` was already
+   guarded against elsewhere in this file.
+2. The real cause of the specific 60px overflow measured: `ProjectShell.tsx`'s
+   Compact/Comfortable density toggle carries `id="density"`, and a mobile
+   media query hides it by id to free up room in the topbar
+   (`#density,#densityM{display:none}`) — written for exactly this problem.
+   `Member.tsx` has the identical toggle but never got the `id` when it was
+   ported, so it never hid, and kept forcing the topbar wider than the
+   screen. One missing attribute; added it.
+
+### Verified in Chromium before this was called done
+Board and list agree after a drag in either direction, in both directions.
+Dropping on Converted with no amount opens the sale modal, same as the
+dropdown. A synthetic touch-typed drag produces the same result as a mouse
+drag. Dark mode matches the rest of the app. At 390px width, `document.
+documentElement.scrollWidth` equals `clientWidth` on both the owner's and the
+salesperson's Leads screens, in both list and board view — no page-level
+horizontal scroll anywhere this touched.

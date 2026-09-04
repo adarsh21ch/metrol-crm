@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
+import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
@@ -11,6 +12,9 @@ import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, 
 import { supabase } from '@/lib/supabase'
 import type { Workspace } from '@/data/useWorkspace'
 
+type LeadsView = 'list' | 'board'
+const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
+
 /** The salesperson's whole app: the leads the owner handed them, and what they
  *  closed. They set status and quality; they never see anybody else's rows —
  *  and the row level security means that is true of the data, not just the UI. */
@@ -21,12 +25,28 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [leadsView, setLeadsView] = useState<LeadsView>(() => {
+    try { return localStorage.getItem(LEADS_VIEW_KEY) === 'board' ? 'board' : 'list' } catch { return 'list' }
+  })
+  const pickView = (v: LeadsView) => {
+    setLeadsView(v)
+    try { localStorage.setItem(LEADS_VIEW_KEY, v) } catch { /* a remembered view is a convenience */ }
+  }
 
   const me = ws.me
   const mine = useMemo(() => ws.leads.filter((l) => l.ownerId === me?.id), [ws.leads, me])
   const cv = useMemo(() => mine.filter(isConverted), [mine])
   const projectName = (id: string) => ws.projects.find((p) => p.id === id)?.name ?? '—'
   const sum = (rs: Lead[]) => rs.reduce((s, l) => s + l.amount, 0)
+
+  /** The board's drag-and-drop is a shortcut for the exact same write the list's
+   *  status dropdown makes below — a lead converting still needs a sale amount,
+   *  so dropping on Converted with none set opens the same modal the dropdown does. */
+  async function dropStatus(l: Lead, status: LeadStatus) {
+    if (status === 'converted' && !l.amount) { setSaleFor(l); return }
+    await ws.setStatus(l, status, me?.name ?? 'Salesperson')
+    toast(`${l.name} — status set to ${STATUS[status].label}`)
+  }
 
   const leadCols: GridCol<Lead>[] = [
     { key: 'idx', label: '#', width: 52, render: (_l, i) => <span className="cell-idx">{i + 1}</span> },
@@ -77,13 +97,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   async function pick(v: string) {
     if (!edit) return
     const l = edit.lead
-    const by = me?.name ?? 'Salesperson'
     if (edit.kind === 'status') {
-      if (v === 'converted' && !l.amount) { setSaleFor(l); return }
-      await ws.setStatus(l, v as LeadStatus, by)
-      toast(`${l.name} — status set to ${STATUS[v as LeadStatus].label}`)
+      await dropStatus(l, v as LeadStatus)
     } else {
-      await ws.setQuality(l, v as Quality, by)
+      await ws.setQuality(l, v as Quality, me?.name ?? 'Salesperson')
       toast(`${l.name} — marked ${QUALITY[v as Quality].label}`)
     }
   }
@@ -100,7 +117,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
         </div>
         <div className="topbar-right">
           <ThemeToggle />
-          <div className="seg">
+          <div className="seg" id="density">
             <button className={dense === 'compact' ? 'is-on' : ''} onClick={() => setDense('compact')}>Compact</button>
             <button className={dense === 'comfortable' ? 'is-on' : ''} onClick={() => setDense('comfortable')}>Comfortable</button>
           </div>
@@ -151,10 +168,20 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               <div className="section-head">
                 <h3>Leads</h3>
                 <div className="sub">{mine.length} leads across {projects} {projects === 1 ? 'project' : 'projects'}</div>
+                <div className="section-tools">
+                  <div className="seg">
+                    <button className={leadsView === 'list' ? 'is-on' : ''} onClick={() => pickView('list')}>List</button>
+                    <button className={leadsView === 'board' ? 'is-on' : ''} onClick={() => pickView('board')}>Board</button>
+                  </div>
+                </div>
               </div>
-              <DataGrid cols={leadCols} rows={mine} storageKey="member-leads"
-                        foot={<div className="grid-foot"><span>{mine.length} leads</span>
-                          <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span></div>} />
+              {leadsView === 'list' ? (
+                <DataGrid cols={leadCols} rows={mine} storageKey="member-leads"
+                          foot={<div className="grid-foot"><span>{mine.length} leads</span>
+                            <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span></div>} />
+              ) : (
+                <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)} />
+              )}
             </div>
 
             <div className="section">
