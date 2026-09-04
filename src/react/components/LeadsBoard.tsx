@@ -5,6 +5,23 @@ import { money } from '@/lib/format'
 
 const COLUMNS = Object.keys(STATUS) as LeadStatus[]
 const DRAG_THRESHOLD = 6
+const RETURN_MS = 180
+
+function CardBody({ l, projectName }: { l: Lead; projectName: (id: string) => string }) {
+  return (
+    <>
+      <span className="board-card-nm">
+        {l.isNew && <span className="new-dot" title="New lead" />}
+        {l.name}
+      </span>
+      <div className="board-card-sub">{projectName(l.projectId)}</div>
+      <div className="board-card-foot">
+        {l.quality && <Chip cls={QUALITY[l.quality].cls}>{QUALITY[l.quality].label}</Chip>}
+        {l.amount > 0 && <span className="cell-money">{money(l.amount)}</span>}
+      </div>
+    </>
+  )
+}
 
 /**
  * The same leads as the list, laid out as one column per status. Dragging a
@@ -16,6 +33,12 @@ const DRAG_THRESHOLD = 6
  * drag-and-drop does not fire from a touch screen in the browsers a
  * salesperson actually carries, so a board only draggable with a mouse would
  * be a desktop demo, not a tool the team could use from their phone.
+ *
+ * The card that moves is a floating clone, not the real one — the real card
+ * stays in its slot as a dashed placeholder so the column doesn't reflow
+ * mid-drag. Drop it somewhere that isn't a valid column (or back on its own)
+ * and the clone flies back to that placeholder rather than just vanishing;
+ * drop it on a different column and the write happens immediately.
  */
 export function LeadsBoard({
   leads, projectName, onOpenHistory, onDropStatus,
@@ -27,12 +50,18 @@ export function LeadsBoard({
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<LeadStatus | null>(null)
+  const [ghost, setGhost] = useState<{ lead: Lead; x: number; y: number; w: number; h: number } | null>(null)
   const byId = useRef(new Map(leads.map((l) => [l.id, l])))
   byId.current = new Map(leads.map((l) => [l.id, l]))
 
-  // Mutable so the window listeners registered at pointerdown always see the
+  const ghostRef = useRef<HTMLDivElement>(null)
+
+  // Mutable so the window listeners registered once at mount always see the
   // latest values without having to be torn down and rebuilt every render.
-  const drag = useRef<{ id: string; startX: number; startY: number; dragging: boolean; overCol: LeadStatus | null } | null>(null)
+  const drag = useRef<{
+    id: string; startX: number; startY: number; dragging: boolean; overCol: LeadStatus | null
+    offsetX: number; offsetY: number; w: number; h: number; originX: number; originY: number
+  } | null>(null)
 
   useEffect(() => {
     const move = (e: PointerEvent) => {
@@ -44,8 +73,12 @@ export function LeadsBoard({
         if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
         st.dragging = true
         setDraggingId(st.id)
+        setGhost({ lead: byId.current.get(st.id)!, x: e.clientX - st.offsetX, y: e.clientY - st.offsetY, w: st.w, h: st.h })
       }
       e.preventDefault()
+      const x = e.clientX - st.offsetX
+      const y = e.clientY - st.offsetY
+      if (ghostRef.current) ghostRef.current.style.transform = `translate(${x}px, ${y}px)`
       const el = document.elementFromPoint(e.clientX, e.clientY)
       const col = el?.closest<HTMLElement>('[data-col]')
       const next = (col?.dataset.col as LeadStatus | undefined) ?? null
@@ -54,11 +87,28 @@ export function LeadsBoard({
     const up = () => {
       const st = drag.current
       drag.current = null
-      setDraggingId(null)
       setOverCol(null)
-      if (!st?.dragging) return
+      if (!st?.dragging) { setGhost(null); return }
       const lead = byId.current.get(st.id)
-      if (lead && st.overCol && lead.status !== st.overCol) onDropStatus(lead, st.overCol)
+      const committed = !!(lead && st.overCol && lead.status !== st.overCol)
+      if (committed) {
+        onDropStatus(lead!, st.overCol!)
+        setDraggingId(null)
+        setGhost(null)
+        return
+      }
+      // Not a valid new column — fly the clone back to where it started rather
+      // than just snapping it away, so releasing in the wrong place still
+      // looks like the card going home, not an error.
+      const g = ghostRef.current
+      if (g) {
+        g.classList.add('is-returning')
+        g.style.transform = `translate(${st.originX}px, ${st.originY}px)`
+        window.setTimeout(() => { setDraggingId(null); setGhost(null) }, RETURN_MS)
+      } else {
+        setDraggingId(null)
+        setGhost(null)
+      }
     }
     window.addEventListener('pointermove', move, { passive: false })
     window.addEventListener('pointerup', up)
@@ -87,27 +137,35 @@ export function LeadsBoard({
               {rows.map((l) => (
                 <div
                   key={l.id}
-                  className={'board-card' + (draggingId === l.id ? ' is-dragging' : '')}
+                  className={'board-card' + (draggingId === l.id ? ' is-placeholder' : '')}
                   onPointerDown={(e) => {
                     if (e.button !== 0 && e.pointerType === 'mouse') return
-                    drag.current = { id: l.id, startX: e.clientX, startY: e.clientY, dragging: false, overCol: null }
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    drag.current = {
+                      id: l.id, startX: e.clientX, startY: e.clientY, dragging: false, overCol: null,
+                      offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top,
+                      w: rect.width, h: rect.height, originX: rect.left, originY: rect.top,
+                    }
                   }}
+                  onClick={() => { if (draggingId !== l.id) onOpenHistory(l) }}
                 >
-                  <button className="board-card-nm" onClick={() => onOpenHistory(l)}>
-                    {l.isNew && <span className="new-dot" title="New lead" />}
-                    {l.name}
-                  </button>
-                  <div className="board-card-sub">{projectName(l.projectId)}</div>
-                  <div className="board-card-foot">
-                    {l.quality && <Chip cls={QUALITY[l.quality].cls}>{QUALITY[l.quality].label}</Chip>}
-                    {l.amount > 0 && <span className="cell-money">{money(l.amount)}</span>}
-                  </div>
+                  <CardBody l={l} projectName={projectName} />
                 </div>
               ))}
             </div>
           </div>
         )
       })}
+
+      {ghost && (
+        <div
+          ref={ghostRef}
+          className="board-card board-card--ghost"
+          style={{ width: ghost.w, height: ghost.h, transform: `translate(${ghost.x}px, ${ghost.y}px)` }}
+        >
+          <CardBody l={ghost.lead} projectName={projectName} />
+        </div>
+      )}
     </div>
   )
 }
