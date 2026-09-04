@@ -525,3 +525,44 @@ Open items, smallest first. None of these were asked for; do not build them unas
 - **Do not scaffold the real app** until the prototype is signed off by Metrol Media *and* the lead-source question is answered.
 - Keep the minimalism rule. Polish over features.
 - Test changes in the browser before claiming they work — this project has already had two real bugs (a resize drag that broke when the pointer left the handle, and a drag guide that got stuck on screen) that only surfaced through actual interaction testing.
+
+---
+
+## Where this project lives (added when the real app was scaffolded)
+
+| Thing | Value |
+|---|---|
+| GitHub | https://github.com/adarsh21ch/metrol-crm |
+| Supabase project | `Metrol Media`, ref `nsgvcfesyihffspofxiq`, region `ap-southeast-1` |
+| Supabase URL | `https://nsgvcfesyihffspofxiq.supabase.co` |
+| Vercel | not deployed yet |
+
+A session picking this up cold needs three things and no conversation:
+
+1. `npm install`
+2. `cp .env.example .env`, then fill `VITE_SUPABASE_ANON_KEY` from
+   Supabase → Project Settings → API Keys → `anon` `public`.
+3. `npm run dev`
+
+The `service_role` key has no place in this app. It bypasses every policy in
+`supabase/migrations/0001_init.sql`; the browser bundle must never see it.
+
+### The schema is written but not yet applied
+
+`supabase/migrations/0001_init.sql` has not been run against the project. There
+is no Supabase CLI or database credential in the build environment, so it has to
+be pasted into the SQL editor once (Dashboard → SQL Editor → New query). Until
+then the app signs in but every table read comes back empty.
+
+### The app, and what it is not yet
+
+`design/metrol-crm-prototype.html` stays as the signed-off design reference. The
+React app carries the tokens over verbatim so the two cannot drift.
+
+Working: auth, projects (cards/list toggle, remembered), project view (two
+collapsible sidebars, the second draggable and foldable), leads and sales tables
+with resizable columns, role-aware editing, light/dark with persistence.
+
+Not carried over from the prototype yet: Excel/CSV import, the event history
+trail and Recent Activity feed, lead assignment UI, pagination, and search. The
+`events` table those need is not in the migration either.
