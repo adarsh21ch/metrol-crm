@@ -12,7 +12,7 @@ type Editing =
   | null
 
 export function Leads({
-  ws, leads, members, isOwner, meId, onImport, onAdd, onHistory, toast,
+  ws, leads, members, isOwner, meId, onImport, onAdd, onHistory, onNeedsSale, toast,
 }: {
   ws: Workspace
   leads: Lead[]
@@ -22,6 +22,7 @@ export function Leads({
   onImport: () => void
   onAdd: () => void
   onHistory: (l: Lead) => void
+  onNeedsSale: (l: Lead) => void
   toast: (m: string) => void
 }) {
   const [q, setQ] = useState('')
@@ -122,6 +123,9 @@ export function Leads({
     const l = edit.lead
     const by = members.find((m) => m.id === l.ownerId)?.name ?? 'Owner'
     if (edit.kind === 'status') {
+      // Converting without a figure asks for one; a sale with no amount is not
+      // a sale, and the Sales page would carry a blank row for ever.
+      if (v === 'converted' && !l.amount) { onNeedsSale(l); return }
       await ws.setStatus(l, v as LeadStatus, by)
       toast(`${l.name} — status set to ${STATUS[v as LeadStatus].label}`)
     } else if (edit.kind === 'quality') {

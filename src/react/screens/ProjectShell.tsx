@@ -6,6 +6,10 @@ import { usePanes } from '@/lib/usePanes'
 import { initials } from '@/lib/format'
 import { isConverted, type Lead } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
+import { ImportModal } from '@/modals/ImportModal'
+import { SaleModal } from '@/modals/SaleModal'
+import { HistoryModal } from '@/modals/HistoryModal'
+import { AddLeadModal } from '@/modals/AddLeadModal'
 import { Overview } from './sections/Overview'
 import { Leads } from './sections/Leads'
 import { Sales } from './sections/Sales'
@@ -27,17 +31,19 @@ const LABEL: Record<SecId, string> = {
 const ORDER: SecId[] = ['overview', 'leads', 'sales', 'team', 'dash']
 
 export function ProjectShell({
-  ws, projectId, onBack, onOpenProject, onImport, onAdd, onHistory, toast,
+  ws, projectId, onBack, onOpenProject, toast,
 }: {
   ws: Workspace
   projectId: string
   onBack: () => void
   onOpenProject: (id: string) => void
-  onImport: () => void
-  onAdd: () => void
-  onHistory: (l: Lead) => void
   toast: (m: string) => void
 }) {
+  // The dialogs live here because this is the level that knows the project.
+  const [importOpen, setImportOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [saleFor, setSaleFor] = useState<Lead | null>(null)
+  const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [sec, setSec] = useState<SecId>('overview')
   const [dense, setDense] = useState<'compact' | 'comfortable'>(() => {
     try { return localStorage.getItem('metrol-crm-dense') === 'comfortable' ? 'comfortable' : 'compact' } catch { return 'compact' }
@@ -162,7 +168,8 @@ export function ProjectShell({
             {sec === 'overview' && <Overview leads={leads} conv={conv} events={ws.events} onGo={(s) => setSec(s)} />}
             {sec === 'leads' && (
               <Leads ws={ws} leads={leads} members={ws.members} isOwner={isOwner} meId={ws.me?.id ?? null}
-                     onImport={onImport} onAdd={onAdd} onHistory={onHistory} toast={toast} />
+                     onImport={() => setImportOpen(true)} onAdd={() => setAddOpen(true)}
+                     onHistory={setHistoryFor} onNeedsSale={setSaleFor} toast={toast} />
             )}
             {sec === 'sales' && <Sales ws={ws} conv={conv} members={ws.members} isOwner={isOwner} toast={toast} />}
             {sec === 'team' && <Team leads={leads} members={members} />}
@@ -172,6 +179,56 @@ export function ProjectShell({
       </div>
 
       {tip.node}
+
+      {importOpen && (
+        <ImportModal
+          members={ws.members} projectLeads={leads} projectName={project?.name ?? 'this project'}
+          onClose={() => setImportOpen(false)}
+          onImport={async (rows, bulkOwner) => {
+            const r = await ws.addLeads(projectId, rows.map((x) => ({ ...x, ownerId: x.ownerId ?? bulkOwner })))
+            setImportOpen(false)
+            const who = bulkOwner ? ws.members.find((m) => m.id === bulkOwner)?.name : null
+            toast(r.error
+              ? 'Import failed: ' + r.error
+              : `${r.added} lead${r.added === 1 ? '' : 's'} imported into ${project?.name ?? 'this project'}` +
+                (who ? ` and assigned to ${who}` : ''))
+          }}
+        />
+      )}
+
+      {addOpen && (
+        <AddLeadModal
+          members={ws.members}
+          onClose={() => setAddOpen(false)}
+          onSave={async (row, ownerId) => {
+            const r = await ws.addLeads(projectId, [{ ...row, ownerId }])
+            setAddOpen(false)
+            toast(r.error ? 'Could not add: ' + r.error : `${row.name} added`)
+          }}
+        />
+      )}
+
+      {saleFor && (
+        <SaleModal
+          lead={saleFor}
+          onClose={() => setSaleFor(null)}
+          onSave={async (amount) => {
+            const by = ws.members.find((m) => m.id === saleFor.ownerId)?.name ?? 'Owner'
+            await ws.recordSale(saleFor, amount, by)
+            toast(`${saleFor.name} — sale recorded`)
+            setSaleFor(null)
+          }}
+        />
+      )}
+
+      {historyFor && (
+        <HistoryModal
+          lead={ws.leads.find((l) => l.id === historyFor.id) ?? historyFor}
+          events={ws.events} members={ws.members}
+          projectName={project?.name ?? '—'}
+          onClose={() => setHistoryFor(null)}
+        />
+      )}
     </div>
   )
 }

@@ -194,14 +194,14 @@ export function useWorkspace() {
     await log(l.id, 'Sale recorded', '', String(amount), by)
   }, [write, log])
 
-  const addLeads = useCallback(async (projectId: string, rows: { name: string; email: string; phone: string }[]) => {
+  const addLeads = useCallback(async (projectId: string, rows: { name: string; email: string; phone: string; ownerId?: string | null }[]) => {
     if (isDemo()) {
       setS((p) => ({
         ...p,
         leads: [
           ...rows.map((r, i) => ({
             id: 'imp-' + Date.now() + '-' + i, projectId, name: r.name, email: r.email, phone: r.phone,
-            status: 'new' as const, quality: null, ownerId: null, amount: 0, verified: false,
+            status: 'new' as const, quality: null, ownerId: r.ownerId ?? null, amount: 0, verified: false,
             convertedAt: null, createdAt: new Date().toISOString(), isNew: true,
           })),
           ...p.leads,
@@ -211,9 +211,21 @@ export function useWorkspace() {
     }
     const { data, error } = await supabase
       .from('leads')
-      .insert(rows.map((r) => ({ ...r, project_id: projectId, status: 'new' })))
+      .insert(rows.map((r) => ({
+        name: r.name, email: r.email, phone: r.phone,
+        owner_id: r.ownerId ?? null, project_id: projectId, status: 'new',
+      })))
       .select()
     if (error) { setS((p) => ({ ...p, error: error.message })); return { added: 0, error: error.message } }
+    // Every imported lead gets its own first line of history.
+    if (data?.length) {
+      await supabase.from('events').insert(
+        data.map((l: any) => ({
+          lead_id: l.id, what: 'Lead created', from_val: '', to_val: 'Import', by_name: 'Owner',
+          at: new Date().toISOString(),
+        })),
+      )
+    }
     await load()
     return { added: data?.length ?? 0, error: null }
   }, [load])

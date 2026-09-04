@@ -566,3 +566,45 @@ with resizable columns, role-aware editing, light/dark with persistence.
 Not carried over from the prototype yet: Excel/CSV import, the event history
 trail and Recent Activity feed, lead assignment UI, pagination, and search. The
 `events` table those need is not in the migration either.
+
+---
+
+## The React port (in progress → ready for your test)
+
+The app ships two builds from one repo while the port is proven:
+
+| Path | Build | State |
+|---|---|---|
+| `/` | the vanilla prototype wired to Supabase | live, in daily use |
+| `/app.html` | the React port | complete, needs testing against real data |
+
+Both load the **same** `src/prototype.css`. The design is never retyped, so the
+two cannot drift, and the port is a translation of markup and behaviour rather
+than a redesign.
+
+### Why a port at all
+
+The vanilla build is one 1,500-line script. Every feature adds to the same file,
+every change redraws the whole screen, and a second developer would want to
+rewrite it. React splits the app into screens and components a finance or HR
+module can sit beside. The database design — not the framework — is what decides
+whether those modules are possible, and that part is already sound.
+
+### Demo mode
+
+`?demo=1` feeds the prototype's own sample data in and never touches the
+network: 6 projects, 122 leads in Funding Room, 5 salespeople, a plausible
+history trail. `?demo=1&as=member` shows the salesperson's app instead of the
+owner's. It exists because the sandbox this was built in cannot reach Supabase
+at all — no screen past sign-in could otherwise be checked — and it doubles as a
+way to show the product before a client's data exists.
+
+### Verified in a browser at 1440px and 390px
+
+Every section renders; search narrows and re-pages; a 120px column drag moves
+the edge exactly 120px; both panes fold and remember it; the theme flips and
+survives a reload; no horizontal overflow on a phone; zero console errors.
+
+**Not verified:** anything against the real database. Supabase is unreachable
+from the build environment, so the port has never talked to Postgres. That is
+what the next test is for, and why `/` has not been replaced yet.

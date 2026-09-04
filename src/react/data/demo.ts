@@ -105,8 +105,15 @@ export const demoEvents: LeadEvent[] = (() => {
   return out.sort((a, b) => a.at - b.at)
 })()
 
-export const demoMe = OWNER
 export const demoAllMembers = [OWNER, ...demoMembers]
 
 export const isDemo = () =>
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
+
+/** ?demo=1&as=member shows the salesperson's app instead of the owner's, so
+ *  both roles can be checked without two real accounts. */
+export const demoMe = (() => {
+  if (typeof window === 'undefined') return OWNER
+  const as = new URLSearchParams(window.location.search).get('as')
+  return as === 'member' ? demoMembers[0]! : OWNER
+})()

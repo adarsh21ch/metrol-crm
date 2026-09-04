@@ -7,7 +7,7 @@ import { useToast } from '@/components/Toast'
 import { SignIn } from '@/screens/SignIn'
 import { Projects } from '@/screens/Projects'
 import { ProjectShell } from '@/screens/ProjectShell'
-import type { Lead } from '@/lib/types'
+import { Member } from '@/screens/Member'
 
 /** Screen-based, like the prototype: everyone reaches this from one bookmark,
  *  and a router would put the back button in a fight with the sidebar. It can
@@ -42,7 +42,6 @@ function SignedIn() {
   const ws = useWorkspace()
   const { toast, node: toastNode } = useToast()
   const [route, setRoute] = useState<Route>({ name: 'projects' })
-  const [, setHistoryLead] = useState<Lead | null>(null)
 
   if (ws.loading) return <Booting />
 
@@ -60,6 +59,11 @@ function SignedIn() {
     )
   }
 
+  // A salesperson has one screen: their own leads. Projects are the owner's view.
+  if (ws.me?.role === 'member') {
+    return <><Member ws={ws} toast={toast} />{toastNode}</>
+  }
+
   return (
     <>
       {route.name === 'projects' ? (
@@ -70,9 +74,6 @@ function SignedIn() {
           projectId={route.id}
           onBack={() => setRoute({ name: 'projects' })}
           onOpenProject={(id) => setRoute({ name: 'project', id })}
-          onImport={() => toast('Import is next — the modals land in the following pass.')}
-          onAdd={() => toast('Add lead is next — the modals land in the following pass.')}
-          onHistory={(l) => setHistoryLead(l)}
           toast={toast}
         />
       )}
