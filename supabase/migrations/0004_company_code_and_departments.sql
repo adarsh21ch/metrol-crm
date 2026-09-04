@@ -2,26 +2,7 @@
 -- a gate on who may create an account, and somewhere to record what work a
 -- person actually does. Run once in the SQL editor.
 
--- ------------------------------------------------------- 1. realtime, again
--- The earlier block that enabled these swallowed every exception, so it
--- reported success whether or not the tables were actually added. This one is
--- still safe to re-run, and the SELECT at the bottom of this file proves what
--- really happened rather than asking you to trust it. profiles is new here —
--- it was missed the first time, which is why a new signup did not appear on
--- the owner's screen without a reload.
-do $$
-begin
-  begin execute 'alter publication supabase_realtime add table public.leads';       exception when duplicate_object then null; end;
-  begin execute 'alter publication supabase_realtime add table public.events';      exception when duplicate_object then null; end;
-  begin execute 'alter publication supabase_realtime add table public.projects';    exception when duplicate_object then null; end;
-  begin execute 'alter publication supabase_realtime add table public.profiles';    exception when duplicate_object then null; end;
-  begin execute 'alter publication supabase_realtime add table public.departments'; exception when duplicate_object then null; end;
-exception when undefined_object then
-  -- No supabase_realtime publication on this project at all; nothing to add to.
-  null;
-end $$;
-
--- ------------------------------------------------------ 2. the company code
+-- ------------------------------------------------------ 1. the company code
 
 create table if not exists public.company_settings (
   id          int primary key default 1,
@@ -62,7 +43,7 @@ $$;
 revoke all on function public.check_invite_code(text) from public;
 grant execute on function public.check_invite_code(text) to anon, authenticated;
 
--- ------------------------------------------------------- 3. departments
+-- ------------------------------------------------------- 2. departments
 
 create table if not exists public.departments (
   id         uuid primary key default gen_random_uuid(),
@@ -121,6 +102,28 @@ drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles for update
   using ( id = auth.uid() or public.is_owner() )
   with check ( id = auth.uid() or public.is_owner() );
+
+-- ------------------------------------------------------- 3. realtime, again
+-- The earlier block that enabled these swallowed every exception, so it
+-- reported success whether or not the tables were actually added. This one is
+-- still safe to re-run, and the SELECT at the bottom of this file proves what
+-- really happened rather than asking you to trust it. profiles is new here —
+-- it was missed the first time, which is why a new signup did not appear on
+-- the owner's screen without a reload. This block now runs LAST, after every
+-- table it names has actually been created — the first version of this file
+-- tried to publish public.departments before section 2 above had created it,
+-- which is the "relation does not exist" error you may have just seen.
+do $$
+begin
+  begin execute 'alter publication supabase_realtime add table public.leads';       exception when duplicate_object then null; end;
+  begin execute 'alter publication supabase_realtime add table public.events';      exception when duplicate_object then null; end;
+  begin execute 'alter publication supabase_realtime add table public.projects';    exception when duplicate_object then null; end;
+  begin execute 'alter publication supabase_realtime add table public.profiles';    exception when duplicate_object then null; end;
+  begin execute 'alter publication supabase_realtime add table public.departments'; exception when duplicate_object then null; end;
+exception when undefined_object then
+  -- No supabase_realtime publication on this project at all; nothing to add to.
+  null;
+end $$;
 
 -- --------------------------------------------------------------- 4. proof
 -- Run this and read the output. Every table the app watches live should be
