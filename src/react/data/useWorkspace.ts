@@ -15,6 +15,34 @@ interface State {
   error: string | null
 }
 
+/* One place that turns a Postgres row into the shape the screens use. The
+   realtime handler and the initial load must agree exactly, or a row would
+   change shape depending on how it arrived. */
+const toLead = (l: any): Lead => ({
+  id: l.id,
+  projectId: l.project_id,
+  name: l.name,
+  email: l.email ?? '',
+  phone: l.phone ?? '',
+  status: l.status,
+  quality: l.quality,
+  ownerId: l.owner_id,
+  amount: Number(l.amount) || 0,
+  verified: !!l.verified,
+  convertedAt: l.converted_at,
+  createdAt: l.created_at,
+})
+
+const toEvent = (e: any): LeadEvent => ({
+  id: e.id,
+  leadId: e.lead_id,
+  what: e.what,
+  from: e.from_val ?? '',
+  to: e.to_val ?? '',
+  by: e.by_name ?? '—',
+  at: new Date(e.at).getTime(),
+})
+
 const EMPTY: State = {
   me: null, members: [], projects: [], leads: [], events: [], loading: true, error: null,
 }
@@ -97,35 +125,59 @@ export function useWorkspace() {
         updatedAt: p.updated_at ?? p.created_at,
         createdAt: p.created_at,
       })),
-      leads: (leadRes.data ?? []).map((l: any): Lead => ({
-        id: l.id,
-        projectId: l.project_id,
-        name: l.name,
-        email: l.email ?? '',
-        phone: l.phone ?? '',
-        status: l.status,
-        quality: l.quality,
-        ownerId: l.owner_id,
-        amount: Number(l.amount) || 0,
-        verified: !!l.verified,
-        convertedAt: l.converted_at,
-        createdAt: l.created_at,
-      })),
-      events: [...(evRes.data ?? [])].reverse().map((e: any): LeadEvent => ({
-        id: e.id,
-        leadId: e.lead_id,
-        what: e.what,
-        from: e.from_val ?? '',
-        to: e.to_val ?? '',
-        by: e.by_name ?? '—',
-        at: new Date(e.at).getTime(),
-      })),
+      leads: (leadRes.data ?? []).map(toLead),
+      events: [...(evRes.data ?? [])].reverse().map(toEvent),
       loading: false,
       error: null,
     })
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  /**
+   * Live updates. A salesperson setting a status and the owner watching the
+   * board are two browsers looking at one table, so the change should land on
+   * both without anybody reloading.
+   *
+   * Row level security applies to this stream exactly as it does to a query: a
+   * member is only sent changes to rows they were already allowed to read, so
+   * this widens nothing. Rows arrive as raw Postgres and go through the same
+   * mappers the initial load uses.
+   */
+  useEffect(() => {
+    if (isDemo()) return
+    const channel = supabase
+      .channel('workspace')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (p: any) => {
+        setS((prev) => {
+          if (p.eventType === 'DELETE') {
+            return { ...prev, leads: prev.leads.filter((l) => l.id !== p.old?.id) }
+          }
+          const row = toLead(p.new)
+          const known = prev.leads.some((l) => l.id === row.id)
+          return {
+            ...prev,
+            leads: known
+              // Keep isNew: it is a local flag about this session, not a column.
+              ? prev.leads.map((l) => (l.id === row.id ? { ...row, isNew: l.isNew } : l))
+              : [row, ...prev.leads],
+          }
+        })
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (p: any) => {
+        setS((prev) => {
+          const e = toEvent(p.new)
+          if (prev.events.some((x) => x.id === e.id)) return prev   // our own write, echoed back
+          return { ...prev, events: [...prev.events, e].slice(-200) }
+        })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+        void load()   // rarer, and it changes the rail and the cards together
+      })
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [load])
 
   const memberName = useCallback(
     (id: string | null) => (id ? (s.members.find((m) => m.id === id)?.name ?? 'Unknown') : 'Unassigned'),
