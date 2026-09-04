@@ -670,3 +670,76 @@ app (import, a sale, a lead's history) is already one.
 Realtime is live (leads, events, projects, and now profiles too — a new
 signup reaches the owner's screen without a reload). The React app at `/` is
 the product; `/legacy.html` is the retired vanilla build kept as a fallback.
+
+---
+
+# Round 12 — the company code, departments, and why a write could fail in silence
+
+### A rejected write used to leave a lie on screen
+The owner saw "Bad" on a lead the salesperson had set to "Good". The write is
+optimistic — the UI moves first, then the row is reconciled — and a rollback
+set `ws.error`, but `ws.error` was only ever *rendered* when
+`projects.length === 0`. So inside a loaded project a refused write rolled the
+row back and said nothing, which is exactly the shape of the symptom reported.
+`App.tsx` now toasts any `ws.error` and clears it, so a refusal is always
+visible. This is the fix for the *silence*; migration 0004 below carries the
+fix for the likeliest *cause* (realtime never actually publishing `leads`) and,
+more usefully, prints proof either way.
+
+### Migration to run
+`supabase/migrations/0004_company_code_and_departments.sql`. It is safe to
+re-run. Three things:
+
+1. **Adds the tables to the realtime publication one statement at a time.** The
+   earlier attempt wrapped all of them in a single `do $$ ... exception when
+   others then null $$`, so if the *first* table was already published the block
+   swallowed the error and skipped the rest — `leads` may never have been added
+   at all. Each is now its own guarded statement.
+2. **`company_settings`** — a one-row table holding the invite code. Readable
+   and writable only by the owner. Signup checks it through
+   `check_invite_code(text)`, a `SECURITY DEFINER` function granted to `anon`,
+   because someone creating an account is not signed in yet and so cannot read
+   the table. The function returns a boolean and never reveals the code.
+3. **`departments`** — seeded with Sales, Production, Content Creation, Video
+   Editors, Developers, AI Staff. `profiles.department_id` references it and
+   defaults to Sales; every existing member is backfilled to Sales. Readable by
+   anyone signed in, writable only by the owner. `profiles_update` is widened so
+   the owner can move somebody between departments (previously a person could
+   only update their own row).
+
+The migration ends with a `select` against `pg_publication_tables` — the output
+is the answer to "is realtime actually on for these tables", which until now
+was assumed rather than checked.
+
+### The company code
+An account can no longer be created by anyone who finds the URL. The signup
+form asks for a company code first and refuses before calling `signUp` if it
+does not match. The owner reads and rotates it in **Company settings** (the
+gear in the topbar, owner-only, on both the Projects screen and inside a
+project). Rotating it does not affect anyone already signed in — it only gates
+new accounts.
+
+The gate is a deterrent, not a wall: the code is checked by an RPC anyone can
+call, so it stops a stranger who stumbles on the URL, not someone determined to
+brute-force it. What actually protects the data is role plus RLS — a
+self-created account is always `role = 'member'` and can only ever see the
+leads assigned to it.
+
+### Departments
+Infrastructure now, per-department dashboards later, which is how it was asked
+for. The owner can add a department, rename one inline, and retire one.
+Retiring is deliberate: departments are never deleted, because deleting one
+either orphans the people in it or silently moves them somewhere they never
+worked. A retired department stops being offered for new assignments and stays
+selectable for whoever is still recorded against it.
+
+The salesperson's topbar now reads their actual department instead of the word
+"Sales", which was hardcoded when Sales was the only one that existed.
+
+### Verified in Chromium before this was called done
+Signup shows all six fields in order (Company code, Name, Phone number, Email,
+Password, Confirm password). The gear appears for the owner on both screens and
+not at all for a member. Company settings loads the code, lists the six seeded
+departments, adds a seventh, and moves a person between departments with the
+change sticking. The only console error is the Google Fonts stylesheet, which
+this sandbox blocks and Vercel does not.

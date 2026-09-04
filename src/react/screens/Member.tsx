@@ -106,7 +106,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           </div>
           <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
             <Avatar lg src={me?.avatarUrl}>{me?.initials}</Avatar>
-            <div><div className="name">{me?.name}</div><div className="role">Sales</div></div>
+            <div>
+              <div className="name">{me?.name}</div>
+              {/* Their actual department, not a word hardcoded when Sales was
+                  the only one that existed. */}
+              <div className="role">{ws.departmentName(me?.departmentId ?? null) ?? 'Sales'}</div>
+            </div>
           </button>
           <IconBtn title="Sign out" onClick={() => void supabase.auth.signOut()}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

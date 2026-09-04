@@ -1,4 +1,4 @@
-import type { Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
+import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import { initials } from '@/lib/format'
 
 /**
@@ -16,6 +16,16 @@ const LAST = ['Sharma', 'Patel', 'Reddy', 'Nair', 'Iyer', 'Singh', 'Gupta', 'Meh
   'Bose', 'Kulkarni', 'Chopra', 'Malhotra', 'Bhatt', 'Sethi', 'Kapoor', 'Menon', 'Shah', 'Verma']
 for (let i = 0; i < 600; i++) NAMES.push([FIRST[(i * 7) % FIRST.length]!, LAST[(i * 11) % LAST.length]!])
 
+/** The seeded six. Everyone sits in Sales until the owner moves them. */
+export const demoDepartments: Department[] = [
+  { id: 'd1', name: 'Sales', sortOrder: 1, isActive: true },
+  { id: 'd2', name: 'Production', sortOrder: 2, isActive: true },
+  { id: 'd3', name: 'Content Creation', sortOrder: 3, isActive: true },
+  { id: 'd4', name: 'Video Editors', sortOrder: 4, isActive: true },
+  { id: 'd5', name: 'Developers', sortOrder: 5, isActive: true },
+  { id: 'd6', name: 'AI Staff', sortOrder: 6, isActive: true },
+]
+
 const MEMBER_NAMES = ['Mohit Verma', 'Priya Nair', 'Arjun Mehta', 'Sneha Kulkarni', 'Imran Shaikh']
 
 export const demoMembers: Member[] = MEMBER_NAMES.map((name, i) => ({
@@ -25,11 +35,13 @@ export const demoMembers: Member[] = MEMBER_NAMES.map((name, i) => ({
   email: name.toLowerCase().replace(/\s+/g, '.') + '@metrol.in',
   phone: null,
   avatarUrl: null,
+  departmentId: 'd1',
   role: 'member',
 }))
 
 const OWNER: Member = {
-  id: 'owner', name: 'Owner', initials: 'MM', email: 'owner@metrol.in', phone: null, avatarUrl: null, role: 'owner',
+  id: 'owner', name: 'Owner', initials: 'MM', email: 'owner@metrol.in',
+  phone: null, avatarUrl: null, departmentId: null, role: 'owner',
 }
 
 const iso = (daysAgo: number, hourOffset = 0) =>

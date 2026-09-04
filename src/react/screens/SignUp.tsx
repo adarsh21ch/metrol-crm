@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { isConfigured, supabase } from '@/lib/supabase'
 
 /**
- * Self-service, and deliberately narrow: it can only ever create a salesperson
- * account. role defaults to 'member' in the schema, and the guard trigger on
- * profiles blocks a client from changing it — so there is no path from this
- * form to an owner account, by construction rather than by convention.
+ * Self-service, and deliberately narrow in two ways. It is gated on the
+ * company code, so a stranger who finds the URL cannot simply enrol; and it
+ * can only ever create a salesperson account, because role defaults to
+ * 'member' in the schema and the guard trigger on profiles blocks a client
+ * from changing it. Neither is a convention the UI is politely observing —
+ * both are enforced in the database.
  */
 export function SignUp({ onDone, onHaveAccount }: { onDone: () => void; onHaveAccount: () => void }) {
+  const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -24,6 +27,14 @@ export function SignUp({ onDone, onHaveAccount }: { onDone: () => void; onHaveAc
     if (pass !== pass2) return setErr('The two passwords do not match.')
 
     setBusy(true); setErr(null)
+
+    // The gate. check_invite_code runs with the privilege to read the stored
+    // code and answers only true or false, so the code itself is never sent
+    // to a browser that has not been let in yet.
+    const { data: ok, error: codeErr } = await supabase.rpc('check_invite_code', { code: code.trim() })
+    if (codeErr) { setBusy(false); return setErr(codeErr.message) }
+    if (!ok) { setBusy(false); return setErr('That company code is not right. Ask your manager for it.') }
+
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password: pass,
@@ -61,9 +72,14 @@ export function SignUp({ onDone, onHaveAccount }: { onDone: () => void; onHaveAc
           <div className="auth-head">
             <div className="monogram" style={{ marginBottom: 6 }}>M</div>
             <h2>Create your account</h2>
-            <p>For Metrol Media team members.</p>
+            <p>Metrol Media team members only — you will need the company code.</p>
           </div>
           <form className="auth-form" onSubmit={submit}>
+            <div className="field">
+              <label htmlFor="suCode">Company code</label>
+              <input className="input" id="suCode" required autoComplete="off"
+                     placeholder="Ask your manager" value={code} onChange={(e) => setCode(e.target.value)} />
+            </div>
             <div className="field">
               <label htmlFor="suName">Name</label>
               <input className="input" id="suName" required autoComplete="name"

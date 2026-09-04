@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { initials } from '@/lib/format'
-import type { Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
+import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import { QUALITY, STATUS } from '@/lib/types'
-import { demoAllMembers, demoEvents, demoLeads, demoMe, demoProjects, isDemo } from './demo'
+import { demoAllMembers, demoDepartments, demoEvents, demoLeads, demoMe, demoProjects, isDemo } from './demo'
 
 interface State {
   me: Member | null
   members: Member[]
+  departments: Department[]
   projects: Project[]
   leads: Lead[]
   events: LeadEvent[]
@@ -50,7 +51,15 @@ const toMember = (p: any): Member => ({
   email: p.email ?? null,
   phone: p.phone ?? null,
   avatarUrl: p.avatar_url ?? null,
+  departmentId: p.department_id ?? null,
   role: p.role,
+})
+
+const toDepartment = (d: any): Department => ({
+  id: d.id,
+  name: d.name,
+  sortOrder: d.sort_order ?? 0,
+  isActive: d.is_active !== false,
 })
 
 /** A member becomes visible on the assign dropdown the moment their profile
@@ -66,7 +75,7 @@ async function ensureProjectMember(projectId: string, profileId: string) {
 }
 
 const EMPTY: State = {
-  me: null, members: [], projects: [], leads: [], events: [], loading: true, error: null,
+  me: null, members: [], departments: [], projects: [], leads: [], events: [], loading: true, error: null,
 }
 
 /**
@@ -86,7 +95,7 @@ export function useWorkspace() {
     // checked where Supabase is unreachable, and shown before data exists.
     if (isDemo()) {
       setS({
-        me: demoMe, members: demoAllMembers, projects: demoProjects,
+        me: demoMe, members: demoAllMembers, departments: demoDepartments, projects: demoProjects,
         leads: demoLeads, events: demoEvents, loading: false, error: null,
       })
       return
@@ -97,7 +106,7 @@ export function useWorkspace() {
     const { data: sessionRes } = await supabase.auth.getSession()
     const uid = sessionRes?.session?.user?.id ?? null
 
-    const [profRes, projRes, leadRes, memRes, evRes] = await Promise.all([
+    const [profRes, projRes, leadRes, memRes, evRes, deptRes] = await Promise.all([
       uid ? supabase.from('profiles').select('*').eq('id', uid).single() : Promise.resolve({ data: null, error: null }),
       supabase.from('projects').select('*').order('created_at', { ascending: true }),
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
@@ -111,6 +120,7 @@ export function useWorkspace() {
       // Bounded: the feed shows eight. A lead's full trail is fetched by the
       // history drawer when it opens, so this never has to grow without limit.
       supabase.from('events').select('*').order('at', { ascending: false }).limit(200),
+      supabase.from('departments').select('*').order('sort_order', { ascending: true }),
     ])
 
     const err = projRes.error || leadRes.error || memRes.error
@@ -140,6 +150,7 @@ export function useWorkspace() {
         updatedAt: p.updated_at ?? p.created_at,
         createdAt: p.created_at,
       })),
+      departments: (deptRes.data ?? []).map(toDepartment),
       leads: (leadRes.data ?? []).map(toLead),
       events: [...(evRes.data ?? [])].reverse().map(toEvent),
       loading: false,
@@ -188,6 +199,22 @@ export function useWorkspace() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
         void load()   // rarer, and it changes the rail and the cards together
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, (p: any) => {
+        setS((prev) => {
+          if (p.eventType === 'DELETE') {
+            return { ...prev, departments: prev.departments.filter((d) => d.id !== p.old?.id) }
+          }
+          const row = toDepartment(p.new)
+          const known = prev.departments.some((d) => d.id === row.id)
+          return {
+            ...prev,
+            departments: (known
+              ? prev.departments.map((d) => (d.id === row.id ? row : d))
+              : [...prev.departments, row]
+            ).sort((a, b) => a.sortOrder - b.sortOrder),
+          }
+        })
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (p: any) => {
         // A new signup should reach the owner's assign dropdown without
@@ -367,11 +394,85 @@ export function useWorkspace() {
     return error ? error.message : null
   }, [])
 
+  /* ---------------------------------------------------------- owner only.
+     Every one of these is refused by row level security for anybody who is
+     not the owner, so the UI hiding them is a convenience rather than the
+     thing keeping them safe. */
+
+  const setMemberDepartment = useCallback(async (memberId: string, departmentId: string | null) => {
+    const before = s.members
+    setS((p) => ({
+      ...p,
+      members: p.members.map((m) => (m.id === memberId ? { ...m, departmentId } : m)),
+    }))
+    if (isDemo()) return null
+    const { error } = await supabase.from('profiles').update({ department_id: departmentId }).eq('id', memberId)
+    if (error) { setS((p) => ({ ...p, members: before, error: error.message })); return error.message }
+    return null
+  }, [s.members])
+
+  const addDepartment = useCallback(async (name: string) => {
+    const clean = name.trim()
+    if (!clean) return 'Give the department a name.'
+    const next = (s.departments.at(-1)?.sortOrder ?? 0) + 1
+    if (isDemo()) {
+      setS((p) => ({ ...p, departments: [...p.departments, { id: 'demo-' + next, name: clean, sortOrder: next, isActive: true }] }))
+      return null
+    }
+    const { data, error } = await supabase
+      .from('departments').insert({ name: clean, sort_order: next }).select().single()
+    if (error) { setS((p) => ({ ...p, error: error.message })); return error.message }
+    setS((p) => ({ ...p, departments: [...p.departments, toDepartment(data)] }))
+    return null
+  }, [s.departments])
+
+  const renameDepartment = useCallback(async (id: string, name: string) => {
+    const clean = name.trim()
+    if (!clean) return 'Give the department a name.'
+    setS((p) => ({ ...p, departments: p.departments.map((d) => (d.id === id ? { ...d, name: clean } : d)) }))
+    if (isDemo()) return null
+    const { error } = await supabase.from('departments').update({ name: clean }).eq('id', id)
+    if (error) { setS((p) => ({ ...p, error: error.message })); return error.message }
+    return null
+  }, [])
+
+  /** Retired, not deleted: people are still recorded against it, and deleting
+   *  one would either orphan them or silently move them somewhere they never
+   *  worked. A retired department stops being offered for new assignments. */
+  const setDepartmentActive = useCallback(async (id: string, isActive: boolean) => {
+    setS((p) => ({ ...p, departments: p.departments.map((d) => (d.id === id ? { ...d, isActive } : d)) }))
+    if (isDemo()) return null
+    const { error } = await supabase.from('departments').update({ is_active: isActive }).eq('id', id)
+    if (error) { setS((p) => ({ ...p, error: error.message })); return error.message }
+    return null
+  }, [])
+
+  const getInviteCode = useCallback(async () => {
+    if (isDemo()) return { code: 'Metrol#9878', error: null }
+    const { data, error } = await supabase.from('company_settings').select('invite_code').eq('id', 1).single()
+    if (error) return { code: null, error: error.message }
+    return { code: (data as any)?.invite_code as string, error: null }
+  }, [])
+
+  const setInviteCode = useCallback(async (code: string) => {
+    const clean = code.trim()
+    if (clean.length < 4) return 'Use at least 4 characters.'
+    if (isDemo()) return null
+    const { error } = await supabase
+      .from('company_settings')
+      .update({ invite_code: clean, updated_at: new Date().toISOString() })
+      .eq('id', 1)
+    return error ? error.message : null
+  }, [])
+
   return {
     ...s,
     memberName,
     setStatus, setQuality, setOwner, setVerified, recordSale, addLeads,
     updateMe, uploadAvatar, changePassword,
+    setMemberDepartment, addDepartment, renameDepartment, setDepartmentActive,
+    getInviteCode, setInviteCode,
+    departmentName: (id: string | null) => s.departments.find((d) => d.id === id)?.name ?? null,
     reload: load,
     clearError: () => setS((p) => ({ ...p, error: null })),
   }

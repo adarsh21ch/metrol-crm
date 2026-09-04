@@ -11,6 +11,7 @@ import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { AddLeadModal } from '@/modals/AddLeadModal'
 import { ProfileModal } from '@/modals/ProfileModal'
+import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
 import { Overview } from './sections/Overview'
 import { Leads } from './sections/Leads'
 import { Sales } from './sections/Sales'
@@ -46,6 +47,7 @@ export function ProjectShell({
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const [sec, setSec] = useState<SecId>('overview')
   const [dense, setDense] = useState<'compact' | 'comfortable'>(() => {
     try { return localStorage.getItem('metrol-crm-dense') === 'comfortable' ? 'comfortable' : 'compact' } catch { return 'compact' }
@@ -97,6 +99,9 @@ export function ProjectShell({
             <button className={dense === 'compact' ? 'is-on' : ''} onClick={() => setDense('compact')}>Compact</button>
             <button className={dense === 'comfortable' ? 'is-on' : ''} onClick={() => setDense('comfortable')}>Comfortable</button>
           </div>
+          {isOwner && (
+            <IconBtn title="Company settings" onClick={() => setAdminOpen(true)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></IconBtn>
+          )}
           <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
             <Avatar lg src={ws.me?.avatarUrl}>{initials(ws.me?.name ?? '?')}</Avatar>
             <div>
@@ -233,6 +238,7 @@ export function ProjectShell({
       )}
 
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
+      {adminOpen && <CompanyAdminModal ws={ws} onClose={() => setAdminOpen(false)} />}
     </div>
   )
 }

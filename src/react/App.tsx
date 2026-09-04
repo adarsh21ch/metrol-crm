@@ -59,6 +59,15 @@ function SignedIn() {
   const { toast, node: toastNode } = useToast()
   const [route, setRoute] = useState<Route>({ name: 'projects' })
 
+  /* A failed write used to roll the row back in silence: the chip flicked back
+     to its old value and nothing said why, which is precisely what makes a
+     permission problem look like a sync problem. Surface it. */
+  useEffect(() => {
+    if (!ws.error || ws.loading) return
+    toast('Could not save: ' + ws.error)
+    ws.clearError()
+  }, [ws.error, ws.loading, toast, ws])
+
   if (ws.loading) return <Booting />
 
   if (ws.error && ws.projects.length === 0) {

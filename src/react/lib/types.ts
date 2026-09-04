@@ -13,7 +13,18 @@ export interface Member {
   email: string | null
   phone: string | null
   avatarUrl: string | null
+  departmentId: string | null
   role: Role
+}
+
+/** What a person actually does. Everyone is Sales today; the rest exist so
+ *  that giving a department its own screens later is a change to the screens,
+ *  not a change to the data model. */
+export interface Department {
+  id: string
+  name: string
+  sortOrder: number
+  isActive: boolean
 }
 
 export interface Project {
