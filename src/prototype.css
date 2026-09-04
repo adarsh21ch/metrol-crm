@@ -333,7 +333,7 @@ input,select{font:inherit;color:inherit}
 .side-foot{margin-top:auto;padding:10px;border-top:1px solid var(--line-2);font-size:11.5px;color:var(--ink-3)}
 
 .workspace{flex:1;overflow-y:auto;scroll-behavior:smooth;min-width:0}
-.wrap{max-width:1180px;margin:0 auto;padding:24px 24px 80px;display:flex;flex-direction:column;gap:34px}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 16px 80px;display:flex;flex-direction:column;gap:34px}
 
 /* --------------------------------------------------- sidebar 1: proj rail */
 .rail{
@@ -708,6 +708,10 @@ table.grid tbody tr.row-link{cursor:pointer}
      min-width:auto would refuse to shrink below its five non-shrinking columns
      and widen the whole page instead of scrolling in place. */
   min-width:0;
+  /* A press-and-move gesture is a drag here, never a text selection — without
+     this, dragging a card across column headers and empty-state text highlights
+     everything underneath the pointer like a broken page. */
+  -webkit-user-select:none;-moz-user-select:none;user-select:none;
 }
 .board-col{
   flex:1 0 220px;min-width:220px;max-width:280px;
