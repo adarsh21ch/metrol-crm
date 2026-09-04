@@ -284,6 +284,47 @@ He was right that the table had grown furniture. Everything here is subtraction.
 
 ---
 
+# ROUND 4 — the dashboard becomes pages (2026-09-04)
+
+## The sidebar navigates instead of scrolling
+
+Overview / Leads / Sales / Team tracking / Sales dashboard are now five **pages**,
+not five bands in one endless scroll. `showPane()` swaps them; `PANES` lists them;
+the scroll-spy is deleted outright (with it, the last-section bug it used to have).
+The pane CSS is scoped `#screen-project .wrap > .section` so the salesperson
+dashboard keeps its stacked sections.
+
+## Overview is a real summary now
+
+A page with only five KPI tiles would have been empty, so Overview carries:
+
+- **Needs attention** — unassigned leads, open follow-ups, unverified payments.
+  Each row is a button that jumps to the page that fixes it.
+- **Recent activity** — the last 8 `EVENTS` across every lead in the project,
+  reusing the history engine rather than inventing a second one.
+
+## 50 per page
+
+`PAGE_SIZE = 50`, `PAGES = {leads, sales}`, `pageSlice()` / `pagerHTML()`.
+Serial numbers run across the whole filtered set, so page 2 starts at 51.
+Searching resets to page 1. The pager only renders when there is more than
+one page, so Sales (9 rows) shows none.
+
+**The sample data was topped up to make this real**: `fillLeads()` adds 95 leads
+to Funding Room, taking it to 122 — three pages. None of them convert, so Sales
+stays at 9 deals and the gross stays ₹13,28,000 exactly as hand-written.
+
+## The Leads grid fills the window
+
+It was still capped at the old `--grid-h:466px` from the stacked layout, which on a
+dedicated page meant 11 rows and a screenful of nothing. `.grid-scroll--page` sizes
+it to `calc(100dvh - 212px)` so the grid scrolls with its header stuck and **the
+page itself does not** — verified single-scrollbar at 620px, 900px and 1080px tall.
+On mobile the cap is dropped entirely: one page scroll beats a touch scroller
+nested inside another one.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.

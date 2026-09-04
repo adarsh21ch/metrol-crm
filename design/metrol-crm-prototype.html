@@ -359,6 +359,60 @@ input,select{font:inherit;color:inherit}
 
 /* -------------------------------------------------------------- sections */
 .section{display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}
+/* Inside a project each section is a PAGE of its own, not a band in one long
+   scroll — the sidebar switches between them. Scoped to the project screen so
+   the salesperson dashboard keeps its stacked sections. */
+#screen-project .wrap > .section{display:none}
+#screen-project .wrap > .section.is-on{display:flex}
+
+/* pagination */
+.foot-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.foot-right .grid-hint{margin-left:0}
+.pager{display:inline-flex;align-items:center;gap:4px}
+.pager-btn{
+  width:25px;height:25px;display:grid;place-items:center;border-radius:5px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
+  font-size:15px;line-height:1;
+}
+.pager-btn:hover:not(:disabled){background:var(--surface-3);color:var(--ink);border-color:var(--ink-3)}
+.pager-btn:disabled{opacity:.35;cursor:default}
+.pager-now{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;padding:0 3px}
+
+/* overview dashboard */
+.ov-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;align-items:start}
+.ov-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 15px 15px;display:flex;flex-direction:column;gap:12px;
+}
+.ov-card h4{font-size:13.5px}
+.ov-head{display:flex;align-items:baseline;gap:10px}
+.ov-head .sub{font-size:11.5px;color:var(--ink-3);margin-left:auto}
+.ov-actions{display:flex;flex-direction:column;gap:6px}
+.ov-row{
+  display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:var(--r);
+  border:1px solid var(--line-2);background:var(--surface-2);width:100%;text-align:left;
+  transition:border-color .13s ease,background .13s ease;
+}
+.ov-row:hover{border-color:var(--accent);background:var(--accent-soft)}
+.ov-n{
+  font-family:var(--display);font-size:19px;font-weight:600;letter-spacing:-.02em;
+  min-width:26px;font-variant-numeric:tabular-nums;
+}
+.ov-n.is-zero{color:var(--ink-3)}
+.ov-l{font-size:12.5px;color:var(--ink-2)}
+.ov-cta{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--ink-3);white-space:nowrap}
+.ov-row:hover .ov-cta{color:var(--accent-ink)}
+.ov-feed{display:flex;flex-direction:column}
+.ov-ev{
+  display:flex;align-items:baseline;gap:10px;padding:7px 0;
+  border-bottom:1px solid var(--line-2);font-size:12.5px;
+}
+.ov-ev:last-child{border-bottom:0}
+.ov-ev-nm{font-weight:500;min-width:116px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-ev-what{color:var(--ink-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-ev-what b{color:var(--ink);font-weight:600}
+.ov-ev-by{color:var(--ink-3);font-size:11.5px;white-space:nowrap}
+.ov-ev-at{color:var(--ink-3);font-family:var(--mono);font-size:11px;white-space:nowrap}
 .section-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .section-head h3{font-size:16.5px}
 .section-head .sub{font-size:12.5px;color:var(--ink-3)}
@@ -386,6 +440,13 @@ input,select{font:inherit;color:inherit}
   overflow:hidden;box-shadow:var(--shadow-sm);
 }
 .grid-scroll{overflow:auto;max-height:var(--grid-h,none);position:relative}
+/* On its own page the grid fills the window rather than sitting in a 466px
+   box with dead space under it. It keeps its own scroller so the sticky
+   header stays put while you go down all 50 rows. */
+.grid-scroll--page{--grid-h:calc(100dvh - 212px);min-height:300px}
+/* The grid owns the scrolling on a page view, so the page itself should not
+   also scroll — otherwise you get two scrollbars fighting over 40px. */
+#screen-project .wrap{padding-bottom:28px}
 table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:13px}
 table.grid th,table.grid td{
   padding:0 12px;height:38px;text-align:left;vertical-align:middle;
@@ -696,11 +757,15 @@ table.hist .what{font-weight:500}
 /* ------------------------------------------------------------ responsive */
 .mobile-nav{display:none}
 @media (max-width:1080px){
+  .ov-grid{grid-template-columns:1fr}
   .kpis{grid-template-columns:repeat(3,1fr)}
   .sales-dash{grid-template-columns:1fr}
   .proj-grid{grid-template-columns:repeat(2,1fr)}
 }
 @media (max-width:860px){
+  /* On a phone, one scroll beats two: let the grid grow and the page carry it,
+     rather than nesting a touch scroller inside another one. */
+  .grid-scroll--page{--grid-h:none}
   .sidebar{display:none}
   /* both sidebars collapse: sections into the chip strip, projects into a
      topbar dropdown that takes the title's place. */
@@ -931,12 +996,22 @@ table.hist .what{font-weight:500}
 
       <div class="wrap">
         <!-- overview -->
-        <div class="section" id="sec-overview">
+        <div class="section is-on" id="sec-overview">
           <div class="section-head">
             <h3>Overview</h3>
             <div class="sub">Everything in this project, right now</div>
           </div>
           <div class="kpis" id="kpiRow"></div>
+          <div class="ov-grid">
+            <div class="ov-card">
+              <div class="ov-head"><h4>Needs attention</h4></div>
+              <div class="ov-actions" id="ovAttention"></div>
+            </div>
+            <div class="ov-card">
+              <div class="ov-head"><h4>Recent activity</h4><span class="sub">Across every lead here</span></div>
+              <div class="ov-feed" id="ovFeed"></div>
+            </div>
+          </div>
         </div>
 
         <!-- leads -->
@@ -960,7 +1035,7 @@ table.hist .what{font-weight:500}
             </div>
           </div>
           <div class="grid-shell">
-            <div class="grid-scroll" style="--grid-h:466px">
+            <div class="grid-scroll grid-scroll--page">
               <div class="rz-guide" id="guideLeads"></div>
               <table class="grid" id="leadsGrid">
                 <colgroup></colgroup>
@@ -970,8 +1045,11 @@ table.hist .what{font-weight:500}
             </div>
             <div class="grid-foot">
               <span id="leadsFoot">—</span>
-              <span class="grid-hint">
-                Drag a column edge to resize · <kbd>double-click</kbd> to reset
+              <span class="foot-right">
+                <span class="grid-hint">
+                  Drag a column edge to resize · <kbd>double-click</kbd> to reset
+                </span>
+                <span class="pager" id="leadsPager"></span>
               </span>
             </div>
           </div>
@@ -992,7 +1070,9 @@ table.hist .what{font-weight:500}
                 <tbody></tbody>
               </table>
             </div>
-            <div class="grid-foot"><span id="salesFoot">—</span></div>
+            <div class="grid-foot"><span id="salesFoot">—</span>
+              <span class="foot-right"><span class="pager" id="salesPager"></span></span>
+            </div>
           </div>
         </div>
 
@@ -1304,6 +1384,34 @@ var LEADS = [
   {id:29, name:"Alok Nanda",      email:"alok.nanda@gmail.com",     phone:"+91 98911 30475", status:"new",       quality:null,      owner:"m1", project:"Prime Estates", isNew:true}
 ];
 
+/* The 29 leads above carry the sales story by hand. This tops the project up to
+   a realistic size so the Leads page actually pages — none of these convert, so
+   the Sales figures and the gross stay exactly as written above. */
+(function fillLeads(){
+  var FIRST = ["Aarav","Isha","Rohan","Ananya","Kabir","Meera","Siddharth","Nisha","Varun","Riya",
+               "Aditya","Sneha","Karan","Pooja","Rahul","Diya","Nikhil","Tanya","Vivek","Aisha",
+               "Manav","Kritika","Yash","Sanya","Dev","Ira","Arnav","Naina","Rehan","Simran"];
+  var LAST  = ["Sharma","Patel","Reddy","Nair","Iyer","Singh","Gupta","Mehta","Joshi","Rao",
+               "Bose","Kulkarni","Chopra","Malhotra","Bhatt","Sethi","Kapoor","Menon","Shah","Verma"];
+  var ST = ["new","connected","follow_up","connected","new","dead","follow_up","connected"];
+  var QL = ["good","average","good","bad","average","good","average","good"];
+  var id = 100;
+  for(var i = 0; i < 95; i++){
+    var f = FIRST[(i * 7) % FIRST.length], l = LAST[(i * 11) % LAST.length];
+    var st = ST[i % ST.length];
+    LEADS.push({
+      id: ++id,
+      name: f + " " + l,
+      email: (f + "." + l).toLowerCase() + (i % 4 ? "" : i) + "@gmail.com",
+      phone: "+91 " + (90000 + (i * 137) % 9999) + " " + (10000 + (i * 7919) % 89999),
+      status: st,
+      quality: st === "new" ? null : QL[i % QL.length],
+      owner: (i % 9 === 0) ? null : MEMBERS[i % MEMBERS.length].id,
+      project: "Funding Room"
+    });
+  }
+})();
+
 var STATUS = {
   "new":       {label:"New",       cls:"chip--mute"},
   "connected": {label:"Connected", cls:"chip--accent"},
@@ -1533,6 +1641,48 @@ function wireResize(table, guideId){
   });
 }
 
+/* ----------------------------------------------------------------- panes */
+/* The sidebar switches pages. Clicking Leads opens the Leads page, not a
+   scroll position inside one endless column. */
+var PANES = ["sec-overview","sec-leads","sec-sales","sec-team","sec-dash"];
+var CURRENT_PANE = "sec-overview";
+function showPane(id){
+  if(PANES.indexOf(id) < 0) id = PANES[0];
+  CURRENT_PANE = id;
+  PANES.forEach(function(name){
+    var el = document.getElementById(name);
+    if(el) el.classList.toggle("is-on", name === id);
+  });
+  $$("[data-sec]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.sec === id); });
+  var sc = $("#ownerScroll");
+  if(sc) sc.scrollTop = 0;
+}
+
+/* ------------------------------------------------------------ pagination */
+var PAGE_SIZE = 50;
+var PAGES = {leads:0, sales:0};
+function pageSlice(kind, rows){
+  var last = Math.max(0, Math.ceil(rows.length / PAGE_SIZE) - 1);
+  if(PAGES[kind] > last) PAGES[kind] = last;
+  if(PAGES[kind] < 0) PAGES[kind] = 0;
+  var start = PAGES[kind] * PAGE_SIZE;
+  return rows.slice(start, start + PAGE_SIZE);
+}
+function pagerHTML(kind, total){
+  var pages = Math.ceil(total / PAGE_SIZE);
+  if(pages <= 1) return "";
+  var page = PAGES[kind];
+  return '<button class="pager-btn" data-page="'+kind+':'+(page-1)+'"'+(page === 0 ? " disabled" : "")+
+           ' aria-label="Previous page">\u2039</button>'+
+         '<span class="pager-now">Page '+(page+1)+' of '+pages+"</span>"+
+         '<button class="pager-btn" data-page="'+kind+':'+(page+1)+'"'+(page >= pages-1 ? " disabled" : "")+
+           ' aria-label="Next page">\u203a</button>';
+}
+function pageRange(total, page){
+  if(!total) return "0";
+  return (page*PAGE_SIZE + 1) + "\u2013" + Math.min(total, (page+1)*PAGE_SIZE) + " of " + total;
+}
+
 /* --------------------------------------------------------------- renders */
 function renderChip(map, key, fallback){
   var m = map[key];
@@ -1636,7 +1786,8 @@ function renderOwner(){
     if(!q) return true;
     return (l.name+" "+l.email+" "+l.phone).toLowerCase().indexOf(q) > -1;
   });
-  shown.forEach(function(l,i){ l.sn = i+1; });
+  shown.forEach(function(l,i){ l.sn = i+1; });   // number across the whole filtered set
+  var leadPage = pageSlice("leads", shown);
 
   // KPIs
   var conv = converted(all);
@@ -1658,17 +1809,22 @@ function renderOwner(){
   $("#navLeads").textContent = all.length;
   $("#navSales").textContent = conv.length;
   $("#leadsSub").textContent = all.filter(function(l){return !l.owner;}).length + " unassigned";
-  $("#leadsFoot").textContent = shown.length + " of " + all.length + " leads";
+  $("#leadsFoot").textContent = "Showing " + pageRange(shown.length, PAGES.leads) +
+    (shown.length === all.length ? " leads" : " matching leads");
+  $("#leadsPager").innerHTML = pagerHTML("leads", shown.length);
 
-  buildTable("leadsGrid", leadCols(), shown, "guideLeads");
+  buildTable("leadsGrid", leadCols(), leadPage, "guideLeads");
 
   // sales
   var sales = conv.slice().sort(function(a,b){ return a.daysAgo - b.daysAgo; });
   sales.forEach(function(l,i){ l.sn = i+1; });
-  buildTable("salesGrid", salesCols(), sales, "guideSales");
+  buildTable("salesGrid", salesCols(), pageSlice("sales", sales), "guideSales");
   $("#salesSub").textContent = sales.length + " closed deals · " + money(gross) + " gross";
   $("#salesFoot").textContent = sales.filter(function(l){return l.verified;}).length + " verified · " +
                                 sales.filter(function(l){return !l.verified;}).length + " pending";
+  $("#salesPager").innerHTML = pagerHTML("sales", sales.length);
+
+  renderOverview(all, conv);
 
   // team tracking
   var team = MEMBERS.map(function(m){
@@ -1723,6 +1879,39 @@ function renderOwner(){
       '<div class="bar-label">'+(isToday?"Today":days[(new Date().getDay()+6-b.d)%7])+"</div></div>";
   }).join("");
   $("#weekTotal").textContent = money(week) + " this week";
+}
+
+/* The Overview page is a summary that points at the other pages, not a copy of
+   them — three things worth acting on, and what has happened lately. */
+function renderOverview(all, conv){
+  var items = [
+    {n: all.filter(function(l){ return !l.owner; }).length,
+     label:"leads with nobody on them", cta:"Assign", go:"sec-leads"},
+    {n: all.filter(function(l){ return l.status === "follow_up"; }).length,
+     label:"follow-ups open right now", cta:"Open leads", go:"sec-leads"},
+    {n: conv.filter(function(l){ return !l.verified; }).length,
+     label:"payments still unverified", cta:"Open sales", go:"sec-sales"}
+  ];
+  $("#ovAttention").innerHTML = items.map(function(x){
+    return '<button class="ov-row" data-sec="'+x.go+'">'+
+      '<span class="ov-n'+(x.n ? "" : " is-zero")+'">'+x.n+"</span>"+
+      '<span class="ov-l">'+x.label+"</span>"+
+      '<span class="ov-cta">'+x.cta+" \u2192</span></button>";
+  }).join("");
+
+  var here = {};
+  all.forEach(function(l){ here[l.id] = true; });
+  var recent = EVENTS.filter(function(e){ return here[e.leadId]; })
+    .sort(function(a,b){ return b.at - a.at || b.id - a.id; })
+    .slice(0, 8);
+  $("#ovFeed").innerHTML = recent.length ? recent.map(function(e){
+    var l = lead(e.leadId);
+    return '<div class="ov-ev">'+
+      '<span class="ov-ev-nm">'+esc(l ? l.name : "\u2014")+"</span>"+
+      '<span class="ov-ev-what">'+esc(e.what)+(e.to ? " <b>"+esc(e.to)+"</b>" : "")+"</span>"+
+      '<span class="ov-ev-by">'+esc(e.by)+"</span>"+
+      '<span class="ov-ev-at">'+fmtWhen(e.at)+"</span></div>";
+  }).join("") : '<div class="cell-dash">Nothing recorded yet.</div>';
 }
 
 function sum(list){ return list.reduce(function(s,l){ return s + (l.amount||0); }, 0); }
@@ -1940,11 +2129,18 @@ document.addEventListener("click", function(e){
     return;
   }
 
-  // section nav
+  // sidebar / chip-strip: switch page
   var sec = t.closest("[data-sec]");
-  if(sec){
-    var el = document.getElementById(sec.dataset.sec);
-    if(el) el.scrollIntoView({behavior:"smooth", block:"start"});
+  if(sec){ showPane(sec.dataset.sec); return; }
+
+  // pagination
+  var pg = t.closest("[data-page]");
+  if(pg){
+    var bits = pg.dataset.page.split(":");
+    PAGES[bits[0]] = parseInt(bits[1], 10);
+    renderOwner();
+    var sc = $("#ownerScroll");
+    if(sc) sc.scrollTop = 0;
     return;
   }
 
@@ -1983,7 +2179,7 @@ $("#projSelect").addEventListener("change", function(){
 });
 
 $("#bannerDismiss").addEventListener("click", function(){ $("#memberBanner").hidden = true; });
-$("#leadSearch").addEventListener("input", function(){ renderOwner(); });
+$("#leadSearch").addEventListener("input", function(){ PAGES.leads = 0; renderOwner(); });
 $("#protoToggle").addEventListener("click", function(){
   var p = $("#protoPanel"); p.hidden = !p.hidden;
 });
@@ -2117,7 +2313,11 @@ function goTo(name){
   $$("#protoPanel [data-go]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.go === name); });
   closeMenu(); closeModals();
   if(name === "projects") renderProjects();
-  if(name === "project"){ renderOwner(); renderRail(); renderProjSelect(); $("#ownerScroll").scrollTop = 0; }
+  if(name === "project"){
+    PAGES.leads = 0; PAGES.sales = 0;
+    renderOwner(); renderRail(); renderProjSelect();
+    showPane("sec-overview");
+  }
   if(name === "member") renderMember();
   window.scrollTo(0,0);
 }
@@ -2313,33 +2513,6 @@ function renderProjSelect(){
     return '<option value="'+p.id+'"'+(p.name===CURRENT_PROJECT?" selected":"")+">"+esc(p.name)+"</option>";
   }).join("");
 }
-
-/* ------------------------------------------------------------ scroll spy */
-(function(){
-  var scroller = $("#ownerScroll");
-  var ids = ["sec-overview","sec-leads","sec-sales","sec-team","sec-dash"];
-  var ticking = false;
-  function spy(){
-    ticking = false;
-    var top = scroller.getBoundingClientRect().top;
-    var active = ids[0];
-    ids.forEach(function(id){
-      var el = document.getElementById(id);
-      if(!el) return;
-      if(el.getBoundingClientRect().top - top < 120) active = id;
-    });
-    // The last section is shorter than the viewport, so its top never crosses
-    // the threshold and it could never light up. Once the scroller has bottomed
-    // out, whatever is last IS what you are looking at.
-    if(scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4){
-      active = ids[ids.length - 1];
-    }
-    $$("[data-sec]").forEach(function(b){ b.classList.toggle("is-on", b.dataset.sec === active); });
-  }
-  scroller.addEventListener("scroll", function(){
-    if(!ticking){ ticking = true; requestAnimationFrame(spy); }
-  });
-})();
 
 /* ------------------------------------------------------------------ init */
 applyTheme(storeGet(THEME_KEY), false);   // remembered choice, or follow device
