@@ -436,6 +436,25 @@ so a blind find-and-replace across the file would break them.
 
 ---
 
+# ROUND 8 — the rail's tooltips were being clipped (2026-09-04)
+
+Hovering a collapsed sidebar icon named it; hovering a project icon named nothing.
+Same CSS, different result, and the reason is `.rail-list`: it is a scroller
+(`overflow-y:auto`, and any scroller clips both axes), so a tooltip sitting at
+`left: calc(100% + 9px)` was cut off at the rail's 64px edge. The sidebar has no
+scroller, so its copy survived.
+
+Rather than fight the clip, there is now **one** `.hover-tip` node fixed to the
+viewport, positioned by JS from the hovered element's rectangle and flipped to the
+left side if it would run off screen. Controls carry `data-tip="…"`; the two
+in-button `.rail-tip` / `.side-tip` spans are gone.
+
+It stays quiet when it would only repeat what is already on screen — `showTip()`
+checks whether the control's own `.rail-name` / `.side-nm` is displayed, so a
+widened rail or an expanded sidebar shows no tooltip. Keyboard focus raises it too.
+
+---
+
 # NEXT UP — nothing assigned yet
 
 Open items, smallest first. None of these were asked for; do not build them unasked.

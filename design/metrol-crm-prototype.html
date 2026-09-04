@@ -310,15 +310,7 @@ input,select{font:inherit;color:inherit}
 .sidebar.is-mini .side-head{padding:0 0 6px;justify-content:center}
 .sidebar.is-mini .side-link{width:40px;justify-content:center;padding:0}
 .sidebar.is-mini .side-link.is-on::before{left:-12px}
-.side-tip{
-  position:absolute;left:calc(100% + 9px);top:50%;transform:translateY(-50%) translateX(-3px);
-  background:var(--ink);color:var(--ground);
-  padding:5px 9px;border-radius:6px;font-size:11.5px;font-weight:500;letter-spacing:0;
-  white-space:nowrap;pointer-events:none;z-index:60;opacity:0;
-  transition:opacity .12s ease, transform .12s ease;box-shadow:var(--shadow-md);
-}
-.sidebar.is-mini .side-link:hover .side-tip,
-.sidebar.is-mini .side-link:focus-visible .side-tip{opacity:1;transform:translateY(-50%) translateX(0)}
+
 .side-link{
   display:flex;align-items:center;gap:10px;
   height:34px;padding:0 10px;border-radius:6px;border:0;background:transparent;
@@ -367,21 +359,26 @@ input,select{font:inherit;color:inherit}
 }
 .rail.is-wide .rail-btn{width:100%;justify-content:flex-start;padding:0 10px}
 .rail.is-wide .rail-name{display:block}
-.rail.is-wide .rail-tip{display:none}
+
 .rail-btn:hover{background:var(--surface-3);color:var(--ink);border-color:var(--ink-3)}
 .rail-btn.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on)}
 .rail-btn.is-on::before{
   content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:2.5px;
   background:var(--ink);border-radius:0 2px 2px 0;
 }
-.rail-tip{
-  position:absolute;left:calc(100% + 9px);top:50%;transform:translateY(-50%) translateX(-3px);
+/* One tooltip node, fixed to the viewport. It used to live inside each button,
+   which worked in the sidebar but not the projects rail: .rail-list is a
+   scroller, and a scroller clips, so the rail's tooltip was cut off at 64px the
+   moment it tried to sit beside the icon. Nothing can clip this one. */
+.hover-tip{
+  position:fixed;z-index:120;pointer-events:none;
   background:var(--ink);color:var(--ground);
   padding:5px 9px;border-radius:6px;font-family:var(--sans);font-size:11.5px;font-weight:500;
-  letter-spacing:0;white-space:nowrap;pointer-events:none;z-index:60;
-  opacity:0;transition:opacity .12s ease, transform .12s ease;box-shadow:var(--shadow-md);
+  letter-spacing:0;white-space:nowrap;box-shadow:var(--shadow-md);
+  opacity:0;transform:translateX(-4px);
+  transition:opacity .12s ease, transform .12s ease;
 }
-.rail-btn:hover .rail-tip,.rail-btn:focus-visible .rail-tip{opacity:1;transform:translateY(-50%) translateX(0)}
+.hover-tip.is-on{opacity:1;transform:translateX(0)}
 .proj-select{
   display:none;height:32px;max-width:190px;padding:0 8px;border-radius:6px;
   border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:500;
@@ -1024,25 +1021,25 @@ table.hist .what{font-weight:500}
         <div class="side-label">Funding Room</div>
         <button class="side-toggle" id="sideToggle" aria-label="Collapse sidebar"></button>
       </div>
-      <button class="side-link is-on" data-sec="sec-overview">
+      <button class="side-link is-on" data-sec="sec-overview" data-tip="Overview">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-        <span class="side-nm">Overview</span><span class="side-tip">Overview</span>
+        <span class="side-nm">Overview</span>
       </button>
-      <button class="side-link" data-sec="sec-leads">
+      <button class="side-link" data-sec="sec-leads" data-tip="Leads">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
-        <span class="side-nm">Leads</span> <span class="count" id="navLeads">0</span><span class="side-tip">Leads</span>
+        <span class="side-nm">Leads</span> <span class="count" id="navLeads">0</span>
       </button>
-      <button class="side-link" data-sec="sec-sales">
+      <button class="side-link" data-sec="sec-sales" data-tip="Sales">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 .9-5 2.8c0 3.7 10 2.2 10 5.9 0 2-2.2 3.1-5 3.1s-5-1.1-5-3.1"/></svg>
-        <span class="side-nm">Sales</span> <span class="count" id="navSales">0</span><span class="side-tip">Sales</span>
+        <span class="side-nm">Sales</span> <span class="count" id="navSales">0</span>
       </button>
-      <button class="side-link" data-sec="sec-team">
+      <button class="side-link" data-sec="sec-team" data-tip="Team tracking">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 20V10M9 20V4M15 20v-7M21 20v-11"/></svg>
-        <span class="side-nm">Team tracking</span><span class="side-tip">Team tracking</span>
+        <span class="side-nm">Team tracking</span>
       </button>
-      <button class="side-link" data-sec="sec-dash">
+      <button class="side-link" data-sec="sec-dash" data-tip="Sales dashboard">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
-        <span class="side-nm">Sales dashboard</span><span class="side-tip">Sales dashboard</span>
+        <span class="side-nm">Sales dashboard</span>
       </button>
       <div class="side-foot">Prototype — sample data. Every number below is calculated from the rows in the tables.</div>
       <span class="pane-rz" id="sideRz" title="Drag to resize · double-click to reset"></span>
@@ -1376,6 +1373,7 @@ table.hist .what{font-weight:500}
   </div>
 </div>
 
+<div class="hover-tip" id="hoverTip"></div>
 <div class="toast" id="toast"></div>
 
 <!-- ====================================================== PROTOTYPE NAV -->
@@ -1581,6 +1579,39 @@ function byName(id){
   var m = member(id);
   return m ? m.name : (id || "\u2014");
 }
+
+/* ------------------------------------------------------------- hover tip */
+/* Shown only when the control is NOT already displaying its own label, so a
+   widened rail or an expanded sidebar does not repeat itself. */
+var tipEl = null;
+function hideTip(){ if(tipEl) tipEl.classList.remove("is-on"); }
+function showTip(el){
+  var text = el.getAttribute("data-tip");
+  if(!text) return hideTip();
+  var own = el.querySelector(".rail-name, .side-nm");
+  if(own && own.offsetParent !== null) return hideTip();   // label already visible
+  if(!tipEl) tipEl = document.getElementById("hoverTip");
+  if(!tipEl) return;
+  tipEl.textContent = text;
+  tipEl.classList.add("is-on");
+  var r = el.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
+  var left = r.right + 9;
+  if(left + t.width > window.innerWidth - 8) left = Math.max(8, r.left - t.width - 9);
+  tipEl.style.left = Math.round(left) + "px";
+  tipEl.style.top  = Math.round(Math.min(Math.max(8, r.top + r.height/2 - t.height/2),
+                                         window.innerHeight - t.height - 8)) + "px";
+}
+document.addEventListener("mouseover", function(e){
+  var el = e.target.closest ? e.target.closest("[data-tip]") : null;
+  if(el) showTip(el); else hideTip();
+});
+document.addEventListener("focusin", function(e){
+  var el = e.target.closest ? e.target.closest("[data-tip]") : null;
+  if(el) showTip(el); else hideTip();
+});
+document.addEventListener("focusout", hideTip);
+window.addEventListener("scroll", hideTip, true);
+window.addEventListener("resize", hideTip);
 
 var toastTimer;
 function toast(msg){
@@ -2556,20 +2587,18 @@ function renderRail(){
   var list = $("#projRailList");
   if(!list) return;
   list.innerHTML =
-    '<button class="rail-btn" data-go="projects" aria-label="All projects">'+
+    '<button class="rail-btn" data-go="projects" aria-label="All projects" data-tip="All projects">'+
       '<span class="rail-mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">'+
       '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'+
       '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>'+
-      '<span class="rail-name">All projects</span>'+
-      '<span class="rail-tip">All projects</span></button>'+
+      '<span class="rail-name">All projects</span></button>'+
     '<div class="rail-sep"></div>'+
     PROJECTS.map(function(p){
       var on = p.name === CURRENT_PROJECT;
       return '<button class="rail-btn'+(on?" is-on":"")+'" data-project="'+p.id+'" data-live="'+(p.live?"1":"0")+'"'+
-        ' aria-label="'+esc(p.name)+'"'+(on?' aria-current="true"':"")+'>'+
+        ' aria-label="'+esc(p.name)+'" data-tip="'+esc(p.name)+'"'+(on?' aria-current="true"':"")+'>'+
         '<span class="rail-mark">'+initialsOf(p.name)+"</span>"+
-        '<span class="rail-name">'+esc(p.name)+"</span>"+
-        '<span class="rail-tip">'+esc(p.name)+"</span></button>";
+        '<span class="rail-name">'+esc(p.name)+"</span></button>";
     }).join("");
 }
 
