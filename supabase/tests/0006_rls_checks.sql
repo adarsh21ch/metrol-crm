@@ -204,15 +204,17 @@ $$;
 delete from public.employees where full_name like 'ZZ RLS test%';
 
 -- ---------------------------------------------------------------- read this
-select check_name  as "Check",
+select seq        as "#",
+       check_name  as "Check",
        outcome     as "Result",
        detail      as "Detail"
   from _rls_results
 union all
-select '— — —',
+select 99,
+       'EVERYTHING',
        case when exists (select 1 from _rls_results where outcome = 'FAIL')
             then 'SOMETHING FAILED — do not build screens on this'
             else 'ALL CHECKS PASSED' end,
-       (select count(*)::text || ' records left behind by this test (must be 0)'
+       (select count(*)::text || ' test record(s) left behind (must be 0)'
           from public.employees where full_name like 'ZZ RLS test%')
- order by 1 = '— — —', 1;
+ order by 1;
