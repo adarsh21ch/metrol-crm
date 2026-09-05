@@ -668,6 +668,19 @@ kbd{
 .stack .avatar{width:22px;height:22px;flex-basis:22px;font-size:9px;margin-left:-6px;border:1.5px solid var(--surface)}
 .stack .avatar:first-child{margin-left:0}
 
+/* ------------------------------------------------------------ team roster */
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.team-card{
+  display:flex;align-items:center;gap:12px;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;
+  transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.team-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.team-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.team-card-body .cell-strong{font-size:13.5px}
+.team-card-body .cell-mute{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.team-card-sale{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);flex:none}
+
 /* ------------------------------------------------------ project thumbnail */
 .proj-media{
   aspect-ratio:16/9;width:100%;background:var(--surface-3);

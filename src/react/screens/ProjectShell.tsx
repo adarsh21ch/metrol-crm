@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
+import { Rail } from '@/components/Rail'
 import { Avatar, Chip, IconBtn } from '@/components/bits'
 import { usePanes } from '@/lib/usePanes'
 import { initials } from '@/lib/format'
@@ -33,12 +34,13 @@ const LABEL: Record<SecId, string> = {
 const ORDER: SecId[] = ['overview', 'leads', 'sales', 'team', 'dash']
 
 export function ProjectShell({
-  ws, projectId, onBack, onOpenProject, toast,
+  ws, projectId, onBack, onOpenProject, onOpenTeam, toast,
 }: {
   ws: Workspace
   projectId: string
   onBack: () => void
   onOpenProject: (id: string) => void
+  onOpenTeam: () => void
   toast: (m: string) => void
 }) {
   // The dialogs live here because this is the level that knows the project.
@@ -89,9 +91,14 @@ export function ProjectShell({
           )}
         </div>
         <select className="proj-select" aria-label="Switch project" value={projectId}
-                onChange={(e) => (e.target.value === '__all' ? onBack() : onOpenProject(e.target.value))}>
+                onChange={(e) => (
+                  e.target.value === '__all' ? onBack()
+                  : e.target.value === '__team' ? onOpenTeam()
+                  : onOpenProject(e.target.value)
+                )}>
           <option value="__all">← All projects</option>
           {ws.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <option value="__team">Team</option>
         </select>
         <div className="topbar-right">
           <ThemeToggle />
@@ -113,34 +120,9 @@ export function ProjectShell({
       </div>
 
       <div className="shell">
-        <nav className={'rail' + (panes.railWide ? ' is-wide' : '')} aria-label="Projects">
-          <div className="rail-list">
-            <button className="rail-btn" onClick={onBack} aria-label="All projects" {...tip.bind('All projects')}>
-              <span className="rail-mark">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
-                </svg>
-              </span>
-              <span className="rail-name">All projects</span>
-            </button>
-            <span className="rail-sep" />
-            {ws.projects.map((p) => (
-              <button key={p.id} className={'rail-btn' + (p.id === projectId ? ' is-on' : '')}
-                      onClick={() => onOpenProject(p.id)} {...tip.bind(p.name)}>
-                <span className="rail-mark">{initials(p.name)}</span>
-                <span className="rail-name">{p.name}</span>
-              </button>
-            ))}
-          </div>
-          <button className="rail-toggle" onClick={panes.toggleRail} aria-label="Show project names">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d={panes.railWide ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'} />
-            </svg>
-          </button>
-          <span className="pane-rz" title="Drag to widen · double-click to reset"
-                onPointerDown={panes.dragHandle('rail')} onDoubleClick={panes.resetPane('rail')} />
-        </nav>
+        <Rail ws={ws} active={projectId} panes={panes} tip={tip}
+              onOpenProjects={onBack} onOpenProject={onOpenProject}
+              onOpenTeam={onOpenTeam} onOpenSettings={() => setAdminOpen(true)} />
 
         <nav className={'sidebar' + (panes.sideMini ? ' is-mini' : '')}>
           <div className="side-head">

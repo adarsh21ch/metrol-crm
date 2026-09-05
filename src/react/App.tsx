@@ -9,12 +9,17 @@ import { SignUp } from '@/screens/SignUp'
 import { Landing } from '@/screens/Landing'
 import { Projects } from '@/screens/Projects'
 import { ProjectShell } from '@/screens/ProjectShell'
+import { TeamPage } from '@/screens/TeamPage'
 import { Member } from '@/screens/Member'
 
 /** Screen-based, like the prototype: everyone reaches this from one bookmark,
  *  and a router would put the back button in a fight with the sidebar. It can
  *  be added later without touching a screen. */
-type Route = { name: 'projects' } | { name: 'project'; id: string }
+type Route =
+  | { name: 'projects' }
+  | { name: 'project'; id: string }
+  | { name: 'team' }
+  | { name: 'member'; id: string }
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -89,17 +94,32 @@ function SignedIn() {
     return <><Member ws={ws} toast={toast} />{toastNode}</>
   }
 
+  const onOpenProjects = () => setRoute({ name: 'projects' })
+  const onOpenProject = (id: string) => setRoute({ name: 'project', id })
+  const onOpenTeam = () => setRoute({ name: 'team' })
+  const onOpenMember = (id: string) => setRoute({ name: 'member', id })
+
   return (
     <>
-      {route.name === 'projects' ? (
-        <Projects ws={ws} onOpen={(id) => setRoute({ name: 'project', id })} />
-      ) : (
+      {route.name === 'projects' && <Projects ws={ws} onOpen={onOpenProject} onOpenTeam={onOpenTeam} />}
+      {route.name === 'project' && (
         <ProjectShell
           ws={ws}
           projectId={route.id}
-          onBack={() => setRoute({ name: 'projects' })}
-          onOpenProject={(id) => setRoute({ name: 'project', id })}
+          onBack={onOpenProjects}
+          onOpenProject={onOpenProject}
+          onOpenTeam={onOpenTeam}
           toast={toast}
+        />
+      )}
+      {(route.name === 'team' || route.name === 'member') && (
+        <TeamPage
+          ws={ws}
+          memberId={route.name === 'member' ? route.id : null}
+          onOpenMember={onOpenMember}
+          onBackToTeam={onOpenTeam}
+          onOpenProjects={onOpenProjects}
+          onOpenProject={onOpenProject}
         />
       )}
       {toastNode}

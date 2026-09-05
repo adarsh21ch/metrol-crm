@@ -950,17 +950,112 @@ horizontal scroll on the salesperson screen with the new refresh button in
 place. Dark mode unaffected. Only console error throughout: the Google
 Fonts stylesheet this sandbox blocks (pre-existing, unrelated).
 
-## Next up
+---
 
-**Task #18 — an owner-level sidebar.** Today only *inside* a project
-(`ProjectShell.tsx`) is there a persistent rail + sidebar; the top-level
-`Projects.tsx` screen has just a topbar. The client wants that same
-persistent-navigation feel across the whole owner experience — Projects,
-a new **Team** section, and **Settings** (today the gear-icon
-`CompanyAdminModal`). Team should list every member grouped by department
-(`useWorkspace.ts` already tracks `departmentId` per member) and let the
-owner open one member's own dashboard — their track record **across every
-project**, not just one. `sections/Team.tsx` already computes almost this
-shape of data (assigned/connected/follow-up/converted, sales
-today/week/month/all-time) but scoped to a single project's leads;
-generalize it. `App.tsx`'s `Route` type will need a new case.
+# Round 16 — Task #18: an owner-level sidebar, Team, and per-member dashboards
+
+## The rail becomes app-wide, not extracted-and-duplicated
+
+The project rail (`ProjectShell.tsx`'s left-hand icon strip: "All projects"
++ every project, foldable/resizable via `usePanes`) was already meant to be
+persistent — Round 3's original design note called it Sidebar 1, "so they
+can jump straight between them" — but it only ever rendered *inside* a
+project, and vanished the instant you clicked back to the grid. That's the
+actual gap Adarsh was pointing at, not a missing feature so much as an
+inconsistently-scoped existing one.
+
+Fixed by extraction, not duplication: `src/react/components/Rail.tsx` is the
+exact same markup (`rail` / `rail-list` / `rail-btn` / `rail-sep` /
+`rail-toggle` / `pane-rz`, all pre-existing, unmodified CSS) as a shared
+component, parameterized by which entry is `active` and four navigation
+callbacks. `ProjectShell.tsx` now renders it instead of its own inline copy.
+`Projects.tsx` and the new `TeamPage.tsx` render the same component, each
+constructing their own `usePanes()` / `useHoverTip()` — safe because both
+hooks key their state off `localStorage` and a CSS custom property on
+`document.documentElement`, not component identity, so the rail's width and
+fold state carry across screens exactly as if it had never unmounted.
+
+Two new entries live below a separator, outside the (scrollable)
+project list so they never scroll out of reach: **Team** and **Settings**.
+
+## Settings stays a modal
+
+Company settings is a company code field, a department list, and a roster
+table with one dropdown each — not enough surface to earn its own page, and
+turning it into one would mean either duplicating `CompanyAdminModal`'s
+logic or unwinding a working, already-tested piece for no behavioural gain.
+It's now reachable from the Rail on every owner screen (in addition to the
+gear icon each topbar already had, left alone rather than removed — no
+regression risk to something that already worked, and it's still the
+mobile-safe path now that the Rail itself hides under 861px same as it
+always did inside a project).
+
+## Team: grouped by department, drilling into one member
+
+`TeamPage.tsx`, a new top-level screen (`App.tsx`'s `Route` gained `'team'`
+and `'member'; id` cases, mirroring the existing `'projects'`/`'project'`
+shape). Two views in one screen, chosen by whether a `memberId` is set:
+
+- **Roster** — every member from `ws.members`, grouped by
+  `departmentId` against `ws.departments` (sorted by `sortOrder`, with a
+  trailing "No department" bucket for anyone unset). A department with
+  nobody in it doesn't render a heading for nobody. Each member is a card
+  (name, lead/converted counts, all-time sale value) — clicking one drills
+  in.
+- **Member dashboard** — `sections/Team.tsx` already computed almost this
+  exact shape (assigned/connected/follow-up/converted, sales
+  today/week/month/all-time) but scoped to one project's `leads` prop; this
+  is that same computation read off `ws.leads` **unfiltered by project**,
+  for one member. Added a per-project breakdown table underneath (project,
+  leads, connected, follow-ups, converted, sale value) so "every project,
+  not just one" is an actual table you can read, not just a claim the KPI
+  row makes.
+
+## Mobile
+
+The Rail hides under 861px exactly as it always did — nothing new needed
+there. `Projects.tsx` and `TeamPage.tsx` each gained a two-button
+`.mobile-nav` chip strip (Projects/Team), the same pre-existing class
+`ProjectShell.tsx`'s section-switcher already uses. `ProjectShell.tsx`'s
+existing `.proj-select` dropdown (the mobile stand-in for the rail's project
+list) gained a trailing "Team" option. `TeamPage.tsx` briefly also carried a
+"jump to a project" `<select>` in its topbar; dropped it after a 390px
+screenshot showed it fighting the brand wordmark for room in a way
+`ProjectShell.tsx` never had to solve (that screen has no brand text in its
+topbar to begin with) — the mobile-nav chip to Projects, then a card tap,
+covers the same need without inventing new topbar real estate.
+
+## Verified in Chromium (demo mode)
+
+Projects, Team, and a project all show the same rail, each with the right
+entry lit; clicking a project icon from Team opens it, clicking Team from
+inside a project returns to the roster — width and fold state survive every
+jump. Roster groups correctly (5 members, 1 seeded department in the demo
+fixture). A member card opens their dashboard with figures matching the
+roster card's own counts; per-project table sums are consistent; "← Team"
+returns to the roster. Settings opens from the Rail on every screen. Light
+and dark both correct. 390px: no page-level horizontal scroll on Projects,
+Team, the member dashboard, or inside a project with the new "Team" select
+option, checked via `scrollWidth === clientWidth`. Only console error
+throughout: the Google Fonts stylesheet this sandbox blocks.
+
+## Judgement calls worth Adarsh seeing
+
+1. **Settings is reachable from two places now** (topbar gear, kept; Rail,
+   added) rather than one. If that reads as redundant once he's looked at
+   it, the topbar gear is the one to drop — the Rail's is the one that
+   matches every other screen.
+2. **The per-project breakdown table on a member's dashboard** wasn't
+   explicitly asked for — "track record across every project" was — but a
+   table answering that literally seemed like the minimal way to actually
+   deliver it, not an extra module. Flagging it per the project's own
+   feature-creep rule: built because it directly answers what was asked,
+   not layered on top of it.
+
+## Next up — nothing assigned yet
+
+Both items handed off at the end of the last session are done. Nothing new
+queued; the open items list from earlier in this file (the `.xlsx` import
+never confirmed against a live artifact, the avatar-stack legibility note,
+the density switch hidden under 860px, real project photo upload) is still
+exactly where it was.

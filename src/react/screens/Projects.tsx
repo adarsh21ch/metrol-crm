@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useHoverTip } from '@/components/HoverTip'
+import { Rail } from '@/components/Rail'
+import { usePanes } from '@/lib/usePanes'
 import { Avatar, Chip, IconBtn } from '@/components/bits'
 import { agoWords, initials, money, num } from '@/lib/format'
 import { isConverted, type Project } from '@/lib/types'
@@ -31,9 +34,11 @@ function Media({ p, small }: { p: Row; small?: boolean }) {
   )
 }
 
-export function Projects({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) => void }) {
+export function Projects({ ws, onOpen, onOpenTeam }: { ws: Workspace; onOpen: (id: string) => void; onOpenTeam: () => void }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
+  const panes = usePanes()
+  const tip = useHoverTip()
   const [view, setView] = useState<View>(() => {
     try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards' } catch { return 'cards' }
   })
@@ -100,7 +105,15 @@ export function Projects({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) =
       </div>
 
       <div className="shell">
+        <Rail ws={ws} active="projects" panes={panes} tip={tip}
+              onOpenProjects={() => {}} onOpenProject={onOpen}
+              onOpenTeam={onOpenTeam} onOpenSettings={() => setAdminOpen(true)} />
+
         <div className="workspace">
+          <div className="mobile-nav">
+            <button className="is-on">Projects</button>
+            <button onClick={onOpenTeam}>Team</button>
+          </div>
           <div className="wrap">
             <div className="page-head">
               <h1>Projects</h1>
@@ -171,6 +184,7 @@ export function Projects({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) =
         </div>
       </div>
 
+      {tip.node}
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
       {adminOpen && <CompanyAdminModal ws={ws} onClose={() => setAdminOpen(false)} />}
     </div>
