@@ -1389,3 +1389,57 @@ ever hold. Two rules follow from that:
 Confirm each phase with Adarsh before starting the next. He explicitly said
 restrictions can be decided later, which is permission to scope down, not
 permission to build all five at once.
+
+## The access model, as Adarsh described it on 2026-09-05
+
+Read this before building any dashboard. **Three independent things** decide
+what a person sees when they log in. They are orthogonal — do not collapse them
+into one `role` column.
+
+| Thing | Column | What it decides |
+|---|---|---|
+| **Role** | `profiles.role` — `owner` \| `member` | The owner sees everything, across every department. Unchanged. |
+| **Department** | `profiles.department_id` | **Which dashboard they get.** A Sales person gets the leads/sales dashboard. An HR person gets the HR dashboard. Etc. |
+| **Team lead** | `profiles.is_team_lead` — NEW, boolean | Adds **one extra tab** — "Manage team" — to whatever dashboard they already have. Nothing else changes. |
+
+In Adarsh's words: *"every department member has their own dedicated dashboard
+designed for their work, and every department has a team leader who has access
+to see the information and data of their team members — one more extra tab,
+that is Manage team. That's it."*
+
+### What "Manage team" is, and what it is not
+
+It is **not** a separate dashboard and **not** the owner's view scoped down. It
+is one additional tab on the lead's own department dashboard, showing the
+track record of the people who share their `department_id`. A Sales team lead
+keeps their own leads and sales tabs exactly as they are, and gains a tab
+listing their team's numbers.
+
+### HR is a department, not a parallel role
+
+Adarsh: *"the owner can assign a particular team member the role of HR — he
+tags them, this team member is my HR — so when he logs in he gets the HR
+dashboard."* That is precisely what assigning `department_id` already does, so
+**model HR as a department row**, not as a third value in `profiles.role`.
+Adding `hr` to the role enum would create a second, competing way to express
+"what work does this person do" beside `department_id`, and they would drift.
+
+The HR dashboard is broad by design — HR spans every department (offer,
+joining, operations, finance, salary, leave, resignation per the brief above),
+so it reads across departments while a Sales person reads only Sales. That
+breadth lives in the HR dashboard's RLS policies, not in a role column.
+
+*If Adarsh later wants HR powers grantable independently of which department
+someone sits in, revisit this — but do not build both mechanisms at once.*
+
+### Still unknown — ask before building
+
+**Only the Sales dashboard has ever been designed.** Production, Content
+Creation, Video Editors, Developers, AI Staff and Performance Marketing all
+exist as department rows with **no defined content whatsoever**. Nobody has
+said what a Production person or a video editor actually tracks day to day.
+
+Do not invent them. Shipping five hollow dashboards would break the quality bar
+at the top of this file harder than shipping none. Ask Adarsh what each
+department's people actually need to see, one department at a time, and build
+only the ones he answers for.
