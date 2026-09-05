@@ -1443,3 +1443,18 @@ Do not invent them. Shipping five hollow dashboards would break the quality bar
 at the top of this file harder than shipping none. Ask Adarsh what each
 department's people actually need to see, one department at a time, and build
 only the ones he answers for.
+
+### Naming, settled 2026-09-05
+
+The department is **"Human Resources"** — spelled out in the `departments` row,
+consistent with "Content Creation" and "Video Editors". The UI may show a short
+"HR" label where space is tight. The **person** is not called "HR"; their
+`designation` on the employee record is **"HR Manager"** (or HR Executive, etc.),
+the same way a Sales person is a "Sales Executive" and the tagged lead is the
+"Sales Team Lead".
+
+Adarsh considered "HRT" for the department and it was talked out of: it is not a
+business term and reads as the medical one. He added: *"if needed we change the
+UI label later if they want"* — so the label is cosmetic and changeable; the
+`departments.name` value is what code should key on, never a hardcoded string in
+a component.
