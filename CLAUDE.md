@@ -813,3 +813,60 @@ drag. Dark mode matches the rest of the app. At 390px width, `document.
 documentElement.scrollWidth` equals `clientWidth` on both the owner's and the
 salesperson's Leads screens, in both list and board view — no page-level
 horizontal scroll anywhere this touched.
+
+---
+
+# Round 14 — the board card itself moves, and gets a quality control
+
+Two client reports drove this round, both on the board view from Round 13.
+
+**The drag didn't look like a drag.** The card only faded in place and the
+target column highlighted — nothing visibly moved, and dragging across a
+column header or a card's text triggered the browser's own click-and-drag
+text selection, which read as a broken page, not a kanban board. Rebuilt:
+the dragged card is now a floating clone (`position:fixed`, pinned to the
+exact point it was grabbed) that follows the pointer; its old slot becomes a
+dashed placeholder, not a second visible card. Drop on a different column and
+it commits immediately; drop anywhere invalid (another spot, or outside the
+board) and it flies back to the placeholder over 180ms instead of vanishing.
+`user-select:none` on `.board` stops the text-selection bug outright.
+
+**No way to set quality from the board.** Only the list view had the
+Good/Average/Bad dropdown. Restructured each card to two rows — name plus a
+quality control top-right (row 1), project name plus sale amount (row 2) —
+so a card is the same height whether or not it carries data. The quality
+control opens the *exact* `Menu`/`edit` state `Member.tsx`'s list view
+already uses (`onEditQuality` prop into `LeadsBoard`), so there is one editing
+code path, not two. Its own click stops propagation so it doesn't also open
+the lead's history underneath. Sized down (`.board-card-head .cell-edit`,
+scoped so the list view's own chip is untouched) after the client asked for
+it smaller still.
+
+Verified each round in Chromium: the floating clone is genuinely
+`position:fixed` mid-drag; a valid drop commits and an invalid one animates
+back with counts unchanged; a plain click (no drag) still opens history; a
+synthetic touch-typed `PointerEvent` drag produces the same result as a mouse
+drag; picking a quality on a board card updates the same lead's row in the
+list view too.
+
+## Next up — deferred to a fresh session
+
+Two things the client asked for, explicitly held for later:
+
+1. **Task #17 — live sync on assignment.** When the owner assigns a lead to a
+   member, that member's own tab does not pick it up without a manual
+   refresh (status/quality changes already are realtime; this one path
+   isn't). Also wanted: an on-load "N leads assigned to you" notice, and a
+   manual refresh button with a spinner as a visible fallback.
+2. **Task #18 — an owner-level sidebar.** Today only *inside* a project
+   (`ProjectShell.tsx`) is there a persistent rail + sidebar; the top-level
+   `Projects.tsx` screen has just a topbar. The client wants that same
+   persistent-navigation feel across the whole owner experience — Projects,
+   a new **Team** section, and **Settings** (today the gear-icon
+   `CompanyAdminModal`). Team should list every member grouped by department
+   (`useWorkspace.ts` already tracks `departmentId` per member) and let the
+   owner open one member's own dashboard — their track record **across every
+   project**, not just one. `sections/Team.tsx` already computes almost this
+   shape of data (assigned/connected/follow-up/converted, sales
+   today/week/month/all-time) but scoped to a single project's leads;
+   generalize it. `App.tsx`'s `Route` type will need a new case.
