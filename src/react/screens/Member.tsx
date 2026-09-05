@@ -180,7 +180,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           foot={<div className="grid-foot"><span>{mine.length} leads</span>
                             <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span></div>} />
               ) : (
-                <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)} />
+                <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)}
+                            onEditQuality={(e, l) => setEdit({ kind: 'quality', anchor: e.currentTarget, lead: l })} />
               )}
             </div>
 

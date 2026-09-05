@@ -747,12 +747,17 @@ table.grid tbody tr.row-link{cursor:pointer}
 .board-card.is-placeholder{
   opacity:.45;border-style:dashed;box-shadow:none;background:transparent;
 }
+/* Name and the quality control share the top row; the name truncates first —
+   the control that sets quality is never the thing that gets squeezed out. */
+.board-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .board-card-nm{
   font-size:13px;font-weight:600;color:var(--ink);text-align:left;
-  display:flex;align-items:center;gap:6px;
+  display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.board-card-sub{font-size:11.5px;color:var(--ink-3)}
-.board-card-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* Project name and the sale amount share the row under that, so a lead with
+   an amount takes up the same two lines as one without. */
+.board-card-meta{display:flex;align-items:center;gap:6px;min-width:0}
+.board-card-sub{font-size:11.5px;color:var(--ink-3);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* The card that actually moves: a floating clone pinned to the pointer at the
    exact spot it was grabbed, positioned in viewport coordinates so it tracks
    correctly regardless of the board's own horizontal scroll. Dropped

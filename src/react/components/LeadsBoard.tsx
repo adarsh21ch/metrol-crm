@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Chip } from '@/components/bits'
+import { EditChip } from '@/components/bits'
 import { QUALITY, STATUS, type Lead, type LeadStatus } from '@/lib/types'
 import { money } from '@/lib/format'
 
@@ -7,16 +7,29 @@ const COLUMNS = Object.keys(STATUS) as LeadStatus[]
 const DRAG_THRESHOLD = 6
 const RETURN_MS = 180
 
-function CardBody({ l, projectName }: { l: Lead; projectName: (id: string) => string }) {
+/** Name and the quality control share the top row; project name and the sale
+ *  amount share the row under it — a bare lead and a converted, rated one
+ *  then take up the same two lines instead of quality growing a third. */
+function CardBody({
+  l, projectName, onEditQuality,
+}: { l: Lead; projectName: (id: string) => string; onEditQuality?: (e: React.MouseEvent<HTMLButtonElement>, l: Lead) => void }) {
   return (
     <>
-      <span className="board-card-nm">
-        {l.isNew && <span className="new-dot" title="New lead" />}
-        {l.name}
-      </span>
-      <div className="board-card-sub">{projectName(l.projectId)}</div>
-      <div className="board-card-foot">
-        {l.quality && <Chip cls={QUALITY[l.quality].cls}>{QUALITY[l.quality].label}</Chip>}
+      <div className="board-card-head">
+        <span className="board-card-nm">
+          {l.isNew && <span className="new-dot" title="New lead" />}
+          {l.name}
+        </span>
+        {onEditQuality && (
+          <EditChip
+            cls={l.quality ? QUALITY[l.quality].cls : 'chip--none'}
+            label={l.quality ? QUALITY[l.quality].label : 'Not set'}
+            onClick={(e) => { e.stopPropagation(); onEditQuality(e, l) }}
+          />
+        )}
+      </div>
+      <div className="board-card-meta">
+        <span className="board-card-sub">{projectName(l.projectId)}</span>
         {l.amount > 0 && <span className="cell-money">{money(l.amount)}</span>}
       </div>
     </>
@@ -41,12 +54,13 @@ function CardBody({ l, projectName }: { l: Lead; projectName: (id: string) => st
  * drop it on a different column and the write happens immediately.
  */
 export function LeadsBoard({
-  leads, projectName, onOpenHistory, onDropStatus,
+  leads, projectName, onOpenHistory, onDropStatus, onEditQuality,
 }: {
   leads: Lead[]
   projectName: (id: string) => string
   onOpenHistory: (l: Lead) => void
   onDropStatus: (lead: Lead, status: LeadStatus) => void
+  onEditQuality: (e: React.MouseEvent<HTMLButtonElement>, lead: Lead) => void
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<LeadStatus | null>(null)
@@ -149,7 +163,7 @@ export function LeadsBoard({
                   }}
                   onClick={() => { if (draggingId !== l.id) onOpenHistory(l) }}
                 >
-                  <CardBody l={l} projectName={projectName} />
+                  <CardBody l={l} projectName={projectName} onEditQuality={onEditQuality} />
                 </div>
               ))}
             </div>
@@ -163,7 +177,7 @@ export function LeadsBoard({
           className="board-card board-card--ghost"
           style={{ width: ghost.w, height: ghost.h, transform: `translate(${ghost.x}px, ${ghost.y}px)` }}
         >
-          <CardBody l={ghost.lead} projectName={projectName} />
+          <CardBody l={ghost.lead} projectName={projectName} onEditQuality={onEditQuality} />
         </div>
       )}
     </div>
