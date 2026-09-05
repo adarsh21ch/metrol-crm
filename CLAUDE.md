@@ -1539,3 +1539,55 @@ is none is stale), but there is no `.env`, no project link and no database
 password here, so the migration still has to be pasted into the SQL editor by
 hand. Screens must not be called done until the checks above have actually been
 run and reported back.
+
+## Phase 1 shipped (2026-09-05)
+
+All nine RLS checks passed against the live database before any screen existed
+(`supabase/tests/0006_rls_checks.sql`, results as rows — the first version
+reported through RAISE NOTICE, which the Supabase SQL editor does not display,
+so it ran and printed nothing).
+
+| File | What it is |
+|---|---|
+| `src/react/lib/hr.ts` | The module's own vocabulary — Employee, statuses, `fmtDate`, `tenure`, `HR_DEPARTMENT`. Kept beside `types.ts` rather than widening it, as that file asks. |
+| `src/react/data/useEmployees.ts` | Reads and writes `employees`. Takes an `enabled` flag so a salesperson's app never makes the request. Re-reads the row after an update rather than trusting the patch. |
+| `src/react/screens/HrPage.tsx` | The HR dashboard: directory, one employee's page, departments. |
+| `src/react/modals/EmployeeModal.tsx` | Add and edit. No delete anywhere — the table has no delete policy and DELETE is revoked. |
+| `src/react/components/Rail.tsx` | Now takes optional `items`. With none passed it renders exactly the owner's rail; HR passes its own. **Do not fork this component for phases 2-5** — add rail items. |
+| `src/react/screens/Member.tsx` | The Manage team tab, shown only when `is_team_lead`. |
+| `supabase/migrations/0007_hr_reads_profiles.sql` | HR reads every profile; a team lead reads their own department's. |
+| `supabase/migrations/0008_team_lead_reads_team_leads.sql` | A team lead reads their department's leads, read-only. |
+
+**0007 and 0008 were found by building, not by planning.** `profiles_select`
+was "your own row or you are the owner", which left HR unable to link a record
+to a login; `leads_select` was "your own leads", which would have rendered
+Manage team as a table of zeros. Expect more of these in phases 2-5: a policy
+written for the owner-only app is usually too narrow the moment a second
+dashboard reads the same table.
+
+### Verified in Chromium, not asserted
+
+`?demo=1&as=hr`, `&as=lead` and `&as=member` were added to `demo.ts` so every
+screen can be walked without a real account for each. Walked at 1280px and
+375px: directory, employee page, add (MM-007 generated), mark-as-resigned,
+departments, the lead's four tabs, an ordinary member's three. Owner's app
+re-checked because Rail is shared — unchanged. Console clean throughout.
+
+Two mobile faults were found that way and fixed: the directory's search box
+collapsed to an empty sliver at 375px, and `.section-tools` (one nowrap row,
+right for two buttons) carried "Add employee" off the right edge.
+
+### Open, deliberately
+
+- **Nobody has `is_team_lead = true` yet.** Manage team is built and tested in
+  demo, but has never run against real data. Setting it is two commented lines
+  in `supabase/scripts/set_hr_person.sql`. Do not set it on the only ordinary
+  member while testing RLS — check 3 then has nobody to run as.
+- **The production `employees` table is empty.** HR enters the first records;
+  the directory offers anybody who has a login but no record.
+- **Still nobody has said what Production, Content Creation, Video Editors,
+  Developers or AI Staff track.** Their leads get the roster and a line saying
+  why. Ask one department at a time; do not invent a dashboard.
+- Phases 2 to 5 (leave, salary, offer/joining, exit) are untouched. Each hangs
+  off the employee page or a new rail item. **Confirm with Adarsh before
+  starting Phase 2.**
