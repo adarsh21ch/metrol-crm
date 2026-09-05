@@ -8,13 +8,27 @@ import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { ProfileModal } from '@/modals/ProfileModal'
-import { agoDays, count, daysSince, money, pct } from '@/lib/format'
+import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
 const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
+
+/**
+ * Three sections rather than one long scroll — the same call Round 4 made for
+ * the owner's project screen, arriving late here. A salesperson works leads;
+ * a sale they already closed and the owner already verified is a record, not
+ * a thing to scroll past on the way to the next call. It is one tap away when
+ * they do want it.
+ */
+type MemberSec = 'overview' | 'leads' | 'sales'
+const HEAD: Record<MemberSec, { title: string; sub: string }> = {
+  overview: { title: 'Overview', sub: 'Where your leads stand right now' },
+  leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
+  sales: { title: 'My sales', sub: '' },
+}
 
 /** The salesperson's whole app: the leads the owner handed them, and what they
  *  closed. They set status and quality; they never see anybody else's rows —
@@ -39,6 +53,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     // Only ever runs once per mount — recording *this* visit, not tracking lastVisitKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  const [sec, setSec] = useState<MemberSec>('overview')
   const [edit, setEdit] = useState<{ kind: 'status' | 'quality'; anchor: HTMLElement; lead: Lead } | null>(null)
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
@@ -137,6 +152,23 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
 
   const projects = new Set(mine.map((l) => l.projectId)).size
 
+  // A salesperson's own work queue: called and rated is the whole job, so
+  // these are the three ways a lead can still be waiting on them.
+  const todo = [
+    {
+      n: mine.filter((l) => l.status === 'new').length, cta: 'Call them',
+      label: (n: number) => `${plural(n, 'lead')} you have not called yet`,
+    },
+    {
+      n: mine.filter((l) => l.status === 'follow_up').length, cta: 'Open leads',
+      label: (n: number) => `${plural(n, 'follow-up')} to make`,
+    },
+    {
+      n: mine.filter((l) => l.status !== 'new' && !l.quality).length, cta: 'Rate them',
+      label: (n: number) => `${plural(n, 'lead')} called but not rated yet`,
+    },
+  ]
+
   return (
     <div className="screen screen--app is-active">
       <div className="topbar">
@@ -168,70 +200,103 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
         <div className="workspace">
           <div className="wrap">
             <div className="page-head">
-              <h1>My leads</h1>
-              <div className="sub">Assigned to you by the owner</div>
-              {/* Live sync should mean nobody needs this — it exists for
-                  anyone who would rather press something than trust it. */}
-              <button className="btn btn--ghost btn--sm refresh-btn" disabled={ws.refreshing}
-                      onClick={() => void ws.refresh()}>
-                <svg className={ws.refreshing ? 'spin' : ''} width="14" height="14" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" />
-                </svg>
-                {ws.refreshing ? 'Refreshing…' : 'Refresh'}
-              </button>
-            </div>
-
-            {justAssigned.length > 0 && !dismissed && (
-              <div className="banner">
-                <div>
-                  <div className="t">{justAssigned.length} lead{justAssigned.length === 1 ? '' : 's'} assigned to you</div>
-                  <div className="d">Call them and set a status so the owner can see where they stand.</div>
-                </div>
-                <button className="btn btn--sm" onClick={() => setDismissed(true)}>Got it</button>
+              <h1>{HEAD[sec].title}</h1>
+              <div className="sub">
+                {sec === 'sales' ? `${count(cv.length, 'deal')} closed · ${money(sum(cv))} total`
+                  : sec === 'leads' ? `${count(mine.length, 'lead')} across ${count(projects, 'project')}`
+                    : HEAD[sec].sub}
               </div>
-            )}
-
-            <div className="kpis">
-              <Kpi accent label="My leads" value={mine.length} sub={`${mine.filter((l) => l.status === 'new').length} not called yet`} />
-              <Kpi label="Connected" value={mine.filter(isConnected).length} sub={`${pct(mine.filter(isConnected).length, mine.length)} of my leads`} />
-              <Kpi label="Follow-ups" value={mine.filter((l) => l.status === 'follow_up').length} sub="need a next call" />
-              <Kpi label="Converted" value={cv.length} sub={`${pct(cv.length, mine.length)} conversion`} />
-              <Kpi label="My sales" value={money(sum(cv))} sub={`${cv.filter((l) => !l.verified).length} awaiting verification`} />
-            </div>
-
-            <div className="section">
-              <div className="section-head">
-                <h3>Leads</h3>
-                <div className="sub">{count(mine.length, 'lead')} across {count(projects, 'project')}</div>
-                <div className="section-tools">
+              <div className="section-tools">
+                {sec === 'leads' && (
                   <div className="seg">
                     <button className={leadsView === 'board' ? 'is-on' : ''} onClick={() => pickView('board')}>Board</button>
                     <button className={leadsView === 'list' ? 'is-on' : ''} onClick={() => pickView('list')}>List</button>
                   </div>
-                </div>
+                )}
+                {/* Live sync should mean nobody needs this — it exists for
+                    anyone who would rather press something than trust it, so
+                    it stays on every tab rather than living on one of them. */}
+                <button className="btn btn--ghost btn--sm refresh-btn" disabled={ws.refreshing}
+                        onClick={() => void ws.refresh()}>
+                  <svg className={ws.refreshing ? 'spin' : ''} width="14" height="14" viewBox="0 0 24 24"
+                       fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" />
+                  </svg>
+                  {ws.refreshing ? 'Refreshing…' : 'Refresh'}
+                </button>
               </div>
-              {leadsView === 'list' ? (
-                <DataGrid cols={leadCols} rows={mine} storageKey="member-leads"
-                          empty="Nothing assigned to you yet. The owner will hand you leads from here."
-                          foot={<div className="grid-foot"><span>{count(mine.length, 'lead')}</span>
-                            <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span></div>} />
-              ) : (
-                <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)}
-                            onEditQuality={(e, l) => setEdit({ kind: 'quality', anchor: e.currentTarget, lead: l })} />
-              )}
             </div>
 
-            <div className="section">
-              <div className="section-head">
-                <h3>My sales</h3>
-                <div className="sub">{count(cv.length, 'deal')} closed · {money(sum(cv))} total</div>
-              </div>
-              <DataGrid cols={salesCols} rows={[...cv].sort((a, b) => daysSince(a.convertedAt ?? a.createdAt) - daysSince(b.convertedAt ?? b.createdAt))}
-                        storageKey="member-sales"
-                        empty="No sales yet. Mark a lead Converted and record the amount, and it lands here."
-                        foot={<div className="grid-foot"><span>{cv.filter((l) => l.verified).length} verified · {cv.filter((l) => !l.verified).length} pending</span></div>} />
+            <div className="tabs">
+              <button className={sec === 'overview' ? 'is-on' : ''} onClick={() => setSec('overview')}>Overview</button>
+              <button className={sec === 'leads' ? 'is-on' : ''} onClick={() => setSec('leads')}>
+                My leads <span className="count">{mine.length}</span>
+              </button>
+              <button className={sec === 'sales' ? 'is-on' : ''} onClick={() => setSec('sales')}>
+                My sales <span className="count">{cv.length}</span>
+              </button>
             </div>
+
+            {sec === 'overview' && (
+              <>
+                {justAssigned.length > 0 && !dismissed && (
+                  <div className="banner">
+                    <div>
+                      <div className="t">{count(justAssigned.length, 'lead')} assigned to you</div>
+                      <div className="d">Call them and set a status so the owner can see where they stand.</div>
+                    </div>
+                    <button className="btn btn--sm" onClick={() => setDismissed(true)}>Got it</button>
+                  </div>
+                )}
+
+                <div className="kpis">
+                  <Kpi accent label="My leads" value={mine.length} sub={`${mine.filter((l) => l.status === 'new').length} not called yet`} />
+                  <Kpi label="Connected" value={mine.filter(isConnected).length} sub={`${pct(mine.filter(isConnected).length, mine.length)} of my leads`} />
+                  <Kpi label="Follow-ups" value={mine.filter((l) => l.status === 'follow_up').length} sub="need a next call" />
+                  <Kpi label="Converted" value={cv.length} sub={`${pct(cv.length, mine.length)} conversion`} />
+                  <Kpi label="My sales" value={money(sum(cv))} sub={`${cv.filter((l) => !l.verified).length} awaiting verification`} />
+                </div>
+
+                {/* The same shape as the owner's Overview, asking the question a
+                    salesperson actually has: what do I do next? Every row is a
+                    button into My leads, where the work happens. */}
+                <div className="ov-card">
+                  <div className="ov-head"><h4>What needs you</h4></div>
+                  <div className="ov-actions">
+                    {todo.map((x) => (
+                      <button className="ov-row" key={x.cta} onClick={() => setSec('leads')}>
+                        <span className={'ov-n' + (x.n ? '' : ' is-zero')}>{x.n}</span>
+                        <span className="ov-l">{x.label(x.n)}</span>
+                        <span className="ov-cta">{x.cta} →</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {sec === 'leads' && (
+              <div className="section">
+                {leadsView === 'list' ? (
+                  <DataGrid cols={leadCols} rows={mine} storageKey="member-leads"
+                            empty="Nothing assigned to you yet. The owner will hand you leads from here."
+                            foot={<div className="grid-foot"><span>{count(mine.length, 'lead')}</span>
+                              <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span></div>} />
+                ) : (
+                  <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)}
+                              onEditQuality={(e, l) => setEdit({ kind: 'quality', anchor: e.currentTarget, lead: l })} />
+                )}
+              </div>
+            )}
+
+            {sec === 'sales' && (
+              <div className="section">
+                <DataGrid cols={salesCols} rows={[...cv].sort((a, b) => daysSince(a.convertedAt ?? a.createdAt) - daysSince(b.convertedAt ?? b.createdAt))}
+                          storageKey="member-sales"
+                          empty="No sales yet. Mark a lead Converted and record the amount, and it lands here."
+                          foot={<div className="grid-foot"><span>{cv.filter((l) => l.verified).length} verified · {cv.filter((l) => !l.verified).length} pending</span></div>} />
+              </div>
+            )}
           </div>
         </div>
       </div>

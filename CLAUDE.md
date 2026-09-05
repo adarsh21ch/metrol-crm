@@ -1276,3 +1276,70 @@ error: the Google Fonts stylesheet this sandbox blocks.
   is truthful and the empty states now carry it, but a first-run "add your
   first lead" prompt would carry it better. Not built: it is a feature, and
   the rule here is to note rather than add.
+
+---
+
+# Round 20 — the salesperson's screen becomes three sections
+
+Adarsh: "Overview, then My leads, then My sales… once the sale is done and
+verified, who wants to read it again and again? A person doing sales doesn't
+want to see a sale that already happened. If he wants the list he can switch
+to that tab."
+
+He is describing the exact call Round 4 made for the owner's project screen —
+sections become pages instead of one endless scroll — which the salesperson's
+screen never got. It was one column: KPI row, then the leads board, then a
+"My sales" table underneath that a salesperson scrolls past on the way to
+nothing, every single time they open the app.
+
+## Three sections, in his order
+
+`Member.tsx` now carries a `MemberSec` of `overview | leads | sales`,
+defaulting to Overview.
+
+- **Overview** — the "N leads assigned to you" banner, the five KPI tiles, and
+  a **What needs you** card: leads not called yet, follow-ups to make, leads
+  called but not rated. Same `.ov-card` / `.ov-row` markup as the owner's
+  Overview, asking the question a salesperson actually has — what do I do
+  next — with every row a button into My leads. Without it the tab would be
+  five tiles and whitespace, which is the same trap Round 4 noted for the
+  owner's Overview.
+- **My leads** — the board or list, now with the whole page to itself.
+- **My sales** — the closed-deals table, one tap away and out of the way.
+
+## Why tabs and not a sidebar
+
+The owner switches sections with a sidebar, but the owner also has a rail of
+projects for it to sit beside. A salesperson has no projects to switch
+between, works mostly from a phone, and has three destinations — so a chip
+strip (`.tabs`) directly under the page head, identical at every width.
+
+Deliberately **not** the `.seg` control: `.seg` means "another view of the
+same thing" (Board/List, Cards/List), and the My leads tab contains a `.seg`
+of its own. Two identical-looking controls on one screen meaning two
+different things is how a simple screen stops being simple.
+
+The tabs carry counts (`My leads 163`, `My sales 30`), mirroring the owner's
+sidebar. Board/List moved into the page head's `.section-tools` and only
+appears on the My leads tab. **Refresh stays on all three** — it is a
+"get me current data" action, not a property of one section.
+
+## Verified in Chromium
+
+Lands on Overview; all three tabs switch, with the head title and sub
+changing with them ("30 deals closed · ₹7,91,000 total" on My sales, "163
+leads across 6 projects" on My leads). The sales table is genuinely not
+rendered while you are on My leads — checked, not assumed, since not
+scrolling past it is the entire point. Board/List shows only on My leads;
+Refresh on all three. Editing quality from a board card still opens the same
+menu. 390px on every tab with no horizontal overflow, and dark mode correct.
+Only console error: the Google Fonts stylesheet this sandbox blocks.
+
+## One thing to watch
+
+The tab choice is **not** remembered — every visit opens on Overview, the
+same way the owner's project screen always opens on its own Overview. That is
+deliberate: Overview is where the "N leads assigned to you" notice lives, so a
+salesperson who lands anywhere else would stop seeing it. If Adarsh finds the
+extra tap annoying, remembering the last tab in `localStorage` is a one-line
+change — but it costs him that notice.
