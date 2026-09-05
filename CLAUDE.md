@@ -1052,6 +1052,20 @@ throughout: the Google Fonts stylesheet this sandbox blocks.
    feature-creep rule: built because it directly answers what was asked,
    not layered on top of it.
 
+## A pre-existing bug found while regression-testing this round, not caused by it
+
+Folding the section sidebar, then reloading, silently unfolded it again —
+on the original code too, nothing to do with the Rail extraction. `usePanes`
+correctly read the stored `sideMini` flag into its own `useState`
+initializer, but its mount effect then called `applySide(storedWidth)` for
+the *width*, and `applySide` unconditionally derives `sideMini` from that
+width against `SIDE_SNAP` — overwriting the just-initialized flag back to
+`false`, since folding doesn't change the stored width, only the mini flag.
+`usePanes.ts`'s mount effect now writes `--side-w` directly instead of
+routing through `applySide`, so it can't stomp a mini flag it never needed
+to touch. Verified: fold the sidebar, reload, reopen the project — stays
+folded.
+
 ## Next up — nothing assigned yet
 
 Both items handed off at the end of the last session are done. Nothing new

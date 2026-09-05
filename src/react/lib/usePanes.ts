@@ -40,8 +40,15 @@ export function usePanes() {
     const r = parseInt(get('metrol-crm-rail-w') ?? '', 10)
     const d = parseInt(get('metrol-crm-side-w') ?? '', 10)
     applyRail(Number.isNaN(r) ? RAIL_DEF : r)
-    applySide(Number.isNaN(d) ? SIDE_DEF : d)
-  }, [applyRail, applySide])
+    // Not applySide(d) here: applySide derives sideMini from the width
+    // threshold, which would stomp the mini flag this hook already read
+    // correctly from storage in its own useState initializer above — folding
+    // the sidebar, then reloading, silently unfolded it again. --side-w only
+    // matters once it's not mini, and .is-mini's width:64px wins over the CSS
+    // var by specificity regardless, so writing the var directly is enough.
+    const w = Math.max(SIDE_MIN, Math.min(SIDE_MAX, Number.isNaN(d) ? SIDE_DEF : d))
+    document.documentElement.style.setProperty('--side-w', w + 'px')
+  }, [applyRail])
 
   useEffect(() => { set('metrol-crm-side-mini', sideMini ? '1' : '0') }, [sideMini])
 
