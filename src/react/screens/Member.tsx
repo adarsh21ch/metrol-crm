@@ -11,6 +11,8 @@ import { ProfileModal } from '@/modals/ProfileModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
+import { useEmployees } from '@/data/useEmployees'
+import { fmtDate } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
@@ -23,11 +25,26 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'leads' | 'sales'
+type MemberSec = 'overview' | 'leads' | 'sales' | 'team'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
   sales: { title: 'My sales', sub: '' },
+  team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
+}
+
+/** One row of the Manage team tab. */
+interface TeamRow {
+  id: string
+  name: string
+  designation: string
+  phone: string
+  joined: string
+  leads: number
+  connected: number
+  converted: number
+  sale: number
+  isMe: boolean
 }
 
 /** The salesperson's whole app: the leads the owner handed them, and what they
@@ -71,6 +88,69 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     setLeadsView(v)
     try { localStorage.setItem(LEADS_VIEW_KEY, v) } catch { /* a remembered view is a convenience */ }
   }
+
+  // A team lead gets ONE extra tab, and nothing else about their app changes:
+  // same Overview, same My leads, same My sales. Not a second dashboard, and
+  // not the owner's view scoped down — they cannot reassign a lead or verify a
+  // payment here, and the policies in 0008 do not let them either.
+  const isLead = !!me?.isTeamLead
+  const staff = useEmployees(isLead)
+  const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
+
+  const teamRows = useMemo<TeamRow[]>(() => {
+    if (!isLead || !me?.departmentId) return []
+    const mates = ws.members.filter((m) => m.departmentId === me.departmentId)
+    return mates.map((m) => {
+      const theirs = ws.leads.filter((l) => l.ownerId === m.id)
+      const won = theirs.filter(isConverted)
+      const record = staff.rows.find((e) => e.profileId === m.id)
+      return {
+        id: m.id,
+        name: m.name,
+        designation: record?.designation ?? '',
+        phone: record?.phone ?? m.phone ?? '',
+        joined: record?.dateOfJoining ?? '',
+        leads: theirs.length,
+        connected: theirs.filter(isConnected).length,
+        converted: won.length,
+        sale: won.reduce((t, l) => t + l.amount, 0),
+        isMe: m.id === me.id,
+      }
+    }).sort((a, b) => b.sale - a.sale || b.leads - a.leads || a.name.localeCompare(b.name))
+  }, [isLead, me, ws.members, ws.leads, staff.rows])
+
+  // Sales is the only department anybody has said what to measure for. A lead
+  // in a department with no leads to their name gets the roster instead of a
+  // table of zeros — and no invented metric until Adarsh says what they track.
+  const teamHasLeads = teamRows.some((r) => r.leads > 0)
+
+  const teamCols = useMemo<GridCol<TeamRow>[]>(() => {
+    const person: GridCol<TeamRow> = {
+      key: 'name', label: 'Member', width: 190,
+      render: (r) => (
+        <div className="td-flex">
+          <Avatar>{r.name.slice(0, 2).toUpperCase()}</Avatar>
+          <span className={r.isMe ? 'cell-strong' : ''}>{r.name}{r.isMe ? ' (you)' : ''}</span>
+        </div>
+      ),
+    }
+    const desig: GridCol<TeamRow> = {
+      key: 'desig', label: 'Designation', width: 170,
+      render: (r) => r.designation || <span className="cell-dash">—</span>,
+    }
+    if (!teamHasLeads) {
+      return [person, desig,
+        { key: 'phone', label: 'Phone', width: 160, render: (r) => r.phone || <span className="cell-dash">—</span> },
+        { key: 'joined', label: 'Joined', width: 130, render: (r) => fmtDate(r.joined) },
+      ]
+    }
+    return [person, desig,
+      { key: 'leads', label: 'Leads', width: 92, render: (r) => r.leads },
+      { key: 'conn', label: 'Connected', width: 110, render: (r) => r.connected },
+      { key: 'conv', label: 'Converted', width: 110, render: (r) => r.converted },
+      { key: 'sale', label: 'Sales', width: 140, render: (r) => <span className="cell-money">{money(r.sale)}</span> },
+    ]
+  }, [teamHasLeads])
 
   const mine = useMemo(() => ws.leads.filter((l) => l.ownerId === me?.id), [ws.leads, me])
   const cv = useMemo(() => mine.filter(isConverted), [mine])
@@ -235,7 +315,47 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               <button className={sec === 'sales' ? 'is-on' : ''} onClick={() => setSec('sales')}>
                 My sales <span className="count">{cv.length}</span>
               </button>
+              {isLead && (
+                <button className={sec === 'team' ? 'is-on' : ''} onClick={() => setSec('team')}>
+                  Manage team <span className="count">{teamRows.length}</span>
+                </button>
+              )}
             </div>
+
+            {shownSec === 'team' && (
+              <>
+                <div className="kpis">
+                  <Kpi accent label="Team size" value={teamRows.length}
+                       sub={ws.departmentName(me?.departmentId ?? null) ?? 'Your department'} />
+                  {teamHasLeads ? (
+                    <>
+                      <Kpi label="Team leads" value={teamRows.reduce((t, r) => t + r.leads, 0)} sub="assigned across the team" />
+                      <Kpi label="Converted" value={teamRows.reduce((t, r) => t + r.converted, 0)} sub="closed by the team" />
+                      <Kpi label="Team sales" value={money(teamRows.reduce((t, r) => t + r.sale, 0))} sub="gross, including unverified" />
+                    </>
+                  ) : (
+                    <Kpi label="On record" value={teamRows.filter((r) => r.designation).length}
+                         sub="have an employee record" />
+                  )}
+                </div>
+
+                {!teamHasLeads && (
+                  <div className="banner">
+                    <div>
+                      <div className="t">No numbers for this department yet</div>
+                      <div className="d">
+                        Nobody has said what this team measures day to day, so this is the roster rather than
+                        an invented scoreboard. Tell the owner what you need to see here and it gets built.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <DataGrid cols={teamCols} rows={teamRows} storageKey="member-team"
+                          empty="Nobody else is in your department yet."
+                          foot={<div className="grid-foot"><span>{count(teamRows.length, 'person', 'people')}</span></div>} />
+              </>
+            )}
 
             {sec === 'overview' && (
               <>

@@ -69,12 +69,15 @@ const toRow = (p: Partial<EmployeeDraft>): Row => {
  * so a "remove" button could not work even if somebody added one — leaving is
  * a status change, and the record stays.
  */
-export function useEmployees() {
+export function useEmployees(enabled = true) {
   const [rows, setRows] = useState<Employee[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    // A salesperson who does not lead a team never asks this question, so their
+    // app never makes the request.
+    if (!enabled) { setLoading(false); return }
     if (isDemo()) {
       setRows(demoEmployees)
       setLoading(false)
@@ -91,7 +94,7 @@ export function useEmployees() {
     }
     setRows((data ?? []).map((r) => toEmployee(r as Row)))
     setLoading(false)
-  }, [])
+  }, [enabled])
 
   useEffect(() => { void load() }, [load])
 
