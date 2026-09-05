@@ -1458,3 +1458,84 @@ business term and reads as the medical one. He added: *"if needed we change the
 UI label later if they want"* — so the label is cosmetic and changeable; the
 `departments.name` value is what code should key on, never a hardcoded string in
 a component.
+
+---
+
+# HR Phase 1 — decisions locked, then built (2026-09-05)
+
+A plan was written as a page first and approved before any code:
+**https://claude.ai/code/artifact/64e34218-183b-4538-ba52-59344590cbf9**
+(republish to that same URL to keep the link Adarsh has).
+
+## What Adarsh answered
+
+He accepted every recommendation in the plan, so these are settled — do not
+re-ask:
+
+1. **An employee can exist without a CRM login.** `employees.profile_id` is
+   nullable. An accountant or office staffer who never signs in still has a
+   record.
+2. **HR and the owner both create and edit** employee records.
+3. **A person can read their own record**, and only their own. They cannot edit
+   it — joining date and designation are HR's facts, not self-service.
+4. **Employee codes auto-generate** — `MM-001`, from a sequence, never typed.
+5. **"Manage team" shows real numbers for Sales only.** Every other
+   department's lead gets a plain roster until Adarsh says what that department
+   actually tracks. No invented metrics. Still unanswered, still do not guess.
+6. **HR sees the owner's own employee record.**
+7. **Date of birth and address included, both optional.** PAN, Aadhaar, bank
+   and documents wait for Phase 4 (they need file storage and stricter rules).
+8. **Performance Marketing added** as a department row — it was named in this
+   file but had never existed in the database. UI label for the department is
+   the short "HR"; `departments.name` stays "Human Resources" and code keys on
+   that, never on the label.
+
+## His one addition, and it changes the shell
+
+> "HR should get the sidebar in his dashboard like the owner one instead of the
+> employee [tabs], because HR may need to manage a lot of things later."
+
+Correct call, and it is now the plan. The salesperson's Overview / My leads /
+My sales **tab strip does not scale** to leave + salary + onboarding + exits —
+that is four more Phase-2-to-5 sections fighting for one row of space. So:
+
+- HR gets the **owner's `Rail`** (`src/react/components/Rail.tsx`), the same
+  app-wide left nav, not a copy of it. Extend that component with an optional
+  set of nav items; when the prop is absent it must render exactly what it
+  renders today for the owner. Do not fork it — a second rail would drift.
+- Rail items for HR: **Directory**, **Departments**, then Settings. Phases 2-5
+  add **Leave**, **Salary**, **Onboarding**, **Exits** to the same rail, which
+  is the whole point of choosing it.
+- The **team lead's "Manage team" stays a tab**, as briefed. A tab is right
+  there: it is one addition to an existing three, not a growing module.
+
+## Two real problems found while writing the policies
+
+**1. A privilege-escalation hole, created by this module and closed in it.**
+`profiles_update` (migration 0004) lets a member edit their own profile row.
+That was harmless while `department_id` only picked a dashboard. The moment
+Human Resources reads every employee record, a salesperson could set their own
+`department_id` to Human Resources — or set their own `is_team_lead` — and read
+the company's personal data. Fixed in `0006` by replacing
+`guard_role_change()` with `guard_profile_privileges()`, which blocks changes to
+`role`, `department_id` and `is_team_lead` from anyone who is not the owner or
+HR. The legitimate self-edits (name, phone, avatar) still work.
+
+**2. Two columns holding one truth.** `profiles.department_id` decides which
+dashboard you get; `employees.department_id` is HR's record of the same fact.
+They would drift. An `after insert or update` trigger on `employees` now moves
+the linked profile with the record.
+
+## Built so far
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/0006_hr_employees.sql` | Departments, `is_team_lead`, the guard, `employees`, its triggers, and all its RLS in **one** file — schema and policies deliberately not split, so the table is never briefly readable by everyone. No DELETE policy exists and DELETE is revoked outright. |
+| `supabase/tests/0006_rls_checks.sql` | Eight checks, run inside a transaction that rolls back. Picks real people out of the team automatically and says SKIPPED, not PASS, when one does not exist yet. |
+
+**Not yet run against the database.** The Supabase CLI is installed on this
+machine (`/opt/homebrew/bin/supabase` — the older note in this file saying there
+is none is stale), but there is no `.env`, no project link and no database
+password here, so the migration still has to be pasted into the SQL editor by
+hand. Screens must not be called done until the checks above have actually been
+run and reported back.
