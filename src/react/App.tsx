@@ -11,6 +11,8 @@ import { Projects } from '@/screens/Projects'
 import { ProjectShell } from '@/screens/ProjectShell'
 import { TeamPage } from '@/screens/TeamPage'
 import { Member } from '@/screens/Member'
+import { HrPage } from '@/screens/HrPage'
+import { HR_DEPARTMENT } from '@/lib/hr'
 
 /** Screen-based, like the prototype: everyone reaches this from one bookmark,
  *  and a router would put the back button in a fight with the sidebar. It can
@@ -89,8 +91,14 @@ function SignedIn() {
     )
   }
 
-  // A salesperson has one screen: their own leads. Projects are the owner's view.
+  // Which dashboard a member gets is decided by their DEPARTMENT, never by a
+  // role column — see migration 0006. Sales gets their own leads; Human
+  // Resources gets the HR dashboard. Everything either one may read is
+  // enforced by policy in the database, not by this line.
   if (ws.me?.role === 'member') {
+    if (ws.departmentName(ws.me.departmentId) === HR_DEPARTMENT) {
+      return <><HrPage ws={ws} toast={toast} />{toastNode}</>
+    }
     return <><Member ws={ws} toast={toast} />{toastNode}</>
   }
 

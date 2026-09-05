@@ -13,23 +13,42 @@ import type { Workspace } from '@/data/useWorkspace'
  * page of its own — Company settings is a handful of admin fields, not
  * something that needs its own navigable URL.
  */
+export interface RailItem {
+  key: string
+  label: string
+  icon: React.ReactNode
+  onClick: () => void
+}
+
 export function Rail({
-  ws, active, panes, tip, onOpenProjects, onOpenProject, onOpenTeam, onOpenSettings,
+  ws, active, panes, tip, items, onOpenProjects, onOpenProject, onOpenTeam, onOpenSettings,
 }: {
   ws: Workspace
   active: 'projects' | 'team' | string
   panes: ReturnType<typeof usePanes>
   tip: ReturnType<typeof useHoverTip>
-  onOpenProjects: () => void
-  onOpenProject: (id: string) => void
-  onOpenTeam: () => void
-  onOpenSettings: () => void
+  /** When given, these replace the owner's projects list and Team button. The
+   *  same rail, carrying another department's nav — HR's Directory and
+   *  Departments today, and the room Leave, Salary, Onboarding and Exits will
+   *  need in phases 2 to 5. A second rail component would drift from this one. */
+  items?: RailItem[]
+  onOpenProjects?: () => void
+  onOpenProject?: (id: string) => void
+  onOpenTeam?: () => void
+  onOpenSettings?: () => void
 }) {
   return (
     <nav className={'rail' + (panes.railWide ? ' is-wide' : '')} aria-label="Navigation">
       <div className="rail-list">
+        {items ? items.map((it) => (
+          <button key={it.key} className={'rail-btn' + (active === it.key ? ' is-on' : '')}
+                  onClick={it.onClick} aria-label={it.label} {...tip.bind(it.label)}>
+            <span className="rail-mark">{it.icon}</span>
+            <span className="rail-name">{it.label}</span>
+          </button>
+        )) : (<>
         <button className={'rail-btn' + (active === 'projects' ? ' is-on' : '')}
-                onClick={onOpenProjects} aria-label="All projects" {...tip.bind('All projects')}>
+                onClick={() => onOpenProjects?.()} aria-label="All projects" {...tip.bind('All projects')}>
           <span className="rail-mark">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
               <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
@@ -41,15 +60,17 @@ export function Rail({
         <span className="rail-sep" />
         {ws.projects.map((p) => (
           <button key={p.id} className={'rail-btn' + (active === p.id ? ' is-on' : '')}
-                  onClick={() => onOpenProject(p.id)} {...tip.bind(p.name)}>
+                  onClick={() => onOpenProject?.(p.id)} {...tip.bind(p.name)}>
             <span className="rail-mark">{initials(p.name)}</span>
             <span className="rail-name">{p.name}</span>
           </button>
         ))}
+        </>)}
       </div>
 
+      {!items && (<>
       <span className="rail-sep" />
-      <button className={'rail-btn' + (active === 'team' ? ' is-on' : '')} onClick={onOpenTeam} {...tip.bind('Team')}>
+      <button className={'rail-btn' + (active === 'team' ? ' is-on' : '')} onClick={() => onOpenTeam?.()} {...tip.bind('Team')}>
         <span className="rail-mark">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
             <path d="M3 20V10M9 20V4M15 20v-7M21 20v-11" />
@@ -57,6 +78,8 @@ export function Rail({
         </span>
         <span className="rail-name">Team</span>
       </button>
+      </>)}
+      {onOpenSettings && (
       <button className="rail-btn" onClick={onOpenSettings} {...tip.bind('Settings')}>
         <span className="rail-mark">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -65,6 +88,7 @@ export function Rail({
         </span>
         <span className="rail-name">Settings</span>
       </button>
+      )}
 
       <button className="rail-toggle" onClick={panes.toggleRail} aria-label="Show project names">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

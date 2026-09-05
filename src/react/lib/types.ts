@@ -15,6 +15,10 @@ export interface Member {
   avatarUrl: string | null
   departmentId: string | null
   role: Role
+  /** Adds one extra tab — "Manage team" — to whatever dashboard this person
+   *  already has. Deliberately not a Role: a Sales team lead is still a Sales
+   *  person, and this changes nothing else about what they may do. */
+  isTeamLead: boolean
 }
 
 /** What a person actually does. Everyone is Sales today; the rest exist so

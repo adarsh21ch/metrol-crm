@@ -1,4 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
+import type { Employee } from '@/lib/hr'
 import { initials } from '@/lib/format'
 
 /**
@@ -24,6 +25,8 @@ export const demoDepartments: Department[] = [
   { id: 'd4', name: 'Video Editors', sortOrder: 4, isActive: true },
   { id: 'd5', name: 'Developers', sortOrder: 5, isActive: true },
   { id: 'd6', name: 'AI Staff', sortOrder: 6, isActive: true },
+  { id: 'd7', name: 'Human Resources', sortOrder: 7, isActive: true },
+  { id: 'd8', name: 'Performance Marketing', sortOrder: 8, isActive: true },
 ]
 
 const MEMBER_NAMES = ['Mohit Verma', 'Priya Nair', 'Arjun Mehta', 'Sneha Kulkarni', 'Imran Shaikh']
@@ -37,11 +40,19 @@ export const demoMembers: Member[] = MEMBER_NAMES.map((name, i) => ({
   avatarUrl: null,
   departmentId: 'd1',
   role: 'member',
+  isTeamLead: false,
 }))
 
 const OWNER: Member = {
   id: 'owner', name: 'Owner', initials: 'MM', email: 'owner@metrol.in',
-  phone: null, avatarUrl: null, departmentId: null, role: 'owner',
+  phone: null, avatarUrl: null, departmentId: null, role: 'owner', isTeamLead: false,
+}
+
+/** Not in demoMembers: they are not a salesperson, so they have no business in
+ *  the assign menu. They exist so ?demo=1&as=hr has somebody to sign in as. */
+const HR_PERSON: Member = {
+  id: 'hr1', name: 'Priya Sharma', initials: 'PS', email: 'priya.sharma@metrol.in',
+  phone: null, avatarUrl: null, departmentId: 'd7', role: 'member', isTeamLead: false,
 }
 
 const iso = (daysAgo: number, hourOffset = 0) =>
@@ -130,9 +141,55 @@ export const isDemo = () =>
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
 
 /** ?demo=1&as=member shows the salesperson's app instead of the owner's, so
- *  both roles can be checked without two real accounts. */
+ *  every screen can be checked without a real account for each one.
+ *    as=member — the salesperson
+ *    as=lead   — the same salesperson, with the Manage team tab
+ *    as=hr     — the HR dashboard
+ */
 export const demoMe = (() => {
   if (typeof window === 'undefined') return OWNER
   const as = new URLSearchParams(window.location.search).get('as')
+  if (as === 'hr') return HR_PERSON
+  if (as === 'lead') return { ...demoMembers[0]!, isTeamLead: true }
   return as === 'member' ? demoMembers[0]! : OWNER
 })()
+
+const DESIGNATIONS = ['Sales Executive', 'Senior Sales Executive', 'Sales Executive', 'Sales Executive', 'Sales Executive']
+const JOINED = ['2023-04-11', '2022-09-01', '2024-01-15', '2025-03-03', '2021-11-22']
+
+/** Employee records for ?demo — the five salespeople, an HR manager, and one
+ *  person working their notice, so the directory has every state in it. */
+export const demoEmployees: Employee[] = [
+  {
+    id: 'e0', employeeCode: 'MM-001', profileId: HR_PERSON.id, fullName: HR_PERSON.name,
+    designation: 'HR Manager', departmentId: 'd7', employmentType: 'full_time',
+    dateOfJoining: '2024-02-05', reportingTo: null,
+    workEmail: HR_PERSON.email ?? '', personalEmail: 'priya.s@gmail.com', phone: '+91 98200 11001',
+    dateOfBirth: '1994-08-19', address: 'Vijay Nagar, Indore, MP',
+    emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
+    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400),
+  },
+  ...demoMembers.map((m, i) => ({
+    id: 'e' + (i + 1),
+    employeeCode: 'MM-' + String(i + 2).padStart(3, '0'),
+    profileId: m.id,
+    fullName: m.name,
+    designation: DESIGNATIONS[i] ?? 'Sales Executive',
+    departmentId: 'd1',
+    employmentType: (i === 3 ? 'intern' : 'full_time') as Employee['employmentType'],
+    dateOfJoining: JOINED[i] ?? '2024-01-01',
+    reportingTo: i === 0 ? null : 'e1',
+    workEmail: m.email ?? '',
+    personalEmail: '',
+    phone: '+91 98200 1' + String(2000 + i),
+    dateOfBirth: null,
+    address: 'Indore, MP',
+    emergencyName: 'Family contact',
+    emergencyRelation: 'Spouse',
+    emergencyPhone: '+91 98200 9' + String(3000 + i),
+    status: (i === 4 ? 'notice' : 'active') as Employee['status'],
+    lastWorkingDay: i === 4 ? '2026-10-15' : null,
+    notes: '',
+    createdAt: iso(300 - i * 20),
+  })),
+]

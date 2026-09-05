@@ -55,6 +55,7 @@ const toMember = (p: any): Member => ({
   avatarUrl: p.avatar_url ?? null,
   departmentId: p.department_id ?? null,
   role: p.role,
+  isTeamLead: !!p.is_team_lead,
 })
 
 const toDepartment = (d: any): Department => ({

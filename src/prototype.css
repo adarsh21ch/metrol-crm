@@ -1036,3 +1036,27 @@ table.hist .what{font-weight:500}
   max-width:min(320px,72%);max-height:150px;
   object-fit:contain;display:block;margin:0 auto;
 }
+
+/* ---------------------------------------------------------------- HR module
+   The employee page is label/value pairs, not a table: one person's record
+   reads as a form, and a two-column grid keeps it scannable without inventing
+   a new visual language for this module. */
+.hr-fields{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px 26px; }
+.hr-fld .l{ font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px; }
+.hr-fld .v{ font-size:14px; color:var(--ink); overflow-wrap:anywhere; }
+.hr-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+.hr-head-btns{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.hr-soon{ display:flex; gap:8px; flex-wrap:wrap; }
+/* The directory's toolbar carries a search box the leads toolbars do not, and
+   at 375px the plain .search rule let it collapse to an empty sliver. It gets
+   a floor and permission to take the row to itself. */
+.section-tools .search{ flex:1 1 190px; min-width:150px; }
+@media (max-width:600px){
+  .hr-head-btns{ margin-left:0; width:100%; }
+  /* .section-tools is one nowrap row, which is right for two buttons and wrong
+     for a search box, a department picker and two more buttons: on a phone the
+     row ran off the edge and took "Add employee" with it. */
+  .section-tools{ margin-left:0; width:100%; flex-wrap:wrap; }
+  .section-tools .search{ flex:1 1 100%; }
+  .section-tools select.input{ flex:1 1 150px; min-width:150px; }
+}
