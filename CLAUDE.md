@@ -1343,3 +1343,49 @@ deliberate: Overview is where the "N leads assigned to you" notice lives, so a
 salesperson who lands anywhere else would stop seeing it. If Adarsh finds the
 extra tap annoying, remembering the last tab in `localStorage` is a one-line
 change — but it costs him that notice.
+
+---
+
+# NEXT MODULE — HR (briefed 2026-09-05, not started)
+
+Adarsh asked for an HR department. Asked to scope it, he answered: **"HR manages
+every department and everything — from offer, to joining, to every department
+operation, finance, salary, leave or resign and all. If anything we need to
+restrict we do it later."**
+
+Access: **owner + a new HR role** — a third role alongside `owner` and `member`,
+grantable to specific people (e.g. an office manager). Not owner-only.
+
+## Read this before building it
+
+This is a second module, comparable in size to the CRM itself, and it touches
+**salary and personal employee data** — the most sensitive data this app will
+ever hold. Two rules follow from that:
+
+1. **RLS first, not last.** A salesperson must never be able to read anyone's
+   salary, and an HR user must not inherit owner powers over leads/sales.
+   Write and test the policies before building any screen on top of them.
+2. **Phase it.** Do not attempt offer + joining + operations + finance + salary
+   + leave + resignation in one round. That is exactly the kind of sweeping
+   change that deleted the importer for six rounds. The whole scope is recorded
+   here so nothing is lost — build it in order.
+
+## Suggested phase order (foundation first — everything else hangs off it)
+
+- **Phase 1 — the HR role and the employee record.** Add the `hr` role, its RLS
+  policies, and an `employees` table (one row per person: joining date,
+  designation, department, employment type, contact, emergency contact,
+  status active/resigned). An HR section in the nav, an employee directory, and
+  an employee detail page. Nothing else. Everything below needs this to exist.
+- **Phase 2 — leave.** Requests, approve/reject, balance. The most-used HR
+  feature day to day, and it is self-contained.
+- **Phase 3 — salary/finance.** Monthly salary records, payslip history.
+  Strictest RLS in the app: a person sees only their own.
+- **Phase 4 — offer & joining.** Offer letter records, onboarding checklist per
+  new hire, documents collected.
+- **Phase 5 — resignation/exit.** Resignation record, notice period, exit
+  checklist, marking the employee inactive (never deleting the record).
+
+Confirm each phase with Adarsh before starting the next. He explicitly said
+restrictions can be decided later, which is permission to scope down, not
+permission to build all five at once.
