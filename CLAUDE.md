@@ -1100,3 +1100,11 @@ Verified in Chromium (`?demo=1&as=member`): a fresh browser profile (no
 stays on List. Clicking back to Board, then reloading, stays on Board.
 One-line fix, no migration, no other screen affected — the owner's Leads
 grid has no Board/List toggle at all.
+
+**Follow-up, same round:** the toggle's default *selection* was fixed above,
+but its left-to-right *order* wasn't — it still read List, then Board, so
+the default landed on the right-hand button, not the left. Adarsh caught
+this from a live screenshot. Swapped the two `<button>`s so Board is first
+(left, and the one lit by default) and List is second (right) — matching
+"first should be the card, next should be the list" literally, not just in
+which one starts active. Re-verified: same toggle order, same default.

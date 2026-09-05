@@ -209,8 +209,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 <div className="sub">{mine.length} leads across {projects} {projects === 1 ? 'project' : 'projects'}</div>
                 <div className="section-tools">
                   <div className="seg">
-                    <button className={leadsView === 'list' ? 'is-on' : ''} onClick={() => pickView('list')}>List</button>
                     <button className={leadsView === 'board' ? 'is-on' : ''} onClick={() => pickView('board')}>Board</button>
+                    <button className={leadsView === 'list' ? 'is-on' : ''} onClick={() => pickView('list')}>List</button>
                   </div>
                 </div>
               </div>
