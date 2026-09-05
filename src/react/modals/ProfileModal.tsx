@@ -20,6 +20,7 @@ export function ProfileModal({ ws, onClose }: { ws: Workspace; onClose: () => vo
   const [profileMsg, setProfileMsg] = useState<{ text: string; bad?: boolean } | null>(null)
 
   const [uploading, setUploading] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [photoErr, setPhotoErr] = useState<string | null>(null)
 
   const [pw1, setPw1] = useState('')
@@ -47,6 +48,13 @@ export function ProfileModal({ ws, onClose }: { ws: Workspace; onClose: () => vo
     if (error) setPhotoErr(error)
   }
 
+  async function removePhoto() {
+    setRemoving(true); setPhotoErr(null)
+    const err = await ws.removeAvatar()
+    setRemoving(false)
+    if (err) setPhotoErr(err)
+  }
+
   async function savePassword(e: React.FormEvent) {
     e.preventDefault()
     if (pw1.length < 6) { setPwMsg({ text: 'At least 6 characters.', bad: true }); return }
@@ -67,9 +75,16 @@ export function ProfileModal({ ws, onClose }: { ws: Workspace; onClose: () => vo
           <div>
             <input ref={fileRef} type="file" accept="image/*" hidden
                    onChange={(e) => void pickPhoto(e.target.files?.[0])} />
-            <button type="button" className="btn btn--sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
-              {uploading ? 'Uploading…' : me.avatarUrl ? 'Change photo' : 'Upload photo'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="btn btn--sm" disabled={uploading || removing} onClick={() => fileRef.current?.click()}>
+                {uploading ? 'Uploading…' : me.avatarUrl ? 'Change photo' : 'Upload photo'}
+              </button>
+              {me.avatarUrl && (
+                <button type="button" className="btn btn--sm btn--ghost" disabled={uploading || removing} onClick={() => void removePhoto()}>
+                  {removing ? 'Removing…' : 'Remove photo'}
+                </button>
+              )}
+            </div>
             {photoErr && <p className="auth-err" style={{ marginTop: 6 }}>{photoErr}</p>}
           </div>
         </div>

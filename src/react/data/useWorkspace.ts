@@ -446,6 +446,18 @@ export function useWorkspace() {
     return { url, error: null }
   }, [s.me])
 
+  const removeAvatar = useCallback(async () => {
+    if (!s.me) return 'Not signed in.'
+    const { error } = await supabase.from('profiles').update({ avatar_url: null }).eq('id', s.me.id)
+    if (error) return error.message
+    setS((p) => ({
+      ...p,
+      me: p.me ? { ...p.me, avatarUrl: null } : p.me,
+      members: p.members.map((m) => (m.id === s.me!.id ? { ...m, avatarUrl: null } : m)),
+    }))
+    return null
+  }, [s.me])
+
   const changePassword = useCallback(async (newPassword: string) => {
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     return error ? error.message : null
@@ -526,7 +538,7 @@ export function useWorkspace() {
     ...s,
     memberName,
     setStatus, setQuality, setOwner, setVerified, recordSale, addLeads,
-    updateMe, uploadAvatar, changePassword,
+    updateMe, uploadAvatar, removeAvatar, changePassword,
     setMemberDepartment, addDepartment, renameDepartment, setDepartmentActive,
     getInviteCode, setInviteCode,
     departmentName: (id: string | null) => s.departments.find((d) => d.id === id)?.name ?? null,
