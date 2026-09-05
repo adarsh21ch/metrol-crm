@@ -53,13 +53,12 @@ export function EmployeeModal({
   const taken = new Set(employees.filter((e) => e.id !== employee?.id).map((e) => e.profileId).filter(Boolean))
   const linkable = ws.members.filter((m) => !taken.has(m.id))
 
-  const missing: string[] = []
-  if (!f.fullName.trim()) missing.push('name')
-  if (!f.designation.trim()) missing.push('designation')
-  if (!f.departmentId) missing.push('department')
-  if (!f.dateOfJoining) missing.push('joining date')
-  if (!f.phone.trim()) missing.push('phone')
-  if (!f.emergencyName.trim() || !f.emergencyPhone.trim()) missing.push('emergency contact')
+  // full_name is the only column the database itself will not accept empty
+  // (see 0006: `full_name text not null`, no default). Everything else on
+  // this form has a default of '' at the database — designation, department,
+  // phone, emergency contact — so none of it should block Save. Encouraged,
+  // not required: this screen is where HR fills the gaps in over time, not a
+  // form that must be completed in one sitting before a record can exist.
 
   const save = async () => {
     setBusy(true)
@@ -78,13 +77,13 @@ export function EmployeeModal({
       onClose={onClose}
       foot={
         <>
-          {missing.length > 0 && (
+          {!f.fullName.trim() && (
             <span style={{ marginRight: 'auto', color: 'var(--ink-3)', fontSize: 12 }}>
-              Still needed: {missing.join(', ')}
+              Needs a name
             </span>
           )}
           <button className="btn btn--sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn--sm btn--primary" disabled={missing.length > 0 || busy} onClick={() => void save()}>
+          <button className="btn btn--sm btn--primary" disabled={!f.fullName.trim() || busy} onClick={() => void save()}>
             {busy ? 'Saving…' : employee ? 'Save changes' : 'Add employee'}
           </button>
         </>
