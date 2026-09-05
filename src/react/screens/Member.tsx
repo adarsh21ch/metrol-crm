@@ -44,8 +44,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  // Board (the card view) is the default open — it's the one built for a
+  // phone-in-hand, work-the-queue flow. Whichever view someone actually picks
+  // is remembered per-browser via pickView below, so a salesperson who prefers
+  // calling down the list keeps seeing List on their next visit; someone who
+  // never touches the toggle keeps seeing Board.
   const [leadsView, setLeadsView] = useState<LeadsView>(() => {
-    try { return localStorage.getItem(LEADS_VIEW_KEY) === 'board' ? 'board' : 'list' } catch { return 'list' }
+    try { return localStorage.getItem(LEADS_VIEW_KEY) === 'list' ? 'list' : 'board' } catch { return 'board' }
   })
   const pickView = (v: LeadsView) => {
     setLeadsView(v)

@@ -1073,3 +1073,30 @@ queued; the open items list from earlier in this file (the `.xlsx` import
 never confirmed against a live artifact, the avatar-stack legibility note,
 the density switch hidden under 860px, real project photo upload) is still
 exactly where it was.
+
+---
+
+# Round 17 — the salesperson's Leads view: Board by default, List remembered
+
+Adarsh's ask: a salesperson doing the actual calling works better from Board
+(the kanban card view, dragging status across columns) most of the time, but
+someone who prefers working down a straight list — easier to call in
+sequence — should have that respected once they've chosen it. The two
+requirements aren't in tension, they're sequential: **default** to Board for
+anyone who has never touched the toggle; **remember** whichever view someone
+actually picks, per browser, from then on.
+
+`Member.tsx`'s `pickView` already wrote the choice to `localStorage`
+(`metrol-crm-leadsview`) on every click — that half was already correct. The
+bug was the *fallback* read on first load: `localStorage.getItem(KEY) ===
+'board' ? 'board' : 'list'` defaulted to List for absolutely everyone who had
+never touched the toggle, since an unset key is neither `'board'` nor
+anything else. Flipped the comparison: `=== 'list' ? 'list' : 'board'` — now
+nothing-stored (or anything not literally `'list'`) reads as Board, and a
+browser that has explicitly picked List keeps seeing List.
+
+Verified in Chromium (`?demo=1&as=member`): a fresh browser profile (no
+`localStorage`) opens straight to Board. Clicking List, then reloading,
+stays on List. Clicking back to Board, then reloading, stays on Board.
+One-line fix, no migration, no other screen affected — the owner's Leads
+grid has no Board/List toggle at all.
