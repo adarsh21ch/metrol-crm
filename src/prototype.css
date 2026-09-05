@@ -750,6 +750,11 @@ table.grid tbody tr.row-link{cursor:pointer}
 /* Name and the quality control share the top row; the name truncates first —
    the control that sets quality is never the thing that gets squeezed out. */
 .board-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+/* A card is small; the quality control on it should read as a label, not
+   the same size pill the list view can afford a whole column for. */
+.board-card-head .cell-edit{height:19px;padding:0 7px;font-size:10.5px;gap:4px;flex:none}
+.board-card-head .cell-edit svg{width:8px;height:8px}
+.board-card-head .chip::before{width:4px;height:4px}
 .board-card-nm{
   font-size:13px;font-weight:600;color:var(--ink);text-align:left;
   display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
