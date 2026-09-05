@@ -31,6 +31,7 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   rowClass,
   onRowClick,
   foot,
+  empty,
 }: {
   cols: GridCol<T>[]
   rows: T[]
@@ -38,6 +39,11 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   rowClass?: (row: T) => string | undefined
   onRowClick?: (row: T) => void
   foot?: React.ReactNode
+  /** Shown in place of the rows when there are none. Every table wants one:
+   *  a new project's Leads, a new salesperson's list, a project nobody has
+   *  closed a sale in yet. Bare column headers over nothing read as a page
+   *  that failed to load rather than one with nothing in it yet. */
+  empty?: React.ReactNode
 }) {
   const [widths, setWidths] = useState<number[]>(() => {
     try {
@@ -158,10 +164,8 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr>
-                <td colSpan={cols.length} style={{ height: 120, textAlign: 'center', color: 'var(--ink-3)' }}>
-                  Nothing here yet.
-                </td>
+              <tr className="grid-empty">
+                <td colSpan={cols.length}>{empty ?? 'Nothing here yet.'}</td>
               </tr>
             )}
             {rows.map((r, i) => {

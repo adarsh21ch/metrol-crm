@@ -5,7 +5,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
 import { Avatar, IconBtn, Kpi } from '@/components/bits'
-import { daysSince, initials, money, pct } from '@/lib/format'
+import { count, daysSince, initials, money, pct } from '@/lib/format'
 import { isConnected, isConverted, type Lead, type Member } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
 import { supabase } from '@/lib/supabase'
@@ -49,8 +49,7 @@ function MemberRoster({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) => v
       <div className="page-head">
         <h1>Team</h1>
         <div className="sub">
-          {ws.members.length} {ws.members.length === 1 ? 'person' : 'people'} across{' '}
-          {groups.length} {groups.length === 1 ? 'department' : 'departments'}
+          {count(ws.members.length, 'person', 'people')} across {count(groups.length, 'department')}
         </div>
       </div>
 
@@ -62,7 +61,7 @@ function MemberRoster({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) => v
         <div className="section" key={g.id}>
           <div className="section-head">
             <h3>{g.name}</h3>
-            <div className="sub">{g.members.length} {g.members.length === 1 ? 'person' : 'people'}</div>
+            <div className="sub">{count(g.members.length, 'person', 'people')}</div>
           </div>
           <div className="team-grid">
             {g.members.map((m) => {
@@ -73,7 +72,7 @@ function MemberRoster({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) => v
                   <Avatar lg src={m.avatarUrl}>{m.initials}</Avatar>
                   <div className="team-card-body">
                     <div className="cell-strong">{m.name}</div>
-                    <div className="cell-mute">{mine.length} leads · {cv.length} converted</div>
+                    <div className="cell-mute">{count(mine.length, 'lead')} · {cv.length} converted</div>
                   </div>
                   <div className="team-card-sale">{money(sum(cv))}</div>
                 </button>
@@ -98,7 +97,7 @@ function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member
   const since = (l: Lead) => daysSince(l.convertedAt ?? l.createdAt)
   const onDay = (d: number) => cv.filter((l) => since(l) === d)
   const within = (n: number) => cv.filter((l) => since(l) <= n)
-  const deals = (n: number) => n + (n === 1 ? ' deal' : ' deals')
+  const deals = (n: number) => count(n, 'deal')
 
   const tiles = [
     { k: 'Today', v: sum(onDay(0)), s: deals(onDay(0).length) },
@@ -123,9 +122,10 @@ function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member
   const cols: GridCol<ProjectRow>[] = [
     { key: 'nm', label: 'Project', width: 210, render: (r) => <span className="cell-strong">{r.name}</span> },
     { key: 'as', label: 'Leads', width: 88, render: (r) => <span className="num">{r.assigned}</span> },
-    { key: 'cn', label: 'Connected', width: 106, render: (r) => <span className="num">{r.connected}</span> },
-    { key: 'fu', label: 'Follow-ups', width: 110, render: (r) => <span className="num">{r.followups}</span> },
-    { key: 'cv', label: 'Converted', width: 106, render: (r) => <span className="num">{r.converted}</span> },
+    // Wide enough that the headers don't open truncated — see sections/Team.tsx.
+    { key: 'cn', label: 'Connected', width: 122, render: (r) => <span className="num">{r.connected}</span> },
+    { key: 'fu', label: 'Follow-ups', width: 126, render: (r) => <span className="num">{r.followups}</span> },
+    { key: 'cv', label: 'Converted', width: 118, render: (r) => <span className="num">{r.converted}</span> },
     { key: 'sl', label: 'Sale value', width: 130, render: (r) => <span className="cell-money">{money(r.sale)}</span> },
   ]
 

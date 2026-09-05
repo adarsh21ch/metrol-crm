@@ -1,5 +1,5 @@
 import { Kpi } from '@/components/bits'
-import { fmtWhen, money, pct } from '@/lib/format'
+import { count, fmtWhen, money, pct, plural } from '@/lib/format'
 import { isConnected, type Lead, type LeadEvent } from '@/lib/types'
 
 /** A summary that points at the other pages, not a copy of them: three things
@@ -15,10 +15,21 @@ export function Overview({
   const gross = conv.reduce((s, l) => s + l.amount, 0)
   const connected = leads.filter(isConnected).length
 
+  // Each label pluralises on its own count. A real project opens with one or
+  // two of these, where "1 leads with nobody on them" reads as unfinished.
   const attention = [
-    { n: leads.filter((l) => !l.ownerId).length, label: 'leads with nobody on them', cta: 'Assign', go: 'leads' as const },
-    { n: leads.filter((l) => l.status === 'follow_up').length, label: 'follow-ups open right now', cta: 'Open leads', go: 'leads' as const },
-    { n: conv.filter((l) => !l.verified).length, label: 'payments still unverified', cta: 'Open sales', go: 'sales' as const },
+    {
+      n: leads.filter((l) => !l.ownerId).length, cta: 'Assign', go: 'leads' as const,
+      label: (n: number) => `${plural(n, 'lead')} with nobody on ${plural(n, 'it', 'them')}`,
+    },
+    {
+      n: leads.filter((l) => l.status === 'follow_up').length, cta: 'Open leads', go: 'leads' as const,
+      label: (n: number) => `${plural(n, 'follow-up')} open right now`,
+    },
+    {
+      n: conv.filter((l) => !l.verified).length, cta: 'Open sales', go: 'sales' as const,
+      label: (n: number) => `${plural(n, 'payment')} still unverified`,
+    },
   ]
 
   const here = new Set(leads.map((l) => l.id))
@@ -41,7 +52,8 @@ export function Overview({
         <Kpi label="Connected" value={connected} sub={`${pct(connected, leads.length)} of all leads`} />
         <Kpi label="Follow-ups" value={leads.filter((l) => l.status === 'follow_up').length} sub="open right now" />
         <Kpi label="Customers" value={conv.length} sub={`${pct(conv.length, leads.length)} conversion`} />
-        <Kpi label="Gross sale" value={money(gross)} sub={`${conv.filter((l) => !l.verified).length} payments pending`} />
+        <Kpi label="Gross sale" value={money(gross)}
+             sub={`${count(conv.filter((l) => !l.verified).length, 'payment')} pending`} />
       </div>
 
       <div className="ov-grid">
@@ -49,9 +61,9 @@ export function Overview({
           <div className="ov-head"><h4>Needs attention</h4></div>
           <div className="ov-actions">
             {attention.map((x) => (
-              <button className="ov-row" key={x.label} onClick={() => onGo(x.go)}>
+              <button className="ov-row" key={x.cta} onClick={() => onGo(x.go)}>
                 <span className={'ov-n' + (x.n ? '' : ' is-zero')}>{x.n}</span>
-                <span className="ov-l">{x.label}</span>
+                <span className="ov-l">{x.label(x.n)}</span>
                 <span className="ov-cta">{x.cta} →</span>
               </button>
             ))}

@@ -174,6 +174,11 @@ export function Leads({
 
       <DataGrid
         cols={cols} rows={slice} storageKey="leads"
+        empty={q
+          ? `Nothing matches “${q}”.`
+          : isOwner
+            ? 'No leads in this project yet. Add one, or import a list from Excel or CSV.'
+            : 'No leads in this project yet.'}
         foot={
           <div className="grid-foot">
             <span>Showing {pageRange(shown.length, p, PAGE_SIZE)}{shown.length === leads.length ? ' leads' : ' matching leads'}</span>

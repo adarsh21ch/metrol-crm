@@ -1192,3 +1192,87 @@ correctly — `accent-color` paints the track and thumb brand-yellow in both
 themes, which is a great deal less CSS than styling the WebKit and Firefox
 pseudo-elements separately. Only console error: the Google Fonts stylesheet
 this sandbox blocks.
+
+---
+
+# Round 19 — a polish pass, found by looking at a real workspace instead of the sample data
+
+Adarsh opened this one up: "if you want to improvise the UI/UX… anything you
+want to suggest to upgrade." Per the quality bar at the top of this file that
+means **polish, not modules** — so nothing here adds a feature. Every item was
+found the same way, and it is a method worth repeating.
+
+## The method: test against six leads, not a hundred and twenty-two
+
+The demo fixture has 122 leads in Funding Room. Adarsh's live workspace has
+**one project and six leads**. Almost every fault below is invisible at 122
+rows and obvious at six — so the audit was done by temporarily shrinking
+`demo.ts` to one project with six leads and one sale, screenshotting every
+screen, then restoring it. **Do this again before any future round is called
+done.** A CRM's worst-looking day is its first one.
+
+## What was actually wrong
+
+1. **Singular counts read as broken English.** "1 closed deals", "1 payments
+   pending", "1 leads with nobody on them", "1 follow-ups open right now",
+   "1 salespeople on this project", "updated 1 minutes ago". Nobody saw these
+   for fourteen rounds because the sample data never produces a 1. Added
+   `plural()` / `count()` to `lib/format.ts` and used them everywhere a count
+   is written by hand — including inside `agoWords`, which was generating
+   "1 minutes ago" on every project card. Two places already did this properly
+   (`Dashboard`'s `deals()`, `ImportModal`) and now share the helper.
+
+2. **A one-row table drew 240px of blank white below itself.**
+   `.grid-scroll--page` carried `min-height:300px` alongside its
+   `max-height`. The cap is what keeps the page itself from scrolling and had
+   to stay; the *floor* was doing nothing but making a short table look
+   half-loaded. Floor removed — the empty row now carries its own height
+   instead, so nothing collapses when a table genuinely has nothing in it.
+
+3. **Every empty table said the same four words.** `DataGrid` had one
+   hard-coded "Nothing here yet." with inline styles. It now takes an `empty`
+   prop, so each table says something that helps: Leads offers Import when
+   you are the owner, quotes your search term when a search is what emptied
+   it, tells a salesperson the owner will hand them leads; Sales explains
+   that a sale appears when a lead is marked Converted with an amount; Team
+   tracking says assign somebody a lead and they will show up.
+
+4. **`Who closed it` could total less than the tiles above it.** It summed
+   converted leads per member and simply dropped any converted lead nobody
+   holds — which Adarsh has live right now (Rahul Sharma: Converted,
+   unassigned). The dashboard said ₹6,000 and the breakdown said ₹0, under a
+   sidebar that promises "every number here is calculated from the rows in the
+   tables". Unassigned money now gets its own row.
+
+5. **Two column headers opened truncated** — "CONNECT…" and "FOLLOW-U…" on
+   Team tracking and on the member dashboard's by-project table. The columns
+   were 106/110px against headers that need ~120. Widened. A resizable table
+   whose headers start clipped reads as broken rather than adjustable.
+
+6. **The avatar stack on a project card was an unreadable smear** — the open
+   item this file has been carrying since Round 9. Five 22px avatars
+   overlapping at -6px left half-initials on top of each other. Now four at
+   most, at -4px, with a `+N` beside them; the sentence next to it was
+   already counting the whole team anyway.
+
+## Verified in Chromium, at both data volumes
+
+Sparse: every count reads correctly at 1, the one-row Sales table hugs its
+row, the empty state renders at a sane height and quotes the search term,
+"Unassigned ₹6,000" reconciles the dashboard with its own tiles, no header
+truncates. Full 122 rows: the page still does not scroll (the cap survived
+the floor's removal), the grid still caps at 688px in a 900px window, 50 rows
+paginate as before, and a 120px column drag still moves the edge exactly
+120px. Both themes, and 390px with no horizontal overflow. Only console
+error: the Google Fonts stylesheet this sandbox blocks.
+
+## Still open, deliberately not done
+
+- **Sales dashboard has no rows, so the density slider does nothing there.**
+  Honest — a bar chart has nothing to tighten — but it is the one page where
+  the control is inert. Left alone rather than hidden, because a control that
+  appears and disappears as you navigate is worse.
+- **A brand-new project's Overview shows three zeros and an empty feed.** It
+  is truthful and the empty states now carry it, but a first-run "add your
+  first lead" prompt would carry it better. Not built: it is a feature, and
+  the rule here is to note rather than add.

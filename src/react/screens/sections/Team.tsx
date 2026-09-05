@@ -1,6 +1,6 @@
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Avatar } from '@/components/bits'
-import { daysSince, money } from '@/lib/format'
+import { count, daysSince, money } from '@/lib/format'
 import { isConnected, isConverted, type Lead, type Member } from '@/lib/types'
 
 interface Row { id: string; name: string; initials: string; avatarUrl: string | null; assigned: number; connected: number; followups: number; converted: number; today: number; week: number; month: number; all: number }
@@ -28,9 +28,12 @@ export function Team({ leads, members }: { leads: Lead[]; members: Member[] }) {
   const cols: GridCol<Row>[] = [
     { key: 'nm', label: 'Team member', width: 200, render: (r) => <span className="td-flex"><Avatar src={r.avatarUrl}>{r.initials}</Avatar><span className="cell-strong">{r.name}</span></span> },
     { key: 'as', label: 'Leads', width: 88, render: (r) => <span className="num">{r.assigned}</span> },
-    { key: 'cn', label: 'Connected', width: 106, render: (r) => <span className="num">{r.connected}</span> },
-    { key: 'fu', label: 'Follow-ups', width: 110, render: (r) => <span className="num">{r.followups}</span> },
-    { key: 'cv', label: 'Converted', width: 106, render: (r) => <span className="num">{r.converted}</span> },
+    // Wide enough for their own headers: at 106 and 110 these read "CONNECT…"
+    // and "FOLLOW-U…" on first load, which looks like a broken table rather
+    // than a resizable one.
+    { key: 'cn', label: 'Connected', width: 122, render: (r) => <span className="num">{r.connected}</span> },
+    { key: 'fu', label: 'Follow-ups', width: 126, render: (r) => <span className="num">{r.followups}</span> },
+    { key: 'cv', label: 'Converted', width: 118, render: (r) => <span className="num">{r.converted}</span> },
     { key: 'td', label: 'Today', width: 112, render: (r) => <span className="cell-money">{money(r.today)}</span> },
     { key: 'wk', label: 'This week', width: 124, render: (r) => <span className="cell-money">{money(r.week)}</span> },
     { key: 'mo', label: 'This month', width: 130, render: (r) => <span className="cell-money">{money(r.month)}</span> },
@@ -45,7 +48,8 @@ export function Team({ leads, members }: { leads: Lead[]; members: Member[] }) {
       </div>
       <DataGrid
         cols={cols} rows={rows} storageKey="team"
-        foot={<div className="grid-foot"><span>{members.length} salespeople on this project</span></div>}
+        empty="Nobody is on this project yet. Assign a lead to a salesperson and they will appear here."
+        foot={<div className="grid-foot"><span>{count(members.length, 'salesperson', 'salespeople')} on this project</span></div>}
       />
     </div>
   )

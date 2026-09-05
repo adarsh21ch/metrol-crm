@@ -5,7 +5,7 @@ import { useHoverTip } from '@/components/HoverTip'
 import { Rail } from '@/components/Rail'
 import { usePanes } from '@/lib/usePanes'
 import { Avatar, Chip, IconBtn } from '@/components/bits'
-import { agoWords, initials, money, num } from '@/lib/format'
+import { agoWords, count, initials, money, num } from '@/lib/format'
 import { isConverted, type Project } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
 import { supabase } from '@/lib/supabase'
@@ -117,7 +117,7 @@ export function Projects({ ws, onOpen, onOpenTeam }: { ws: Workspace; onOpen: (i
           <div className="wrap">
             <div className="page-head">
               <h1>Projects</h1>
-              <div className="sub">{active} active {active === 1 ? 'project' : 'projects'}</div>
+              <div className="sub">{count(active, 'active project')}</div>
               <div className="section-tools">
                 <div className="seg">
                   <button className={view === 'cards' ? 'is-on' : ''} onClick={() => pick('cards')}>Cards</button>
@@ -149,15 +149,18 @@ export function Projects({ ws, onOpen, onOpenTeam }: { ws: Workspace; onOpen: (i
                         <div className="proj-stat"><span className="v">{money(p.gross)}</span><span className="k">Gross sale</span></div>
                       </div>
                       <div className="proj-foot">
+                        {/* Four at most. Five 22px avatars overlapping at -6px
+                            was an unreadable smear of half-initials; the rest
+                            are counted instead, which is what the sentence
+                            beside it was already doing anyway. */}
                         <span className="stack">
-                          {p.team.map((id) => {
+                          {p.team.slice(0, 4).map((id) => {
                             const m = ws.members.find((x) => x.id === id)
                             return <Avatar key={id} src={m?.avatarUrl}>{m ? m.initials : initials(ws.memberName(id))}</Avatar>
                           })}
+                          {p.team.length > 4 && <span className="stack-more">+{p.team.length - 4}</span>}
                         </span>
-                        <span>
-                          {p.team.length} {p.team.length === 1 ? 'person' : 'people'} · updated {agoWords(p.updatedAt)}
-                        </span>
+                        <span>{count(p.team.length, 'person', 'people')} · updated {agoWords(p.updatedAt)}</span>
                       </div>
                     </div>
                   </button>
@@ -174,7 +177,7 @@ export function Projects({ ws, onOpen, onOpenTeam }: { ws: Workspace; onOpen: (i
                 onRowClick={(r) => onOpen(r.id)}
                 foot={
                   <div className="grid-foot">
-                    <span>{rows.length} {rows.length === 1 ? 'project' : 'projects'}</span>
+                    <span>{count(rows.length, 'project')}</span>
                     <span className="grid-hint">Click a row to open the project</span>
                   </div>
                 }

@@ -23,9 +23,16 @@ export function Dashboard({ conv, leads, members }: { conv: Lead[]; leads: Lead[
   const buckets = [6, 5, 4, 3, 2, 1, 0].map((d) => ({ d, v: sum(onDay(d)) }))
   const max = Math.max(...buckets.map((b) => b.v)) || 1
 
-  const team = members
-    .map((m) => ({ name: m.name, all: sum(leads.filter((l) => l.ownerId === m.id && isConverted(l))) }))
-    .sort((a, b) => b.all - a.all)
+  // A converted lead that nobody holds still has money on it — the owner can
+  // record a sale on an unassigned lead, and a lead can be unassigned after it
+  // closed. Without this row the bars silently sum to less than the tiles
+  // directly above them, and the sidebar's own promise ("every number here is
+  // calculated from the rows in the tables") stops being true.
+  const orphan = sum(conv.filter((l) => !l.ownerId))
+  const team = [
+    ...members.map((m) => ({ name: m.name, all: sum(leads.filter((l) => l.ownerId === m.id && isConverted(l))) })),
+    ...(orphan ? [{ name: 'Unassigned', all: orphan }] : []),
+  ].sort((a, b) => b.all - a.all)
   const topMax = Math.max(...team.map((t) => t.all)) || 1
 
   return (

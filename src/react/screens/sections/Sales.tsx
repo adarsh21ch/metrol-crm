@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { DataGrid, Pager, type GridCol } from '@/components/DataGrid'
 import { Menu } from '@/components/Menu'
 import { Avatar, Caret, Chip } from '@/components/bits'
-import { agoDays, daysSince, money } from '@/lib/format'
+import { agoDays, count, daysSince, money } from '@/lib/format'
 import type { Lead, Member } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -55,11 +55,12 @@ export function Sales({
     <div className="section is-on">
       <div className="section-head">
         <h3>Sales</h3>
-        <div className="sub">{conv.length} closed deals · {money(gross)} gross</div>
+        <div className="sub">{count(conv.length, 'closed deal')} · {money(gross)} gross</div>
       </div>
 
       <DataGrid
         cols={cols} rows={slice} storageKey="sales"
+        empty="No sales yet. A lead becomes a sale the moment its salesperson marks it Converted and records the amount."
         foot={
           <div className="grid-foot">
             <span>{conv.filter((l) => l.verified).length} verified · {conv.filter((l) => !l.verified).length} pending</span>

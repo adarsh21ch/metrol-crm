@@ -8,7 +8,7 @@ import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { ProfileModal } from '@/modals/ProfileModal'
-import { agoDays, daysSince, money, pct } from '@/lib/format'
+import { agoDays, count, daysSince, money, pct } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import type { Workspace } from '@/data/useWorkspace'
@@ -203,7 +203,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             <div className="section">
               <div className="section-head">
                 <h3>Leads</h3>
-                <div className="sub">{mine.length} leads across {projects} {projects === 1 ? 'project' : 'projects'}</div>
+                <div className="sub">{count(mine.length, 'lead')} across {count(projects, 'project')}</div>
                 <div className="section-tools">
                   <div className="seg">
                     <button className={leadsView === 'board' ? 'is-on' : ''} onClick={() => pickView('board')}>Board</button>
@@ -213,7 +213,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </div>
               {leadsView === 'list' ? (
                 <DataGrid cols={leadCols} rows={mine} storageKey="member-leads"
-                          foot={<div className="grid-foot"><span>{mine.length} leads</span>
+                          empty="Nothing assigned to you yet. The owner will hand you leads from here."
+                          foot={<div className="grid-foot"><span>{count(mine.length, 'lead')}</span>
                             <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span></div>} />
               ) : (
                 <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)}
@@ -224,10 +225,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             <div className="section">
               <div className="section-head">
                 <h3>My sales</h3>
-                <div className="sub">{cv.length} closed · {money(sum(cv))} total</div>
+                <div className="sub">{count(cv.length, 'deal')} closed · {money(sum(cv))} total</div>
               </div>
               <DataGrid cols={salesCols} rows={[...cv].sort((a, b) => daysSince(a.convertedAt ?? a.createdAt) - daysSince(b.convertedAt ?? b.createdAt))}
                         storageKey="member-sales"
+                        empty="No sales yet. Mark a lead Converted and record the amount, and it lands here."
                         foot={<div className="grid-foot"><span>{cv.filter((l) => l.verified).length} verified · {cv.filter((l) => !l.verified).length} pending</span></div>} />
             </div>
           </div>

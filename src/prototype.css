@@ -494,10 +494,22 @@ input,select{font:inherit;color:inherit}
   min-width:0;
 }
 .grid-scroll{overflow:auto;max-height:var(--grid-h,none);position:relative}
+/* The empty row, and only it, gets the height a table needs to not look
+   broken when it has nothing in it — see .grid-scroll--page's note on why the
+   container itself no longer carries a floor. */
+table.grid tr.grid-empty td{
+  height:132px;text-align:center;color:var(--ink-3);white-space:normal;
+  padding:0 24px;line-height:1.6;
+}
 /* On its own page the grid fills the window rather than sitting in a 466px
    box with dead space under it. It keeps its own scroller so the sticky
    header stays put while you go down all 50 rows. */
-.grid-scroll--page{--grid-h:calc(100dvh - 212px);min-height:300px}
+/* Caps how tall the grid may get, so the page itself never scrolls — but it
+   must not also set a FLOOR. A 300px floor meant a project with one sale in it
+   drew a row and then 240px of blank white before the footer, which reads as a
+   half-loaded table rather than a short one. The empty row carries its own
+   height (above), so nothing collapses when there is genuinely nothing. */
+.grid-scroll--page{--grid-h:calc(100dvh - 212px)}
 /* The grid owns the scrolling on a page view, so the page itself should not
    also scroll — otherwise you get two scrollbars fighting over 40px. */
 /* A touch wider than the 1180px reading measure: the grids are the point on
@@ -686,9 +698,15 @@ kbd{
 .proj-stat .v{font-family:var(--display);font-size:16px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .proj-stat .k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
 .proj-foot{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}
-.stack{display:flex}
-.stack .avatar{width:22px;height:22px;flex-basis:22px;font-size:9px;margin-left:-6px;border:1.5px solid var(--surface)}
+/* -4px, not -6px: enough overlap to read as one group, little enough that
+   every set of initials is still legible. */
+.stack{display:flex;align-items:center}
+.stack .avatar{width:22px;height:22px;flex-basis:22px;font-size:9px;margin-left:-4px;border:1.5px solid var(--surface)}
 .stack .avatar:first-child{margin-left:0}
+.stack-more{
+  margin-left:5px;font-size:10.5px;font-weight:600;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;
+}
 
 /* ------------------------------------------------------------ team roster */
 .team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
