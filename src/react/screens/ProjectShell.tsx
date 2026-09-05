@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
 import { Rail } from '@/components/Rail'
+import { DensitySlider } from '@/components/DensitySlider'
 import { Avatar, Chip, IconBtn } from '@/components/bits'
 import { usePanes } from '@/lib/usePanes'
 import { initials } from '@/lib/format'
@@ -51,12 +52,6 @@ export function ProjectShell({
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [sec, setSec] = useState<SecId>('overview')
-  const [dense, setDense] = useState<'compact' | 'comfortable'>(() => {
-    try { return localStorage.getItem('metrol-crm-dense') === 'comfortable' ? 'comfortable' : 'compact' } catch { return 'compact' }
-  })
-  useEffect(() => {
-    try { localStorage.setItem('metrol-crm-dense', dense) } catch { /* a reading preference */ }
-  }, [dense])
 
   const panes = usePanes()
   const tip = useHoverTip()
@@ -77,7 +72,7 @@ export function ProjectShell({
   useEffect(() => { window.dispatchEvent(new Event('resize')) }, [sec])
 
   return (
-    <div className={'screen screen--app is-active' + (dense === 'comfortable' ? ' dense-comfortable' : '')}>
+    <div className="screen screen--app is-active">
       <div className="topbar">
         <IconBtn title="Back to projects" onClick={onBack}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
@@ -102,10 +97,7 @@ export function ProjectShell({
         </select>
         <div className="topbar-right">
           <ThemeToggle />
-          <div className="seg" id="density">
-            <button className={dense === 'compact' ? 'is-on' : ''} onClick={() => setDense('compact')}>Compact</button>
-            <button className={dense === 'comfortable' ? 'is-on' : ''} onClick={() => setDense('comfortable')}>Comfortable</button>
-          </div>
+          <DensitySlider />
           {isOwner && (
             <IconBtn title="Company settings" onClick={() => setAdminOpen(true)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></IconBtn>
           )}

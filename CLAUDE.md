@@ -1108,3 +1108,87 @@ this from a live screenshot. Swapped the two `<button>`s so Board is first
 (left, and the one lit by default) and List is second (right) — matching
 "first should be the card, next should be the list" literally, not just in
 which one starts active. Re-verified: same toggle order, same default.
+
+---
+
+# Round 18 — Compact/Comfortable becomes a slider, and starts telling the truth
+
+Adarsh's read was correct on both counts, and the first half is the more
+interesting one.
+
+## The old switch really did nothing on Overview
+
+`Compact | Comfortable` only ever drove one CSS rule —
+`.dense-comfortable table.grid th,td{height:48px}` against a 38px default.
+Overview has no `table.grid` at all (KPI tiles, Needs attention, Recent
+activity), so the control sat in the topbar of that page doing literally
+nothing. Same on Sales dashboard, and on the salesperson's Board view.
+
+Rather than hide the control on those pages — a control that appears and
+disappears as you navigate is its own kind of broken — Overview's two row
+lists now scale with the same setting: `.ov-row` (Needs attention) and
+`.ov-ev` (Recent activity) take their vertical padding from
+`calc(var(--row-h) * ratio)`, where each ratio is just today's padding over
+today's row height. At the default setting they render pixel-identical to
+before; they only move when somebody moves the slider. Four of the five
+project pages now respond. Sales dashboard is charts and still doesn't —
+that one is honest, a bar chart has no rows to tighten.
+
+## Why a slider is safe here, specifically
+
+Three things were worth checking before building it, since row height is one
+step away from the never-regress column resize:
+
+1. **Nothing measures row height.** `.rz-layer` is sized `height:100%` in
+   CSS and the strips inherit it, so the grab handles follow a taller or
+   shorter grid without any JS. Verified by drag-testing at every stop: a
+   120px drag moves the column edge exactly 120px at 32px, 38px and 56px
+   rows, and double-click still resets.
+2. **It cannot lag.** The height lives in a `--row-h` custom property on
+   `<html>`, written straight to the DOM as the slider moves — no React
+   state, so a fifty-row table is never re-rendered mid-drag. Only the
+   release writes to `localStorage`. This is the same split `usePanes`
+   already uses for the draggable sidebars.
+3. **It snaps.** Six stops — 32 / 35 / 38 / 44 / 48 / 56 — not free
+   dragging. The floor is real: an avatar and an editable chip are both
+   26px, so under ~32px they start touching the row's own borders and the
+   table reads as broken. Above ~56px it is just wasted screen. Stops mean
+   the control cannot be parked somewhere that looks like a bug.
+
+## Nothing moves for anyone until they touch it
+
+Default is stop 2 = **38px**, exactly what Compact always gave. `useDensity`
+also reads the old `metrol-crm-dense` key: anyone who had picked Comfortable
+starts on stop 4 = **48px**, exactly what Comfortable always gave. So the
+change is invisible until somebody drags it, in either direction.
+
+New files: `src/react/lib/useDensity.ts` (the hook and the stops) and
+`src/react/components/DensitySlider.tsx` (shared by `ProjectShell.tsx` and
+`Member.tsx`, so the markup exists once — the duplicated-rail lesson from
+Round 16). The control keeps `id="density"`, which is what the existing
+`@media (max-width:860px){#density,#densityM{display:none}}` rule hides on a
+phone — so mobile behaviour carried over for free, verified.
+
+## A deletion that would have broken the fallback build
+
+Removing the now-unused `.dense-comfortable` rule was the obvious cleanup,
+and it was wrong: `src/app.js` — the retired vanilla build still served at
+`/legacy.html` — toggles that exact class, and shares this same stylesheet.
+Deleting the rule would have silently killed the legacy build's own density
+switch, the same shape of mistake as the importer that vanished for six
+rounds in Round 9. The rule stays, with a comment saying it belongs to
+`app.js` and goes when `app.js` does.
+
+## Verified in Chromium
+
+Slider renders on the owner's and the salesperson's topbars. Every stop
+produces its stated height (32/35/38/44/48/56) on the real table. The
+setting survives a reload and carries between screens (the property is on
+`<html>`, not per-screen state). Overview's Needs attention and Recent
+activity rows both grow and shrink with it; at the default they measure the
+same as before the change. Column resize exact at every stop, as above.
+Hidden at 390px with no page-level horizontal scroll. Dark mode reads
+correctly — `accent-color` paints the track and thumb brand-yellow in both
+themes, which is a great deal less CSS than styling the WebKit and Firefox
+pseudo-elements separately. Only console error: the Google Fonts stylesheet
+this sandbox blocks.

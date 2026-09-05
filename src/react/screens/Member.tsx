@@ -3,6 +3,7 @@ import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { DensitySlider } from '@/components/DensitySlider'
 import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
@@ -38,7 +39,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     // Only ever runs once per mount — recording *this* visit, not tracking lastVisitKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [dense, setDense] = useState<'compact' | 'comfortable'>('compact')
   const [edit, setEdit] = useState<{ kind: 'status' | 'quality'; anchor: HTMLElement; lead: Lead } | null>(null)
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
@@ -138,7 +138,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const projects = new Set(mine.map((l) => l.projectId)).size
 
   return (
-    <div className={'screen screen--app is-active' + (dense === 'comfortable' ? ' dense-comfortable' : '')}>
+    <div className="screen screen--app is-active">
       <div className="topbar">
         <div className="brand">
           <div className="monogram">M</div>
@@ -146,10 +146,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
         </div>
         <div className="topbar-right">
           <ThemeToggle />
-          <div className="seg" id="density">
-            <button className={dense === 'compact' ? 'is-on' : ''} onClick={() => setDense('compact')}>Compact</button>
-            <button className={dense === 'comfortable' ? 'is-on' : ''} onClick={() => setDense('comfortable')}>Comfortable</button>
-          </div>
+          <DensitySlider />
           <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
             <Avatar lg src={me?.avatarUrl}>{me?.initials}</Avatar>
             <div>
