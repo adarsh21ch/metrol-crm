@@ -13,6 +13,7 @@ interface State {
   leads: Lead[]
   events: LeadEvent[]
   loading: boolean
+  refreshing: boolean
   error: string | null
 }
 
@@ -32,6 +33,7 @@ const toLead = (l: any): Lead => ({
   verified: !!l.verified,
   convertedAt: l.converted_at,
   createdAt: l.created_at,
+  assignedAt: l.assigned_at ?? null,
 })
 
 const toEvent = (e: any): LeadEvent => ({
@@ -75,7 +77,8 @@ async function ensureProjectMember(projectId: string, profileId: string) {
 }
 
 const EMPTY: State = {
-  me: null, members: [], departments: [], projects: [], leads: [], events: [], loading: true, error: null,
+  me: null, members: [], departments: [], projects: [], leads: [], events: [],
+  loading: true, refreshing: false, error: null,
 }
 
 /**
@@ -96,7 +99,7 @@ export function useWorkspace() {
     if (isDemo()) {
       setS({
         me: demoMe, members: demoAllMembers, departments: demoDepartments, projects: demoProjects,
-        leads: demoLeads, events: demoEvents, loading: false, error: null,
+        leads: demoLeads, events: demoEvents, loading: false, refreshing: false, error: null,
       })
       return
     }
@@ -154,11 +157,50 @@ export function useWorkspace() {
       leads: (leadRes.data ?? []).map(toLead),
       events: [...(evRes.data ?? [])].reverse().map(toEvent),
       loading: false,
+      refreshing: false,
       error: null,
     })
   }, [])
 
+  /** Wraps `load` with a flag a button can spin on — the visible fallback for
+   *  anyone who would rather press something than trust the live update. */
+  const refresh = useCallback(async () => {
+    setS((p) => ({ ...p, refreshing: true }))
+    await load()
+  }, [load])
+
   useEffect(() => { void load() }, [load])
+
+  /** The leads-table stream below is reliable once a row is already visible to
+   *  a subscriber — that is the status/quality case. It is not reliable for the
+   *  one event where a row *becomes* visible: assigning a lead is an UPDATE
+   *  whose old image a member could never have read, and Supabase Realtime's
+   *  per-event RLS re-check is documented to key off that same WAL image, so
+   *  the newly-assigned member's client can miss it outright. `events` doesn't
+   *  have that failure mode — its SELECT policy is a live subquery against the
+   *  current `leads` row, not a snapshot of one WAL event, and by the time an
+   *  "Assigned" row is logged the lead is already committed with its new
+   *  owner. So every event re-reads its lead by id and reconciles it locally:
+   *  a lead that newly passes RLS gets added, one that no longer does (a
+   *  reassignment away) gets dropped. This runs for every event, not just
+   *  "Assigned" — cheap, and it also catches the same class of gap for any
+   *  other write that changes who can see a row. */
+  const reconcileLead = useCallback(async (leadId: string) => {
+    if (isDemo()) return
+    const { data, error } = await supabase.from('leads').select('*').eq('id', leadId).maybeSingle()
+    if (error) return
+    setS((prev) => {
+      if (!data) return { ...prev, leads: prev.leads.filter((l) => l.id !== leadId) }
+      const row = toLead(data)
+      const known = prev.leads.some((l) => l.id === row.id)
+      return {
+        ...prev,
+        leads: known
+          ? prev.leads.map((l) => (l.id === row.id ? { ...row, isNew: l.isNew } : l))
+          : [{ ...row, isNew: true }, ...prev.leads],
+      }
+    })
+  }, [])
 
   /**
    * Live updates. A salesperson setting a status and the owner watching the
@@ -186,7 +228,8 @@ export function useWorkspace() {
             leads: known
               // Keep isNew: it is a local flag about this session, not a column.
               ? prev.leads.map((l) => (l.id === row.id ? { ...row, isNew: l.isNew } : l))
-              : [row, ...prev.leads],
+              // A row this client has never seen before is, by definition, new to it.
+              : [{ ...row, isNew: true }, ...prev.leads],
           }
         })
       })
@@ -196,9 +239,20 @@ export function useWorkspace() {
           if (prev.events.some((x) => x.id === e.id)) return prev   // our own write, echoed back
           return { ...prev, events: [...prev.events, e].slice(-200) }
         })
+        // See reconcileLead above: the leads stream can silently miss exactly
+        // this write, so every event re-checks its lead directly.
+        void reconcileLead(p.new.lead_id)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
         void load()   // rarer, and it changes the rail and the cards together
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_members' }, () => {
+        // Assigning a member's first lead in a project upserts their row here —
+        // it's what projects_select needs to let them read the project itself.
+        // Without this listener the project stayed invisible (name blank, not
+        // in the rail) until the member reloaded, even once the lead itself
+        // was showing up live.
+        void load()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, (p: any) => {
         setS((prev) => {
@@ -238,7 +292,7 @@ export function useWorkspace() {
       .subscribe()
 
     return () => { void supabase.removeChannel(channel) }
-  }, [load])
+  }, [load, reconcileLead])
 
   const memberName = useCallback(
     (id: string | null) => (id ? (s.members.find((m) => m.id === id)?.name ?? 'Unknown') : 'Unassigned'),
@@ -291,7 +345,8 @@ export function useWorkspace() {
 
   const setOwner = useCallback(async (l: Lead, ownerId: string | null) => {
     const was = memberName(l.ownerId)
-    await write(l.id, { ownerId, isNew: !!ownerId }, { owner_id: ownerId })
+    const assignedAt = ownerId ? new Date().toISOString() : null
+    await write(l.id, { ownerId, assignedAt, isNew: !!ownerId }, { owner_id: ownerId, assigned_at: assignedAt })
     await log(l.id, 'Assigned', was, ownerId ? memberName(ownerId) : 'Unassigned', 'Owner')
     // So the member can read the project's own row, not just their lead in it.
     if (ownerId && !isDemo()) await ensureProjectMember(l.projectId, ownerId)
@@ -322,7 +377,8 @@ export function useWorkspace() {
           ...rows.map((r, i) => ({
             id: 'imp-' + Date.now() + '-' + i, projectId, name: r.name, email: r.email, phone: r.phone,
             status: 'new' as const, quality: null, ownerId: r.ownerId ?? null, amount: 0, verified: false,
-            convertedAt: null, createdAt: new Date().toISOString(), isNew: true,
+            convertedAt: null, createdAt: new Date().toISOString(),
+            assignedAt: r.ownerId ? new Date().toISOString() : null, isNew: true,
           })),
           ...p.leads,
         ],
@@ -334,6 +390,7 @@ export function useWorkspace() {
       .insert(rows.map((r) => ({
         name: r.name, email: r.email, phone: r.phone,
         owner_id: r.ownerId ?? null, project_id: projectId, status: 'new',
+        assigned_at: r.ownerId ? new Date().toISOString() : null,
       })))
       .select()
     if (error) { setS((p) => ({ ...p, error: error.message })); return { added: 0, error: error.message } }
@@ -474,6 +531,7 @@ export function useWorkspace() {
     getInviteCode, setInviteCode,
     departmentName: (id: string | null) => s.departments.find((d) => d.id === id)?.name ?? null,
     reload: load,
+    refresh,
     clearError: () => setS((p) => ({ ...p, error: null })),
   }
 }

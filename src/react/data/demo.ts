@@ -94,6 +94,10 @@ export const demoLeads: Lead[] = (() => {
         verified: converted && i % 3 !== 0,
         convertedAt: converted ? iso(days, 6) : null,
         createdAt: iso(60 - (i % 60), 2),
+        // A handful per project read as "assigned in the last few hours" so
+        // the on-load "assigned to you" notice has something real to count in
+        // demo mode; the rest look like they landed weeks ago, same as createdAt.
+        assignedAt: i % 9 === 0 ? null : (i < 8 ? iso(0, i + 1) : iso(60 - (i % 60), 2)),
       })
       n++
     }

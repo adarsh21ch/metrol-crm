@@ -849,24 +849,118 @@ synthetic touch-typed `PointerEvent` drag produces the same result as a mouse
 drag; picking a quality on a board card updates the same lead's row in the
 list view too.
 
-## Next up — deferred to a fresh session
+---
 
-Two things the client asked for, explicitly held for later:
+# Round 15 — Task #17: live sync on assignment
 
-1. **Task #17 — live sync on assignment.** When the owner assigns a lead to a
-   member, that member's own tab does not pick it up without a manual
-   refresh (status/quality changes already are realtime; this one path
-   isn't). Also wanted: an on-load "N leads assigned to you" notice, and a
-   manual refresh button with a spinner as a visible fallback.
-2. **Task #18 — an owner-level sidebar.** Today only *inside* a project
-   (`ProjectShell.tsx`) is there a persistent rail + sidebar; the top-level
-   `Projects.tsx` screen has just a topbar. The client wants that same
-   persistent-navigation feel across the whole owner experience — Projects,
-   a new **Team** section, and **Settings** (today the gear-icon
-   `CompanyAdminModal`). Team should list every member grouped by department
-   (`useWorkspace.ts` already tracks `departmentId` per member) and let the
-   owner open one member's own dashboard — their track record **across every
-   project**, not just one. `sections/Team.tsx` already computes almost this
-   shape of data (assigned/connected/follow-up/converted, sales
-   today/week/month/all-time) but scoped to a single project's leads;
-   generalize it. `App.tsx`'s `Route` type will need a new case.
+## The actual gap, not a guess
+
+Status and quality changes were already realtime because the row being
+changed was already visible to the member — `owner_id` doesn't move, so
+`leads_select`'s `owner_id = auth.uid()` clause was true both before and
+after the write, on both the writer's and the reader's connection.
+Assignment is the one write where that's not true: the row moves from
+*invisible* to a member (someone else's lead, or unassigned) to *visible*
+(now theirs). That is exactly the case Supabase Realtime's own community
+issue tracker flags as unreliable for `postgres_changes` — a per-event RLS
+re-check keyed to the row image in that one WAL entry, rather than a live
+re-query, so a member's socket can simply never be told about the one UPDATE
+that would have started sending them rows.
+
+Two more places had the identical shape of gap, quieter because they don't
+show up as "nothing happens" but as "half of it happened":
+
+- **`project_members`** was never added to the realtime publication and
+  nothing subscribed to it — so the row `ensureProjectMember` inserts (what
+  lets a member read the *project* their new lead lives in, via
+  `projects_select`'s `is_project_member`) landed silently. A member's very
+  first lead in a project used to show up with a blank Project column and
+  the project itself missing from their view until they reloaded.
+- **`isNew`** was never set on a lead this client had never seen before —
+  neither in the raw `leads` realtime handler's "unknown row" branch, nor
+  anywhere else — so even on the rare occasion the leads stream *did*
+  deliver the assignment, the row arrived with no visual "new" marker.
+
+## The fix
+
+`events` doesn't have the same failure mode: its `events_select` policy
+(`exists (select 1 from leads l where l.id = lead_id)`) is a **live**
+subquery against the current `leads` table, not a snapshot of one WAL
+event — and by the time an "Assigned" row is logged, the lead is already
+committed with its new `owner_id`. So `useWorkspace.ts`'s `events` INSERT
+handler now calls a new `reconcileLead(leadId)` for every event (not just
+"Assigned" — this is a general-purpose safety net): it re-reads that one
+lead by id and reconciles it into local state — added if it newly passes
+RLS, updated if already known, **removed** if it no longer passes (a
+reassignment away, which has the identical problem in reverse). This runs
+*alongside* the existing `leads` postgres_changes stream, not instead of
+it — harmless and idempotent if that stream already delivered the same
+row, and the actual fix on the runs where it didn't.
+
+`project_members` is now in the realtime publication (migration 0005) and
+`useWorkspace.ts` subscribes to its INSERTs, triggering the same `load()`
+the `projects` table's own changes already trigger. And both the raw
+`leads` handler and `reconcileLead` now mark a row `isNew: true` the moment
+it's a row this client has never held before.
+
+None of this could be exercised against real Supabase from this sandbox
+(no network path to it, same as every round before this one) — the reasoning
+above is what the fix rests on, not a live test. `?demo=1` never touches
+realtime at all (`isDemo()` short-circuits the subscription), so the parts
+that *were* browser-tested are the two additions below, plus that the
+existing app still works (reassign/unassign in the owner's Leads grid,
+mobile, dark mode — see the checklist at the end of this round).
+
+## Two additions, same question: what should update live
+
+- **`leads.assigned_at`** (migration 0005, backfilled to `created_at` for
+  every already-assigned lead) is the durable answer to "did this land
+  since I last looked?" — `isNew` can't answer that because it never
+  survives a reload. `Member.tsx` reads a `metrol-crm-lastvisit-<id>`
+  timestamp from `localStorage` **before** overwriting it with now, so it
+  has a real "since when" to compare against. First-ever visit has no
+  previous timestamp to compare to (everything would count, which is just
+  the whole backlog restated, not news) — that case pins the reference to
+  now and quietly skips the notice.
+- **A refresh button with a spinner**, in `Member.tsx`'s page head, wired
+  to a new `ws.refresh()` / `ws.refreshing` pair in `useWorkspace.ts` (a
+  thin wrapper around the existing `load()`). In demo mode `load()` has no
+  real async gap, so the spinner frame can't be caught by a screenshot
+  there — confirmed instead that the CSS itself is correctly wired
+  (`animation-name / duration / iteration-count` all present on the `.spin`
+  class) and that real network latency in production will keep
+  `refreshing: true` on screen for the request's duration.
+
+## Migration to run
+
+`supabase/migrations/0005_assigned_at_and_member_realtime.sql` — adds
+`leads.assigned_at` (+ backfill) and adds `project_members` to the
+`supabase_realtime` publication. Safe to re-run; ends with the same
+`pg_publication_tables` proof query Round 12 introduced.
+
+## Verified in Chromium (demo mode, both roles)
+
+First visit shows no banner (by design). Seeding an old `lastvisit` and
+reloading shows "N leads assigned to you", dismiss makes it disappear. The
+refresh button's spinner CSS is correctly wired; clicking it re-triggers a
+load with no console errors. Reassign/unassign from the owner's Leads grid
+still works end to end (menu → write → row updates, matching the demo
+fixture's own `isNew`/`assignedAt` state). 390px width: no page-level
+horizontal scroll on the salesperson screen with the new refresh button in
+place. Dark mode unaffected. Only console error throughout: the Google
+Fonts stylesheet this sandbox blocks (pre-existing, unrelated).
+
+## Next up
+
+**Task #18 — an owner-level sidebar.** Today only *inside* a project
+(`ProjectShell.tsx`) is there a persistent rail + sidebar; the top-level
+`Projects.tsx` screen has just a topbar. The client wants that same
+persistent-navigation feel across the whole owner experience — Projects,
+a new **Team** section, and **Settings** (today the gear-icon
+`CompanyAdminModal`). Team should list every member grouped by department
+(`useWorkspace.ts` already tracks `departmentId` per member) and let the
+owner open one member's own dashboard — their track record **across every
+project**, not just one. `sections/Team.tsx` already computes almost this
+shape of data (assigned/connected/follow-up/converted, sales
+today/week/month/all-time) but scoped to a single project's leads;
+generalize it. `App.tsx`'s `Route` type will need a new case.

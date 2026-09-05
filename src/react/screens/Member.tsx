@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
@@ -19,6 +19,25 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  *  closed. They set status and quality; they never see anybody else's rows —
  *  and the row level security means that is true of the data, not just the UI. */
 export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => void }) {
+  const me = ws.me
+  const lastVisitKey = 'metrol-crm-lastvisit-' + (me?.id ?? 'anon')
+  // Read the *previous* visit before this one overwrites it, so "N leads
+  // assigned to you" can compare against a moment before right now. A member
+  // opening the app for the very first time has no previous visit to compare
+  // to — every one of their leads would count as "since last visit", which is
+  // just their whole backlog restated, not news — so that case pins the
+  // reference to now and quietly skips the notice.
+  const [lastVisit] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem(lastVisitKey)
+      return stored ? Number(stored) : Date.now()
+    } catch { return Date.now() }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(lastVisitKey, String(Date.now())) } catch { /* best-effort */ }
+    // Only ever runs once per mount — recording *this* visit, not tracking lastVisitKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [dense, setDense] = useState<'compact' | 'comfortable'>('compact')
   const [edit, setEdit] = useState<{ kind: 'status' | 'quality'; anchor: HTMLElement; lead: Lead } | null>(null)
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
@@ -33,9 +52,15 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     try { localStorage.setItem(LEADS_VIEW_KEY, v) } catch { /* a remembered view is a convenience */ }
   }
 
-  const me = ws.me
   const mine = useMemo(() => ws.leads.filter((l) => l.ownerId === me?.id), [ws.leads, me])
   const cv = useMemo(() => mine.filter(isConverted), [mine])
+  // "Landed since I last opened this" — durable across a reload, unlike isNew,
+  // because it compares the database's own assignedAt to a timestamp saved
+  // last visit rather than a flag that only ever lived in this tab.
+  const justAssigned = useMemo(
+    () => mine.filter((l) => l.assignedAt && new Date(l.assignedAt).getTime() > lastVisit),
+    [mine, lastVisit],
+  )
   const projectName = (id: string) => ws.projects.find((p) => p.id === id)?.name ?? '—'
   const sum = (rs: Lead[]) => rs.reduce((s, l) => s + l.amount, 0)
 
@@ -105,7 +130,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     }
   }
 
-  const fresh = mine.filter((l) => l.isNew)
   const projects = new Set(mine.map((l) => l.projectId)).size
 
   return (
@@ -144,12 +168,22 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             <div className="page-head">
               <h1>My leads</h1>
               <div className="sub">Assigned to you by the owner</div>
+              {/* Live sync should mean nobody needs this — it exists for
+                  anyone who would rather press something than trust it. */}
+              <button className="btn btn--ghost btn--sm refresh-btn" disabled={ws.refreshing}
+                      onClick={() => void ws.refresh()}>
+                <svg className={ws.refreshing ? 'spin' : ''} width="14" height="14" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" />
+                </svg>
+                {ws.refreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
             </div>
 
-            {fresh.length > 0 && !dismissed && (
+            {justAssigned.length > 0 && !dismissed && (
               <div className="banner">
                 <div>
-                  <div className="t">{fresh.length} new lead{fresh.length === 1 ? '' : 's'} assigned to you</div>
+                  <div className="t">{justAssigned.length} lead{justAssigned.length === 1 ? '' : 's'} assigned to you</div>
                   <div className="d">Call them and set a status so the owner can see where they stand.</div>
                 </div>
                 <button className="btn btn--sm" onClick={() => setDismissed(true)}>Got it</button>

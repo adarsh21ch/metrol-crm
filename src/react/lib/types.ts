@@ -50,6 +50,10 @@ export interface Lead {
   verified: boolean
   convertedAt: string | null
   createdAt: string
+  /** When the current owner_id was set. Null for an unassigned lead. This is
+   *  the durable, DB-backed answer to "did this land since I last looked?" —
+   *  isNew below cannot answer that because it never survives a reload. */
+  assignedAt: string | null
   /** Set locally when a lead has just been assigned, to flag the row. */
   isNew?: boolean
 }
