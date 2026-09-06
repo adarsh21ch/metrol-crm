@@ -22,6 +22,7 @@ type Route =
   | { name: 'project'; id: string }
   | { name: 'team' }
   | { name: 'member'; id: string }
+  | { name: 'hr' }
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -106,10 +107,11 @@ function SignedIn() {
   const onOpenProject = (id: string) => setRoute({ name: 'project', id })
   const onOpenTeam = () => setRoute({ name: 'team' })
   const onOpenMember = (id: string) => setRoute({ name: 'member', id })
+  const onOpenHr = () => setRoute({ name: 'hr' })
 
   return (
     <>
-      {route.name === 'projects' && <Projects ws={ws} onOpen={onOpenProject} onOpenTeam={onOpenTeam} />}
+      {route.name === 'projects' && <Projects ws={ws} onOpen={onOpenProject} onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} />}
       {route.name === 'project' && (
         <ProjectShell
           ws={ws}
@@ -117,6 +119,7 @@ function SignedIn() {
           onBack={onOpenProjects}
           onOpenProject={onOpenProject}
           onOpenTeam={onOpenTeam}
+          onOpenHr={onOpenHr}
           toast={toast}
         />
       )}
@@ -128,8 +131,10 @@ function SignedIn() {
           onBackToTeam={onOpenTeam}
           onOpenProjects={onOpenProjects}
           onOpenProject={onOpenProject}
+          onOpenHr={onOpenHr}
         />
       )}
+      {route.name === 'hr' && <HrPage ws={ws} toast={toast} onBackToProjects={onOpenProjects} />}
       {toastNode}
     </>
   )

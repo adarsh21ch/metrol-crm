@@ -28,6 +28,10 @@ export interface Employee {
   lastWorkingDay: string | null
   notes: string
   createdAt: string
+  /** How many days this person is entitled to this year. Remaining balance is
+   *  this minus their own approved days in the current year — computed, never
+   *  stored, so nothing needs reconciling when a request changes. */
+  annualLeaveDays: number
 }
 
 export const EMPLOYMENT: Record<EmploymentType, string> = {
@@ -48,6 +52,46 @@ export const EMP_STATUS: Record<EmployeeStatus, { label: string; cls: string }> 
 /** The departments row the HR dashboard keys on. The label on screen may be
  *  shortened to "HR"; this value is the data and must not be. */
 export const HR_DEPARTMENT = 'Human Resources'
+
+/* ------------------------------------------------------------- Phase 2: leave */
+
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+
+/** One request. `daysCount` is set by a database trigger (0009) from the two
+ *  dates, never trusted from the client — a mismatched request must not be
+ *  able to inflate or shrink anybody's balance. */
+export interface LeaveRequest {
+  id: string
+  employeeId: string
+  startDate: string
+  endDate: string
+  daysCount: number
+  reason: string
+  status: LeaveStatus
+  decidedBy: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  createdAt: string
+}
+
+export const LEAVE_STATUS: Record<LeaveStatus, { label: string; cls: string }> = {
+  pending: { label: 'Pending', cls: 'chip--warn' },
+  approved: { label: 'Approved', cls: 'chip--good' },
+  rejected: { label: 'Rejected', cls: 'chip--bad' },
+  // Grey like a resignation: cancelling your own request is not a failure.
+  cancelled: { label: 'Cancelled', cls: 'chip--mute' },
+}
+
+/** The calendar year a request's balance counts against — the year it starts
+ *  in, so a request spanning New Year's Eve does not straddle two balances. */
+export const leaveYear = (r: Pick<LeaveRequest, 'startDate'>) => Number((r.startDate || '').slice(0, 4))
+
+/** Approved days this person has already used in `year` (default: this year). */
+export function usedLeaveDays(requests: LeaveRequest[], employeeId: string, year = new Date().getFullYear()): number {
+  return requests
+    .filter((r) => r.employeeId === employeeId && r.status === 'approved' && leaveYear(r) === year)
+    .reduce((t, r) => t + r.daysCount, 0)
+}
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 

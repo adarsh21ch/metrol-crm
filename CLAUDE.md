@@ -1591,3 +1591,75 @@ right for two buttons) carried "Add employee" off the right edge.
 - Phases 2 to 5 (leave, salary, offer/joining, exit) are untouched. Each hangs
   off the employee page or a new rail item. **Confirm with Adarsh before
   starting Phase 2.**
+
+---
+
+# HR Phase 2 — leave (2026-09-06)
+
+Built in the same session as this note, immediately after Phase 1. Two things
+were fixed before any Phase 2 code, both found while reconciling this file
+against the shipped code rather than guessed at:
+
+1. **The chips on the employee page (`HrPage.tsx`, "Later phases") said
+   "Documents · phase 4"; this file's phase order calls it "Onboarding".**
+   Numbering already agreed (2/3/4/5) — only the name was off. Fixed to
+   "Onboarding · phase 4", matching the Rail-item names this file already
+   promised: *"Leave, Salary, Onboarding and Exits."*
+2. **The owner had no route into `HrPage` at all.** Decision #2 from Phase 1
+   ("HR and the owner both create and edit employee records") was never wired
+   up — `App.tsx`'s owner branch only ever rendered Projects / ProjectShell /
+   TeamPage. Phase 2 needs the owner to approve leave too, so this was a real
+   blocker, not a nice-to-have. Fixed: a new `{ name: 'hr' }` route, an "HR"
+   button on the owner's own `Rail` (between Team and Settings, only shown
+   when `onOpenHr` is passed — HR's own rail never gets it), and
+   `HrPage` takes an optional `onBackToProjects` that draws a "← Projects"
+   button in its topbar, given only when the owner opens it.
+
+## What shipped
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/0009_hr_leave.sql` | `leave_requests` table plus `employees.annual_leave_days`. Schema and RLS in one file, same discipline as 0006. Four policies: owner/HR read and write everything; anybody else reads only their own requests, can create one for themselves (always starting `pending` — nobody approves their own leave on the way in), and can cancel their own while it is still pending. No DELETE policy, same as `employees` — a mistaken request is cancelled, not erased. `days_count` is set by a trigger from the two dates, never trusted from the client. |
+| `supabase/tests/0009_rls_checks.sql` | Nine checks, results as rows (0006's lesson about `RAISE NOTICE` applied from the start this time). SKIPPED, not a quiet PASS, when a needed person or employee record doesn't exist yet. **Not yet run against the live database** — same constraint as Phase 1: no `.env`, no project link here. Paste it into the Supabase SQL editor after 0009 and report the results back before trusting this in production. |
+| `src/react/lib/hr.ts` | Added the leave vocabulary: `LeaveRequest`, `LeaveStatus`, `LEAVE_STATUS`, `usedLeaveDays()`. Balance is computed (entitlement minus this year's approved days), never stored — nothing to reconcile when a request changes. |
+| `src/react/data/useLeaveRequests.ts` | Mirrors `useEmployees`: `create` (self-service, always pending), `decide` (HR/owner approve or reject, with an optional note), `cancel` (self, pending only). |
+| `src/react/modals/LeaveRequestModal.tsx` | Dates + reason. No status field — the database decides what state it starts in. |
+| `src/react/modals/LeaveDecisionModal.tsx` | One modal for both Approve and Reject, opened by whichever button was clicked. |
+| `src/react/screens/HrPage.tsx` | New **Leave** rail item: company-wide table, KPIs (pending / on leave today / decided this month / total), approve/reject inline, and a "Log leave for…" picker so HR can record a request on behalf of anyone (useful for the no-login employees Phase 1 already allows). The employee detail page gained its own **Leave** section — entitlement / used / remaining and that one person's history — parallel to Directory and Departments being rail-level while Employment/Contact/Emergency contact are record-level. |
+| `src/react/screens/Member.tsx` | Every non-owner, non-HR employee reaches this screen regardless of department (see App.tsx), so **Leave is a fifth tab here**, not gated by `isLead` — Overview, My leads, My sales, Manage team (leads only), Leave. Shows the same balance, a Request leave button, and Cancel on a pending request. `useEmployees` is now called unconditionally (`useEmployees(true)`) instead of `useEmployees(isLead)`, since everybody now needs their own record for their entitlement — RLS still hands back exactly one row to anyone who isn't HR, owner, or a team lead. |
+
+## Verified in Chromium, not asserted
+
+`?demo=1&as=hr`: directory → employee → Leave section (entitlement math right,
+history right) → company-wide Leave rail page → approved a pending request,
+KPIs updated live, toast fired. `?demo=1&as=member`: Leave tab → balance
+correct against one cancelled demo request → filed a new request (balance and
+tab badge updated) → cancelled it (status flipped, badge cleared). `?demo=1`
+(owner): the new HR rail button reaches `HrPage`, directory loads, "←
+Projects" returns to Projects. `?demo=1&as=lead`: Manage team re-checked
+unchanged — regression clean. Mobile at 375px: HR's three tabs fit without
+overflow; the member's tab strip already overflows past four tabs before this
+phase (a team lead has Overview/My leads/My sales/Manage team) and Leave makes
+it five — pre-existing horizontal-scroll behavior, not a new fault, and out of
+scope for this phase to redesign.
+
+## Deliberate calls, not asked because the brief already answered them
+
+- **One leave type, no half-days, no working-day calendar.** The brief said
+  "Requests, approve/reject, balance" — nothing about sick vs. casual vs.
+  earned leave, or excluding weekends from the day count. Built the simplest
+  version that is fully extensible later rather than guessing at a taxonomy
+  nobody asked for.
+- **18 days/year default entitlement**, editable per employee in
+  `EmployeeModal` (HR/owner only, same as every other field there). Ordinary
+  default, not a policy decision — change it per person any time.
+- **No team-lead reach into Leave.** Phase 2's brief never mentioned a team
+  lead approving their team's leave, unlike Manage team's read-only numbers.
+  Skipped rather than invented; easy to add later if Adarsh asks.
+
+## Open, deliberately
+
+- **0009 has not run against the live database yet** — paste it and the test
+  file into the Supabase SQL editor and report the results back before this
+  phase is trusted with real employees.
+- Phases 3 to 5 (salary, offer/joining, exit) are untouched.

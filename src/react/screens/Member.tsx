@@ -8,11 +8,13 @@ import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { ProfileModal } from '@/modals/ProfileModal'
+import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import { useEmployees } from '@/data/useEmployees'
-import { fmtDate } from '@/lib/hr'
+import { useLeaveRequests } from '@/data/useLeaveRequests'
+import { LEAVE_STATUS, fmtDate, usedLeaveDays } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
@@ -25,12 +27,13 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'leads' | 'sales' | 'team'
+type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
   sales: { title: 'My sales', sub: '' },
   team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
+  leave: { title: 'Leave', sub: 'Request time off and see your balance' },
 }
 
 /** One row of the Manage team tab. */
@@ -94,7 +97,17 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // not the owner's view scoped down — they cannot reassign a lead or verify a
   // payment here, and the policies in 0008 do not let them either.
   const isLead = !!me?.isTeamLead
-  const staff = useEmployees(isLead)
+  // Everybody asks this now, not just a team lead — Leave needs a person's own
+  // employee record for their entitlement, and RLS (0006) hands back exactly
+  // one row (their own) to anybody who is not HR, the owner, or a team lead.
+  const staff = useEmployees(true)
+  const myEmployee = staff.rows.find((e) => e.profileId === me?.id) ?? null
+  const leave = useLeaveRequests(true)
+  const myLeave = useMemo(
+    () => (myEmployee ? leave.rows.filter((r) => r.employeeId === myEmployee.id) : []),
+    [leave.rows, myEmployee],
+  )
+  const [requestingLeave, setRequestingLeave] = useState(false)
   const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
 
   const teamRows = useMemo<TeamRow[]>(() => {
@@ -320,7 +333,66 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   Manage team <span className="count">{teamRows.length}</span>
                 </button>
               )}
+              <button className={sec === 'leave' ? 'is-on' : ''} onClick={() => setSec('leave')}>
+                Leave {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
+              </button>
             </div>
+
+            {shownSec === 'leave' && (
+              <>
+                {!myEmployee ? (
+                  <div className="ov-card">
+                    <div className="ov-head"><h4>No employee record yet</h4></div>
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>
+                      HR has not added you to the directory yet, so there is nothing to request leave against.
+                      Ask HR to add your record.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="kpis">
+                      <Kpi accent label="Remaining" value={Math.max(0, myEmployee.annualLeaveDays - usedLeaveDays(leave.rows, myEmployee.id))} sub="days left this year" />
+                      <Kpi label="Entitlement" value={myEmployee.annualLeaveDays} sub="days this year" />
+                      <Kpi label="Used" value={usedLeaveDays(leave.rows, myEmployee.id)} sub="approved this year" />
+                      <Kpi label="Pending" value={myLeave.filter((r) => r.status === 'pending').length} sub="awaiting a decision" />
+                    </div>
+
+                    {leave.error && <div className="auth-err" style={{ marginBottom: 14 }}>{leave.error}</div>}
+
+                    <div className="section">
+                      <div className="section-head">
+                        <h3>My requests</h3>
+                        <div className="section-tools">
+                          <button className="btn btn--sm btn--primary" onClick={() => setRequestingLeave(true)}>Request leave</button>
+                        </div>
+                      </div>
+                      {myLeave.length === 0 ? (
+                        <p style={{ color: 'var(--ink-3)' }}>No requests yet.</p>
+                      ) : (
+                        <div className="ov-actions">
+                          {[...myLeave].sort((a, b) => b.startDate.localeCompare(a.startDate)).map((r) => (
+                            <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                              <span className="ov-n">{r.daysCount}d</span>
+                              <span className="ov-l">
+                                {fmtDate(r.startDate)} – {fmtDate(r.endDate)}{r.reason ? ' · ' + r.reason : ''}
+                                {r.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {r.decisionNote}</span> : null}
+                              </span>
+                              <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip>
+                              {r.status === 'pending' && (
+                                <button className="btn btn--sm" style={{ marginLeft: 10 }}
+                                        onClick={() => void leave.cancel(r.id).then((m) => toast(m ?? 'Request cancelled.'))}>
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
 
             {shownSec === 'team' && (
               <>
@@ -442,6 +514,18 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       )}
 
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
+
+      {requestingLeave && myEmployee && (
+        <LeaveRequestModal
+          employeeId={myEmployee.id}
+          onClose={() => setRequestingLeave(false)}
+          onSave={async (draft) => {
+            const message = await leave.create(draft)
+            if (!message) toast('Leave request sent.')
+            return message
+          }}
+        />
+      )}
     </div>
   )
 }

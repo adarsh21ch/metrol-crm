@@ -173,7 +173,7 @@ function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member
 }
 
 export function TeamPage({
-  ws, memberId, onOpenMember, onBackToTeam, onOpenProjects, onOpenProject,
+  ws, memberId, onOpenMember, onBackToTeam, onOpenProjects, onOpenProject, onOpenHr,
 }: {
   ws: Workspace
   memberId: string | null
@@ -181,6 +181,7 @@ export function TeamPage({
   onBackToTeam: () => void
   onOpenProjects: () => void
   onOpenProject: (id: string) => void
+  onOpenHr: () => void
 }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
@@ -217,7 +218,7 @@ export function TeamPage({
       <div className="shell">
         <Rail ws={ws} active="team" panes={panes} tip={tip}
               onOpenProjects={onOpenProjects} onOpenProject={onOpenProject}
-              onOpenTeam={onBackToTeam} onOpenSettings={() => setAdminOpen(true)} />
+              onOpenTeam={onBackToTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 
         <div className="workspace">
           <div className="mobile-nav">

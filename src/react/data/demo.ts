@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee } from '@/lib/hr'
+import type { Employee, LeaveRequest } from '@/lib/hr'
 import { initials } from '@/lib/format'
 
 /**
@@ -167,7 +167,7 @@ export const demoEmployees: Employee[] = [
     workEmail: HR_PERSON.email ?? '', personalEmail: 'priya.s@gmail.com', phone: '+91 98200 11001',
     dateOfBirth: '1994-08-19', address: 'Vijay Nagar, Indore, MP',
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
-    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400),
+    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18,
   },
   ...demoMembers.map((m, i) => ({
     id: 'e' + (i + 1),
@@ -191,5 +191,39 @@ export const demoEmployees: Employee[] = [
     lastWorkingDay: i === 4 ? '2026-10-15' : null,
     notes: '',
     createdAt: iso(300 - i * 20),
+    annualLeaveDays: 18,
   })),
+]
+
+const YEAR = new Date().getFullYear()
+
+/** Leave requests for ?demo — one of every state, spread across the HR
+ *  manager and the salespeople, so the directory's Leave section and the
+ *  member's own tab both have something real-shaped to show. */
+export const demoLeaveRequests: LeaveRequest[] = [
+  {
+    id: 'lv1', employeeId: 'e2', startDate: YEAR + '-01-10', endDate: YEAR + '-01-12', daysCount: 3,
+    reason: 'Family function', status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(200), decisionNote: null,
+    createdAt: iso(205),
+  },
+  {
+    id: 'lv2', employeeId: 'e2', startDate: YEAR + '-11-02', endDate: YEAR + '-11-02', daysCount: 1,
+    reason: 'Not feeling well', status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null,
+    createdAt: iso(1),
+  },
+  {
+    id: 'lv3', employeeId: 'e3', startDate: YEAR + '-10-20', endDate: YEAR + '-10-24', daysCount: 5,
+    reason: 'Diwali travel', status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null,
+    createdAt: iso(2),
+  },
+  {
+    id: 'lv4', employeeId: 'e4', startDate: YEAR + '-06-05', endDate: YEAR + '-06-05', daysCount: 1,
+    reason: 'Personal', status: 'rejected', decidedBy: HR_PERSON.id, decidedAt: iso(90), decisionNote: 'Clashed with the Nova Motors launch week.',
+    createdAt: iso(92),
+  },
+  {
+    id: 'lv5', employeeId: 'e1', startDate: YEAR + '-03-01', endDate: YEAR + '-03-02', daysCount: 2,
+    reason: 'Moving house', status: 'cancelled', decidedBy: null, decidedAt: null, decisionNote: null,
+    createdAt: iso(180),
+  },
 ]

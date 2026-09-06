@@ -35,13 +35,14 @@ const LABEL: Record<SecId, string> = {
 const ORDER: SecId[] = ['overview', 'leads', 'sales', 'team', 'dash']
 
 export function ProjectShell({
-  ws, projectId, onBack, onOpenProject, onOpenTeam, toast,
+  ws, projectId, onBack, onOpenProject, onOpenTeam, onOpenHr, toast,
 }: {
   ws: Workspace
   projectId: string
   onBack: () => void
   onOpenProject: (id: string) => void
   onOpenTeam: () => void
+  onOpenHr: () => void
   toast: (m: string) => void
 }) {
   // The dialogs live here because this is the level that knows the project.
@@ -114,7 +115,7 @@ export function ProjectShell({
       <div className="shell">
         <Rail ws={ws} active={projectId} panes={panes} tip={tip}
               onOpenProjects={onBack} onOpenProject={onOpenProject}
-              onOpenTeam={onOpenTeam} onOpenSettings={() => setAdminOpen(true)} />
+              onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 
         <nav className={'sidebar' + (panes.sideMini ? ' is-mini' : '')}>
           <div className="side-head">

@@ -21,20 +21,25 @@ export interface RailItem {
 }
 
 export function Rail({
-  ws, active, panes, tip, items, onOpenProjects, onOpenProject, onOpenTeam, onOpenSettings,
+  ws, active, panes, tip, items, onOpenProjects, onOpenProject, onOpenTeam, onOpenHr, onOpenSettings,
 }: {
   ws: Workspace
-  active: 'projects' | 'team' | string
+  active: 'projects' | 'team' | 'hr' | string
   panes: ReturnType<typeof usePanes>
   tip: ReturnType<typeof useHoverTip>
   /** When given, these replace the owner's projects list and Team button. The
-   *  same rail, carrying another department's nav — HR's Directory and
-   *  Departments today, and the room Leave, Salary, Onboarding and Exits will
-   *  need in phases 2 to 5. A second rail component would drift from this one. */
+   *  same rail, carrying another department's nav — HR's Directory, Departments
+   *  and Leave today, and the room Salary, Onboarding and Exits will need in
+   *  phases 3 to 5. A second rail component would drift from this one. */
   items?: RailItem[]
   onOpenProjects?: () => void
   onOpenProject?: (id: string) => void
   onOpenTeam?: () => void
+  /** The owner's own way into HrPage — decision #2 in Phase 1 was that HR and
+   *  the owner both work the directory, but nothing ever gave the owner a
+   *  route there. Only present for the owner's rail; HR's own rail (the
+   *  `items` branch) never renders this. */
+  onOpenHr?: () => void
   onOpenSettings?: () => void
 }) {
   return (
@@ -78,6 +83,17 @@ export function Rail({
         </span>
         <span className="rail-name">Team</span>
       </button>
+      {onOpenHr && (
+        <button className={'rail-btn' + (active === 'hr' ? ' is-on' : '')} onClick={onOpenHr} {...tip.bind('Human Resources')}>
+          <span className="rail-mark">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            </svg>
+          </span>
+          <span className="rail-name">HR</span>
+        </button>
+      )}
       </>)}
       {onOpenSettings && (
       <button className="rail-btn" onClick={onOpenSettings} {...tip.bind('Settings')}>

@@ -10,8 +10,14 @@ import { count, initials } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { EmployeeModal } from '@/modals/EmployeeModal'
+import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
+import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
-import { EMPLOYMENT, EMP_STATUS, fmtDate, joinedThisMonth, tenure, todayISO, type Employee } from '@/lib/hr'
+import { useLeaveRequests } from '@/data/useLeaveRequests'
+import {
+  EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, fmtDate, joinedThisMonth, tenure, todayISO, usedLeaveDays,
+  type Employee, type LeaveRequest,
+} from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 const PEOPLE_ICON = (
@@ -30,6 +36,11 @@ const GEAR_BACK = (
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
   </svg>
 )
+const LEAVE_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 2v4M16 2v4" />
+  </svg>
+)
 
 /** One label / value pair on the employee page. */
 const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
@@ -44,26 +55,35 @@ const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
  *
  * Who reaches this screen is decided by department, not by a role — see
  * migration 0006. Everything it can read or write is enforced there too, so
- * nothing on this page is load-bearing for security.
+ * nothing on this page is load-bearing for security. The owner reaches it too
+ * (App.tsx wires a route to it) since decision #2 in Phase 1 was that HR and
+ * the owner both work the directory — `onBackToProjects` is only given then.
  */
-export function HrPage({ ws, toast }: { ws: Workspace; toast: (m: string) => void }) {
+export function HrPage({
+  ws, toast, onBackToProjects,
+}: { ws: Workspace; toast: (m: string) => void; onBackToProjects?: () => void }) {
   const panes = usePanes()
   const tip = useHoverTip()
   const hr = useEmployees()
+  const leave = useLeaveRequests()
 
-  const [section, setSection] = useState<'directory' | 'departments'>('directory')
+  const [section, setSection] = useState<'directory' | 'departments' | 'leave'>('directory')
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [resigning, setResigning] = useState<Employee | null>(null)
   const [lastDay, setLastDay] = useState(todayISO())
   const [profileOpen, setProfileOpen] = useState(false)
+  const [loggingFor, setLoggingFor] = useState<string | null>(null)
+  const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
+  const [logEmpId, setLogEmpId] = useState('')
 
   const [q, setQ] = useState('')
   const [deptId, setDeptId] = useState('')
   const [showLeavers, setShowLeavers] = useState(false)
 
   const open = openId ? hr.rows.find((e) => e.id === openId) ?? null : null
+  const employeeName = (id: string) => hr.rows.find((e) => e.id === id)?.fullName ?? 'Unknown'
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -84,7 +104,46 @@ export function HrPage({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const railItems: RailItem[] = [
     { key: 'directory', label: 'Directory', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
+    { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
   ]
+
+  const pending = leave.rows.filter((r) => r.status === 'pending')
+  const decidedThisMonth = leave.rows.filter((r) => {
+    if (!r.decidedAt) return false
+    const d = new Date(r.decidedAt)
+    const now = new Date()
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  })
+  const onLeaveToday = leave.rows.filter((r) => r.status === 'approved' && r.startDate <= todayISO() && r.endDate >= todayISO())
+
+  const leaveCols: GridCol<LeaveRequest>[] = [
+    { key: 'who', label: 'Employee', width: 190, render: (r) => employeeName(r.employeeId) },
+    { key: 'when', label: 'Dates', width: 190, render: (r) => `${fmtDate(r.startDate)} – ${fmtDate(r.endDate)}` },
+    { key: 'days', label: 'Days', width: 72, render: (r) => r.daysCount },
+    { key: 'reason', label: 'Reason', width: 220, render: (r) => r.reason || <span className="cell-dash">—</span> },
+    { key: 'status', label: 'Status', width: 120, render: (r) => <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip> },
+    {
+      key: 'act', label: '', width: 180,
+      render: (r) => r.status === 'pending' ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn--sm btn--primary" onClick={() => setDeciding({ request: r, action: 'approved' })}>Approve</button>
+          <button className="btn btn--sm" onClick={() => setDeciding({ request: r, action: 'rejected' })}>Reject</button>
+        </div>
+      ) : r.decisionNote ? <span className="cell-mute">{r.decisionNote}</span> : null,
+    },
+  ]
+
+  const logLeave = async (draft: Parameters<typeof leave.create>[0]) => {
+    const message = await leave.create(draft)
+    if (!message) toast('Leave request logged.')
+    return message
+  }
+
+  const decideLeave = async (id: string, status: 'approved' | 'rejected', note?: string) => {
+    const message = await leave.decide(id, status, ws.me?.id ?? '', note)
+    if (!message) toast(status === 'approved' ? 'Leave approved.' : 'Leave rejected.')
+    return message
+  }
 
   const cols: GridCol<Employee>[] = [
     {
@@ -132,12 +191,13 @@ export function HrPage({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           <div className="brand-name">Metrol Media</div>
         </div>
         <div className="topbar-right">
+          {onBackToProjects && <button className="btn btn--sm" onClick={onBackToProjects}>← Projects</button>}
           <ThemeToggle />
           <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
             <Avatar lg src={ws.me?.avatarUrl}>{initials(ws.me?.name ?? '?')}</Avatar>
             <div>
               <div className="name">{ws.me?.name ?? 'HR'}</div>
-              <div className="role">HR</div>
+              <div className="role">{ws.me?.role === 'owner' ? 'Owner' : 'HR'}</div>
             </div>
           </button>
           <IconBtn title="Sign out" onClick={() => void supabase.auth.signOut()}>{GEAR_BACK}</IconBtn>
@@ -153,6 +213,8 @@ export function HrPage({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                     onClick={() => { setSection('directory'); setOpenId(null) }}>Directory</button>
             <button className={section === 'departments' ? 'is-on' : ''}
                     onClick={() => { setSection('departments'); setOpenId(null) }}>Departments</button>
+            <button className={section === 'leave' ? 'is-on' : ''}
+                    onClick={() => { setSection('leave'); setOpenId(null) }}>Leave</button>
           </div>
 
           <div className="wrap">
@@ -224,13 +286,32 @@ export function HrPage({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
 
                 <div className="section">
                   <div className="section-head">
+                    <h3>Leave</h3>
+                    <div className="section-tools">
+                      <button className="btn btn--sm" onClick={() => { setLogEmpId(open.id); setLoggingFor(open.id) }}>Log leave</button>
+                    </div>
+                  </div>
+                  <div className="hr-fields" style={{ marginBottom: 12 }}>
+                    <Fld l="Annual entitlement" v={`${open.annualLeaveDays} days`} />
+                    <Fld l="Used this year" v={`${usedLeaveDays(leave.rows, open.id)} days`} />
+                    <Fld l="Remaining" v={`${Math.max(0, open.annualLeaveDays - usedLeaveDays(leave.rows, open.id))} days`} />
+                  </div>
+                  {leave.rows.filter((r) => r.employeeId === open.id).length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No leave requests on record.</p>
+                  ) : (
+                    <DataGrid cols={leaveCols} rows={leave.rows.filter((r) => r.employeeId === open.id)} storageKey="hr-employee-leave"
+                              foot={<div className="grid-foot"><span>{count(leave.rows.filter((r) => r.employeeId === open.id).length, 'request')}</span></div>} />
+                  )}
+                </div>
+
+                <div className="section">
+                  <div className="section-head">
                     <h3>Later phases</h3>
                     <div className="sub">These arrive on this same page rather than as new screens.</div>
                   </div>
                   <div className="hr-soon">
-                    <Chip cls="chip--mute">Leave · phase 2</Chip>
                     <Chip cls="chip--mute">Salary · phase 3</Chip>
-                    <Chip cls="chip--mute">Documents · phase 4</Chip>
+                    <Chip cls="chip--mute">Onboarding · phase 4</Chip>
                     <Chip cls="chip--mute">Exit · phase 5</Chip>
                   </div>
                 </div>
@@ -336,12 +417,54 @@ export function HrPage({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 })}
               </>
             )}
+
+            {/* --------------------------------------------------- leave */}
+            {!open && section === 'leave' && (
+              <>
+                <div className="page-head">
+                  <h1>Leave</h1>
+                  <div className="sub">Every request across the company. Approve or reject from here.</div>
+                  <div className="section-tools">
+                    <select className="input" value={logEmpId} onChange={(e) => setLogEmpId(e.target.value)}>
+                      <option value="">Log leave for…</option>
+                      {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                    </select>
+                    <button className="btn btn--sm btn--primary" disabled={!logEmpId} onClick={() => setLoggingFor(logEmpId)}>Log leave</button>
+                  </div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="Pending" value={pending.length} sub="waiting on a decision" />
+                  <Kpi label="On leave today" value={onLeaveToday.length} sub="approved, dates include today" />
+                  <Kpi label="Decided this month" value={decidedThisMonth.length} sub="approved or rejected" />
+                  <Kpi label="Total requests" value={leave.rows.length} sub="all time, all statuses" />
+                </div>
+
+                {leave.error && <div className="auth-err" style={{ marginBottom: 14 }}>{leave.error}</div>}
+
+                <div className="section">
+                  <div className="section-head"><h3>All requests</h3></div>
+                  <DataGrid cols={leaveCols} rows={[...leave.rows].sort((a, b) => b.startDate.localeCompare(a.startDate))}
+                            storageKey="hr-leave"
+                            empty="No leave requests yet."
+                            foot={<div className="grid-foot"><span>{count(leave.rows.length, 'request')}</span></div>} />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       {tip.node}
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
+
+      {loggingFor && (
+        <LeaveRequestModal employeeId={loggingFor} onClose={() => setLoggingFor(null)} onSave={logLeave} />
+      )}
+      {deciding && (
+        <LeaveDecisionModal request={deciding.request} action={deciding.action} employeeName={employeeName(deciding.request.employeeId)}
+                             onClose={() => setDeciding(null)} onDecide={decideLeave} />
+      )}
 
       {adding && (
         <EmployeeModal ws={ws} employee={null} employees={hr.rows} prefill={adding}

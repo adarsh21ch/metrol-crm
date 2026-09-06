@@ -23,6 +23,7 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
   status: 'active',
   lastWorkingDay: null,
   notes: '',
+  annualLeaveDays: 18,
   ...prefill,
 })
 
@@ -232,6 +233,12 @@ export function EmployeeModal({
                    onChange={(e) => set('lastWorkingDay', e.target.value || null)} />
           </div>
         )}
+
+        <div className="field">
+          <label htmlFor="emLeave">Annual leave days</label>
+          <input className="input" id="emLeave" type="number" min={0} step={0.5} value={f.annualLeaveDays}
+                 onChange={(e) => set('annualLeaveDays', Number(e.target.value) || 0)} />
+        </div>
 
         <div className="field">
           <label htmlFor="emNotes">Notes</label>

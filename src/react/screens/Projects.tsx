@@ -34,7 +34,7 @@ function Media({ p, small }: { p: Row; small?: boolean }) {
   )
 }
 
-export function Projects({ ws, onOpen, onOpenTeam }: { ws: Workspace; onOpen: (id: string) => void; onOpenTeam: () => void }) {
+export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; onOpen: (id: string) => void; onOpenTeam: () => void; onOpenHr: () => void }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const panes = usePanes()
@@ -107,7 +107,7 @@ export function Projects({ ws, onOpen, onOpenTeam }: { ws: Workspace; onOpen: (i
       <div className="shell">
         <Rail ws={ws} active="projects" panes={panes} tip={tip}
               onOpenProjects={() => {}} onOpenProject={onOpen}
-              onOpenTeam={onOpenTeam} onOpenSettings={() => setAdminOpen(true)} />
+              onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 
         <div className="workspace">
           <div className="mobile-nav">
