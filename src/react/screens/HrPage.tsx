@@ -6,17 +6,19 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
 import { Avatar, Chip, IconBtn, Kpi } from '@/components/bits'
-import { count, initials } from '@/lib/format'
+import { count, initials, money } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { EmployeeModal } from '@/modals/EmployeeModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
+import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
+import { useSalaryRecords } from '@/data/useSalaryRecords'
 import {
-  EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, fmtDate, joinedThisMonth, tenure, todayISO, usedLeaveDays,
-  type Employee, type LeaveRequest,
+  EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, usedLeaveDays,
+  type Employee, type LeaveRequest, type SalaryRecord,
 } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -39,6 +41,11 @@ const GEAR_BACK = (
 const LEAVE_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 2v4M16 2v4" />
+  </svg>
+)
+const SALARY_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5a2.5 2.5 0 0 1 2.5-1h.3a2.2 2.2 0 0 1 0 4.4h-.6a2.2 2.2 0 0 0 0 4.4h.3a2.5 2.5 0 0 0 2.5-1" />
   </svg>
 )
 
@@ -66,8 +73,9 @@ export function HrPage({
   const tip = useHoverTip()
   const hr = useEmployees()
   const leave = useLeaveRequests()
+  const salary = useSalaryRecords()
 
-  const [section, setSection] = useState<'directory' | 'departments' | 'leave'>('directory')
+  const [section, setSection] = useState<'directory' | 'departments' | 'leave' | 'salary'>('directory')
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
@@ -77,6 +85,9 @@ export function HrPage({
   const [loggingFor, setLoggingFor] = useState<string | null>(null)
   const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
   const [logEmpId, setLogEmpId] = useState('')
+  const [addingSalaryFor, setAddingSalaryFor] = useState<string | null>(null)
+  const [editingSalary, setEditingSalary] = useState<SalaryRecord | null>(null)
+  const [salaryEmpId, setSalaryEmpId] = useState('')
 
   const [q, setQ] = useState('')
   const [deptId, setDeptId] = useState('')
@@ -105,7 +116,47 @@ export function HrPage({
     { key: 'directory', label: 'Directory', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
+    { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
   ]
+
+  const currentPeriodStr = currentPeriod()
+  const pendingSalary = salary.rows.filter((r) => r.status === 'pending')
+  const paidThisMonth = salary.rows.filter((r) => r.status === 'paid' && r.period === currentPeriodStr)
+  const payrollThisMonth = salary.rows.filter((r) => r.period === currentPeriodStr).reduce((t, r) => t + r.netAmount, 0)
+
+  const salaryCols: GridCol<SalaryRecord>[] = [
+    { key: 'who', label: 'Employee', width: 190, render: (r) => employeeName(r.employeeId) },
+    { key: 'period', label: 'Month', width: 110, render: (r) => fmtPeriod(r.period) },
+    { key: 'gross', label: 'Gross', width: 120, render: (r) => <span className="cell-money">{money(r.grossAmount)}</span> },
+    { key: 'net', label: 'Net', width: 120, render: (r) => <span className="cell-money">{money(r.netAmount)}</span> },
+    { key: 'status', label: 'Status', width: 110, render: (r) => <Chip cls={SALARY_STATUS[r.status].cls}>{SALARY_STATUS[r.status].label}</Chip> },
+    {
+      key: 'act', label: '', width: 190,
+      render: (r) => (
+        <div style={{ display: 'flex', gap: 6 }}>
+          {r.status === 'pending' && (
+            <button className="btn btn--sm btn--primary" onClick={() => void salary.markPaid(r.id, ws.me?.id ?? '').then((m) => toast(m ?? 'Marked paid.'))}>
+              Mark paid
+            </button>
+          )}
+          <button className="btn btn--sm" onClick={() => setEditingSalary(r)}>Edit</button>
+        </div>
+      ),
+    },
+  ]
+
+  const saveSalaryNew = async (draft: Parameters<typeof salary.create>[0]) => {
+    const message = await salary.create(draft)
+    if (!message) toast('Payslip added.')
+    return message
+  }
+
+  const saveSalaryEdit = async (draft: Parameters<typeof salary.update>[1]) => {
+    if (!editingSalary) return 'Nothing is open for editing.'
+    const message = await salary.update(editingSalary.id, draft)
+    if (!message) toast('Saved.')
+    return message
+  }
 
   const pending = leave.rows.filter((r) => r.status === 'pending')
   const decidedThisMonth = leave.rows.filter((r) => {
@@ -215,6 +266,8 @@ export function HrPage({
                     onClick={() => { setSection('departments'); setOpenId(null) }}>Departments</button>
             <button className={section === 'leave' ? 'is-on' : ''}
                     onClick={() => { setSection('leave'); setOpenId(null) }}>Leave</button>
+            <button className={section === 'salary' ? 'is-on' : ''}
+                    onClick={() => { setSection('salary'); setOpenId(null) }}>Salary</button>
           </div>
 
           <div className="wrap">
@@ -306,11 +359,26 @@ export function HrPage({
 
                 <div className="section">
                   <div className="section-head">
+                    <h3>Salary</h3>
+                    <div className="section-tools">
+                      <button className="btn btn--sm" onClick={() => setAddingSalaryFor(open.id)}>Add payslip</button>
+                    </div>
+                  </div>
+                  {salary.rows.filter((r) => r.employeeId === open.id).length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No payslips on record.</p>
+                  ) : (
+                    <DataGrid cols={salaryCols} rows={[...salary.rows.filter((r) => r.employeeId === open.id)].sort((a, b) => b.period.localeCompare(a.period))}
+                              storageKey="hr-employee-salary"
+                              foot={<div className="grid-foot"><span>{count(salary.rows.filter((r) => r.employeeId === open.id).length, 'payslip')}</span></div>} />
+                  )}
+                </div>
+
+                <div className="section">
+                  <div className="section-head">
                     <h3>Later phases</h3>
                     <div className="sub">These arrive on this same page rather than as new screens.</div>
                   </div>
                   <div className="hr-soon">
-                    <Chip cls="chip--mute">Salary · phase 3</Chip>
                     <Chip cls="chip--mute">Onboarding · phase 4</Chip>
                     <Chip cls="chip--mute">Exit · phase 5</Chip>
                   </div>
@@ -451,6 +519,40 @@ export function HrPage({
                 </div>
               </>
             )}
+
+            {/* -------------------------------------------------- salary */}
+            {!open && section === 'salary' && (
+              <>
+                <div className="page-head">
+                  <h1>Salary</h1>
+                  <div className="sub">Every payslip across the company. HR sees the amounts.</div>
+                  <div className="section-tools">
+                    <select className="input" value={salaryEmpId} onChange={(e) => setSalaryEmpId(e.target.value)}>
+                      <option value="">Add payslip for…</option>
+                      {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                    </select>
+                    <button className="btn btn--sm btn--primary" disabled={!salaryEmpId} onClick={() => setAddingSalaryFor(salaryEmpId)}>Add payslip</button>
+                  </div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="Pending" value={pendingSalary.length} sub="not yet marked paid" />
+                  <Kpi label="Paid this month" value={paidThisMonth.length} sub={fmtPeriod(currentPeriodStr)} />
+                  <Kpi label="Payroll this month" value={money(payrollThisMonth)} sub="net, all statuses" />
+                  <Kpi label="Total payslips" value={salary.rows.length} sub="all time" />
+                </div>
+
+                {salary.error && <div className="auth-err" style={{ marginBottom: 14 }}>{salary.error}</div>}
+
+                <div className="section">
+                  <div className="section-head"><h3>All payslips</h3></div>
+                  <DataGrid cols={salaryCols} rows={[...salary.rows].sort((a, b) => b.period.localeCompare(a.period))}
+                            storageKey="hr-salary"
+                            empty="No payslips yet."
+                            foot={<div className="grid-foot"><span>{count(salary.rows.length, 'payslip')}</span></div>} />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -464,6 +566,13 @@ export function HrPage({
       {deciding && (
         <LeaveDecisionModal request={deciding.request} action={deciding.action} employeeName={employeeName(deciding.request.employeeId)}
                              onClose={() => setDeciding(null)} onDecide={decideLeave} />
+      )}
+
+      {addingSalaryFor && (
+        <SalaryRecordModal employeeId={addingSalaryFor} record={null} onClose={() => setAddingSalaryFor(null)} onSave={saveSalaryNew} />
+      )}
+      {editingSalary && (
+        <SalaryRecordModal employeeId={editingSalary.employeeId} record={editingSalary} onClose={() => setEditingSalary(null)} onSave={saveSalaryEdit} />
       )}
 
       {adding && (

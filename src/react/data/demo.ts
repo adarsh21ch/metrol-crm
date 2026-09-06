@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, LeaveRequest } from '@/lib/hr'
+import type { Employee, LeaveRequest, SalaryRecord } from '@/lib/hr'
 import { initials } from '@/lib/format'
 
 /**
@@ -227,3 +227,29 @@ export const demoLeaveRequests: LeaveRequest[] = [
     createdAt: iso(180),
   },
 ]
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const monthsAgo = (n: number) => {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - n)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-01`
+}
+
+/** Two months of payslips for everybody with an employee record, last month
+ *  paid and this month still pending — so the Salary rail page has both
+ *  states to show, and each person's own tab has a real-shaped history. */
+export const demoSalaryRecords: SalaryRecord[] = demoEmployees.flatMap((e, i) => {
+  const gross = 25000 + i * 6000
+  const net = Math.round(gross * 0.92)
+  return [
+    {
+      id: 'sl-' + e.id + '-1', employeeId: e.id, period: monthsAgo(1), grossAmount: gross, netAmount: net,
+      status: 'paid' as const, paidAt: iso(20), paidBy: HR_PERSON.id, notes: '', createdAt: iso(25),
+    },
+    {
+      id: 'sl-' + e.id + '-0', employeeId: e.id, period: monthsAgo(0), grossAmount: gross, netAmount: net,
+      status: 'pending' as const, paidAt: null, paidBy: null, notes: '', createdAt: iso(1),
+    },
+  ]
+})

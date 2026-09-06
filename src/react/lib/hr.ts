@@ -93,6 +93,44 @@ export function usedLeaveDays(requests: LeaveRequest[], employeeId: string, year
     .reduce((t, r) => t + r.daysCount, 0)
 }
 
+/* ------------------------------------------------------------ Phase 3: salary */
+
+export type SalaryStatus = 'pending' | 'paid'
+
+/** One month's payslip. Adarsh decided HR sees the amounts (finance sits under
+ *  HR) — the owner and HR have full reach here; an employee reads only their
+ *  own, and cannot write to this table at all, not even to fix a typo. */
+export interface SalaryRecord {
+  id: string
+  employeeId: string
+  /** The first of the month this payslip is for, e.g. "2026-09-01". */
+  period: string
+  grossAmount: number
+  netAmount: number
+  status: SalaryStatus
+  paidAt: string | null
+  paidBy: string | null
+  notes: string
+  createdAt: string
+}
+
+export const SALARY_STATUS: Record<SalaryStatus, { label: string; cls: string }> = {
+  pending: { label: 'Pending', cls: 'chip--warn' },
+  paid: { label: 'Paid', cls: 'chip--good' },
+}
+
+/** "Sep 2026" — how a payslip's month reads. */
+export function fmtPeriod(period: string): string {
+  if (!period) return '—'
+  const d = new Date(period.length === 10 ? period + 'T00:00:00' : period)
+  if (Number.isNaN(d.getTime())) return '—'
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+}
+
+/** The current month as a period value — always the 1st. */
+export const currentPeriod = () => todayISO().slice(0, 7) + '-01'
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** "02 May 2025". Dates come back from Postgres as YYYY-MM-DD, with no time —

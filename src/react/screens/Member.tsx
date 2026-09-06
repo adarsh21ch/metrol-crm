@@ -14,7 +14,8 @@ import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, 
 import { supabase } from '@/lib/supabase'
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
-import { LEAVE_STATUS, fmtDate, usedLeaveDays } from '@/lib/hr'
+import { useSalaryRecords } from '@/data/useSalaryRecords'
+import { LEAVE_STATUS, SALARY_STATUS, fmtDate, fmtPeriod, usedLeaveDays } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
@@ -27,13 +28,14 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave'
+type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave' | 'salary'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
   sales: { title: 'My sales', sub: '' },
   team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
   leave: { title: 'Leave', sub: 'Request time off and see your balance' },
+  salary: { title: 'Salary', sub: 'Your payslip history' },
 }
 
 /** One row of the Manage team tab. */
@@ -108,6 +110,14 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     [leave.rows, myEmployee],
   )
   const [requestingLeave, setRequestingLeave] = useState(false)
+  // No create/update calls live on this screen at all — RLS (0010) refuses
+  // every write to salary_records for anybody but the owner or HR, so this is
+  // read-only by construction, not just by omission.
+  const salaryRecords = useSalaryRecords(true)
+  const mySalary = useMemo(
+    () => (myEmployee ? salaryRecords.rows.filter((r) => r.employeeId === myEmployee.id) : []),
+    [salaryRecords.rows, myEmployee],
+  )
   const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
 
   const teamRows = useMemo<TeamRow[]>(() => {
@@ -336,7 +346,33 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               <button className={sec === 'leave' ? 'is-on' : ''} onClick={() => setSec('leave')}>
                 Leave {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
               </button>
+              <button className={sec === 'salary' ? 'is-on' : ''} onClick={() => setSec('salary')}>Salary</button>
             </div>
+
+            {shownSec === 'salary' && (
+              <>
+                {!myEmployee || mySalary.length === 0 ? (
+                  <div className="ov-card">
+                    <div className="ov-head"><h4>No payslips yet</h4></div>
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>
+                      {myEmployee ? 'HR has not added a payslip for you yet.' : 'HR has not added you to the directory yet.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="section">
+                    <div className="ov-actions">
+                      {[...mySalary].sort((a, b) => b.period.localeCompare(a.period)).map((r) => (
+                        <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                          <span className="ov-n">{fmtPeriod(r.period)}</span>
+                          <span className="ov-l">Net {money(r.netAmount)} · Gross {money(r.grossAmount)}</span>
+                          <Chip cls={SALARY_STATUS[r.status].cls}>{SALARY_STATUS[r.status].label}</Chip>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             {shownSec === 'leave' && (
               <>

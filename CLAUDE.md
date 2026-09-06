@@ -1663,3 +1663,50 @@ scope for this phase to redesign.
   file into the Supabase SQL editor and report the results back before this
   phase is trusted with real employees.
 - Phases 3 to 5 (salary, offer/joining, exit) are untouched.
+
+---
+
+# HR Phase 3 — salary (2026-09-06)
+
+**Adarsh's answer, asked before writing a line of this phase:** should HR see
+salary amounts, or only manage the process? *"Go with [HR sees amounts] —
+under HR the company finance department also comes, so it will help. If owner
+asks to not allow / restrict something, we can do it later."* That is the
+access model below — restricting it later is a policy change to one RLS
+clause, not a schema change.
+
+## What shipped
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/0010_hr_salary.sql` | `salary_records` — one payslip per employee per month (unique index on `employee_id, period`). **The strictest table in the app**: owner and HR read and write everything; an employee reads only their own — and unlike `leave_requests`, has NO write path at all, not even to cancel a wrong entry. Reuses `my_employee_id()` from 0009. No DELETE policy — a wrong amount is corrected in place, never erased, because it is a financial record. |
+| `supabase/tests/0010_rls_checks.sql` | Eight checks, results as rows. Confirms HR reads actual amounts (not just row existence), confirms a member is refused on create *and* update *and* delete with no exception, and confirms the one-payslip-per-month unique index holds. **Not yet run against the live database** — same constraint as Phases 1 and 2: paste 0010 then this file into the Supabase SQL editor and report the results back. |
+| `src/react/lib/hr.ts` | Added `SalaryRecord`, `SalaryStatus`, `SALARY_STATUS`, `fmtPeriod()`, `currentPeriod()`. |
+| `src/react/data/useSalaryRecords.ts` | Mirrors `useEmployees`/`useLeaveRequests` in shape, but `create`/`update`/`markPaid` are only ever called from `HrPage` — a member's own screen uses this hook read-only by construction, since RLS refuses every write from them anyway. |
+| `src/react/modals/SalaryRecordModal.tsx` | Add or correct one payslip: month, gross, net, notes. No status field — a new payslip always starts pending; "paid" is a separate one-click action on the row, not a form field. |
+| `src/react/screens/HrPage.tsx` | New **Salary** rail item: company-wide table, KPIs (pending / paid this month / payroll this month / total payslips), "Add payslip for…" picker, inline Mark paid and Edit. The employee detail page gained its own **Salary** section — that one person's payslip history — same parallel structure as Leave (rail-level company view + record-level personal section). |
+| `src/react/screens/Member.tsx` | **Salary is a sixth tab**, read-only: month, net, gross, status. No buttons of any kind — there is nothing this screen is allowed to do to this data. |
+
+## Verified in Chromium, not asserted
+
+`?demo=1&as=hr`: Salary rail page shows all 12 demo payslips (two months ×
+six people) with correct KPIs → marked one paid, KPIs updated live → opened
+Mohit Verma's record, added a third payslip (Jul 2026) via the modal, count
+went from 2 to 3. `?demo=1&as=member`: Salary tab shows exactly that person's
+two payslips, amounts correct, **no edit or mark-paid controls present** —
+confirms the RLS design (no self-write path) is mirrored in the UI, not just
+enforced underneath it.
+
+## Deliberate calls, not asked because the brief already answered them
+
+- **Gross and net entered directly by HR**, no deductions breakdown (PF/ESI/
+  TDS aren't specified anywhere and vary by how Adarsh actually runs payroll
+  today) — two numbers, not an invented computation between them.
+- **One payslip per employee per month**, enforced by a unique index rather
+  than left to convention.
+
+## Open, deliberately
+
+- **0010 has not run against the live database yet** — same as 0009, paste
+  and report back before trusting this with real money.
+- Phases 4 and 5 (offer/joining, exit) are untouched.
