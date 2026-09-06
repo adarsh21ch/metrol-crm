@@ -36,6 +36,11 @@ export interface Employee {
    *  record for somebody who never signs in may never have either. */
   offerExtendedOn: string | null
   offerAcceptedOn: string | null
+  /** Phase 5: procedural facts about leaving. Visible to the employee
+   *  themselves — the REASON they left lives separately in ExitRecord, which
+   *  is HR/owner-only (see 0012). */
+  resignationDate: string | null
+  noticePeriodDays: number | null
 }
 
 export const EMPLOYMENT: Record<EmploymentType, string> = {
@@ -172,6 +177,33 @@ export interface EmployeeDocument {
   uploadedBy: string | null
   uploadedAt: string
   notes: string
+}
+
+/* -------------------------------------------------------------- Phase 5: exit */
+
+/** One row per checklist item on the way out — same shape as
+ *  OnboardingTask, kept as its own type because it comes from its own table
+ *  (exit_tasks), not a status filter on onboarding_tasks. */
+export interface ExitTask {
+  id: string
+  employeeId: string
+  label: string
+  done: boolean
+  doneAt: string | null
+  doneBy: string | null
+  sortOrder: number
+}
+
+/** HR/owner-only. Deliberately never fetched by an employee's own screen —
+ *  0012 gives it no self-select policy at all, so a request for this table
+ *  from an ordinary employee returns nothing, not a filtered version of it. */
+export interface ExitRecord {
+  id: string
+  employeeId: string
+  reason: string
+  exitInterviewNotes: string
+  rehireEligible: boolean
+  createdAt: string
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

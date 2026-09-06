@@ -19,6 +19,8 @@ import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
+import { useExitTasks } from '@/data/useExitTasks'
+import { useExitRecords } from '@/data/useExitRecords'
 import {
   DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, usedLeaveDays,
   type DocType, type Employee, type LeaveRequest, type SalaryRecord,
@@ -56,6 +58,11 @@ const ONBOARD_ICON = (
     <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
   </svg>
 )
+const EXIT_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+  </svg>
+)
 
 /** One label / value pair on the employee page. */
 const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
@@ -84,13 +91,19 @@ export function HrPage({
   const salary = useSalaryRecords()
   const onboarding = useOnboardingTasks()
   const docs = useEmployeeDocuments()
+  const exitTasks = useExitTasks()
+  const exitRecords = useExitRecords()
 
-  const [section, setSection] = useState<'directory' | 'departments' | 'leave' | 'salary' | 'onboarding'>('directory')
+  const [section, setSection] = useState<'directory' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit'>('directory')
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [resigning, setResigning] = useState<Employee | null>(null)
   const [lastDay, setLastDay] = useState(todayISO())
+  const [resignDate, setResignDate] = useState(todayISO())
+  const [noticeDays, setNoticeDays] = useState('')
+  const [exitReason, setExitReason] = useState('')
+  const [rehireEligible, setRehireEligible] = useState(true)
   const [profileOpen, setProfileOpen] = useState(false)
   const [loggingFor, setLoggingFor] = useState<string | null>(null)
   const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
@@ -130,7 +143,12 @@ export function HrPage({
     { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
     { key: 'onboarding', label: 'Onboarding', icon: ONBOARD_ICON, onClick: () => { setSection('onboarding'); setOpenId(null) } },
+    { key: 'exit', label: 'Exit', icon: EXIT_ICON, onClick: () => { setSection('exit'); setOpenId(null) } },
   ]
+
+  const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
+  const exitRecordFor = (employeeId: string) => exitRecords.rows.find((r) => r.employeeId === employeeId) ?? null
+  const leaving = hr.rows.filter((e) => e.status !== 'active')
 
   const tasksFor = (employeeId: string) => onboarding.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
   const docsFor = (employeeId: string) => docs.rows.filter((d) => d.employeeId === employeeId)
@@ -258,8 +276,19 @@ export function HrPage({
 
   const confirmResign = async () => {
     if (!resigning) return
-    const message = await hr.update(resigning.id, { status: 'resigned', lastWorkingDay: lastDay })
+    const message = await hr.update(resigning.id, {
+      status: 'resigned',
+      lastWorkingDay: lastDay,
+      resignationDate: resignDate,
+      noticePeriodDays: noticeDays === '' ? null : Number(noticeDays),
+    })
+    if (!message && (exitReason.trim() || !rehireEligible)) {
+      await exitRecords.create({ employeeId: resigning.id, reason: exitReason, exitInterviewNotes: '', rehireEligible })
+    }
     setResigning(null)
+    setNoticeDays('')
+    setExitReason('')
+    setRehireEligible(true)
     toast(message ?? (resigning.fullName + ' marked as resigned. The record stays.'))
   }
 
@@ -299,6 +328,8 @@ export function HrPage({
                     onClick={() => { setSection('salary'); setOpenId(null) }}>Salary</button>
             <button className={section === 'onboarding' ? 'is-on' : ''}
                     onClick={() => { setSection('onboarding'); setOpenId(null) }}>Onboarding</button>
+            <button className={section === 'exit' ? 'is-on' : ''}
+                    onClick={() => { setSection('exit'); setOpenId(null) }}>Exit</button>
           </div>
 
           <div className="wrap">
@@ -321,7 +352,10 @@ export function HrPage({
                   <div className="hr-head-btns">
                     <button className="btn btn--sm" onClick={() => setEditing(open)}>Edit</button>
                     {open.status !== 'resigned' && (
-                      <button className="btn btn--sm" onClick={() => { setLastDay(todayISO()); setResigning(open) }}>
+                      <button className="btn btn--sm" onClick={() => {
+                        setLastDay(todayISO()); setResignDate(todayISO()); setNoticeDays(''); setExitReason(''); setRehireEligible(true)
+                        setResigning(open)
+                      }}>
                         Mark as resigned
                       </button>
                     )}
@@ -449,15 +483,29 @@ export function HrPage({
                   )}
                 </div>
 
-                <div className="section">
-                  <div className="section-head">
-                    <h3>Later phases</h3>
-                    <div className="sub">These arrive on this same page rather than as new screens.</div>
+                {open.status !== 'active' && (
+                  <div className="section">
+                    <div className="section-head"><h3>Exit</h3></div>
+                    <div className="hr-fields" style={{ marginBottom: 12 }}>
+                      <Fld l="Resignation date" v={fmtDate(open.resignationDate)} />
+                      <Fld l="Notice period" v={open.noticePeriodDays != null ? `${open.noticePeriodDays} days` : null} />
+                      <Fld l="Last working day" v={fmtDate(open.lastWorkingDay)} />
+                      <Fld l="Rehire eligible" v={exitRecordFor(open.id) ? (exitRecordFor(open.id)!.rehireEligible ? 'Yes' : 'No') : 'Yes'} />
+                    </div>
+                    {exitRecordFor(open.id)?.reason && (
+                      <p style={{ marginBottom: 12, color: 'var(--ink-3)' }}>Reason: {exitRecordFor(open.id)!.reason}</p>
+                    )}
+                    <div className="hr-soon">
+                      {exitTasksFor(open.id).map((t) => (
+                        <label key={t.id} className="chip chip--mute" style={{ cursor: 'pointer', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
+                          <input type="checkbox" checked={t.done}
+                                 onChange={(e) => void exitTasks.toggle(t.id, e.target.checked, ws.me?.id ?? '')} />
+                          {t.label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                  <div className="hr-soon">
-                    <Chip cls="chip--mute">Exit · phase 5</Chip>
-                  </div>
-                </div>
+                )}
               </>
             )}
 
@@ -661,6 +709,48 @@ export function HrPage({
                 </div>
               </>
             )}
+
+            {/* --------------------------------------------------- exit */}
+            {!open && section === 'exit' && (
+              <>
+                <div className="page-head">
+                  <h1>Exit</h1>
+                  <div className="sub">Everybody on notice or already gone. Open their record to manage the checklist.</div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="On notice" value={hr.rows.filter((e) => e.status === 'notice').length} sub="still working" />
+                  <Kpi label="Resigned" value={hr.rows.filter((e) => e.status === 'resigned').length} sub="kept, never deleted" />
+                  <Kpi label="Checklist items done" value={count(exitTasks.rows.filter((t) => t.done).length, 'done', 'done')} sub={`of ${exitTasks.rows.length}`} />
+                </div>
+
+                {leaving.length === 0 ? (
+                  <div className="ov-card">
+                    <div className="ov-head"><h4>Nobody is leaving</h4></div>
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>Everybody in the directory is active.</p>
+                  </div>
+                ) : (
+                  <div className="section">
+                    <div className="section-head"><h3>People</h3></div>
+                    <div className="ov-actions">
+                      {leaving.map((e) => {
+                        const tasks = exitTasksFor(e.id)
+                        const done = tasks.filter((t) => t.done).length
+                        return (
+                          <button className="ov-row" key={e.id} onClick={() => { setOpenId(e.id); setSection('directory') }}>
+                            <span className="ov-n">{initials(e.fullName)}</span>
+                            <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
+                            <span className="ov-cta">
+                              <Chip cls={EMP_STATUS[e.status].cls}>{EMP_STATUS[e.status].label}</Chip> {done}/{tasks.length} tasks →
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -710,11 +800,30 @@ export function HrPage({
         >
           <p style={{ marginBottom: 14 }}>
             The record is kept, not deleted — it stays in the directory under “Show resigned”, with
-            everything on it. Only their status changes.
+            everything on it. Only their status changes. The reason below is HR/owner-only —
+            {resigning?.fullName ?? 'they'} will never see it, even on their own record.
           </p>
-          <div className="field">
-            <label htmlFor="hrLast">Last working day</label>
-            <input className="input" id="hrLast" type="date" value={lastDay} onChange={(e) => setLastDay(e.target.value)} />
+          <div className="auth-form">
+            <div className="field">
+              <label htmlFor="hrResignDate">Resignation date</label>
+              <input className="input" id="hrResignDate" type="date" value={resignDate} onChange={(e) => setResignDate(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="hrNotice">Notice period (days)</label>
+              <input className="input" id="hrNotice" type="number" min={0} value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="field">
+              <label htmlFor="hrLast">Last working day</label>
+              <input className="input" id="hrLast" type="date" value={lastDay} onChange={(e) => setLastDay(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="hrReason">Reason (HR/owner only)</label>
+              <textarea className="input" id="hrReason" rows={2} value={exitReason} onChange={(e) => setExitReason(e.target.value)} placeholder="Optional" />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" checked={rehireEligible} onChange={(e) => setRehireEligible(e.target.checked)} />
+              Eligible for rehire
+            </label>
           </div>
         </Modal>
       )}

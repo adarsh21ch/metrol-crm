@@ -26,6 +26,8 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
   annualLeaveDays: 18,
   offerExtendedOn: null,
   offerAcceptedOn: null,
+  resignationDate: null,
+  noticePeriodDays: null,
   ...prefill,
 })
 

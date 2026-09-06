@@ -1773,3 +1773,86 @@ redesign in this pass.
   do one real upload through the HR UI as a manual check the automated tests
   can't cover, and report both back before trusting this with real documents.
 - Phase 5 (exit) is untouched.
+
+---
+
+# HR Phase 5 — resignation, notice period, exit checklist (2026-09-06)
+
+The last phase in the plan. Marking somebody inactive already existed from
+Phase 1 (`employees.status = 'resigned'`, the record kept forever, "Mark as
+resigned" already a button on the employee page) — this phase is what
+happens around that moment, not a replacement for it.
+
+**One privacy call, made rather than asked**, because it only narrows access
+beyond what anyone requested and is trivially loosened later if Adarsh wants
+it: the REASON someone left, and any exit-interview notes, can carry HR's
+frank and possibly unflattering assessment — so `exit_records` has no
+self-select policy at all. Not "the employee sees a filtered version"; they
+get zero rows if they ever query that table. The procedural facts —
+resignation date, notice period, last working day — live on `employees`
+itself instead, which an employee already reads about themselves; they are
+told nothing they don't already know from having lived through it.
+
+## What shipped
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/0012_hr_exit.sql` | Two new `employees` columns (`resignation_date`, `notice_period_days`); `exit_records` (HR/owner read AND write — no employee branch on SELECT at all, the only table in this module shaped that way); `exit_tasks` (same shape as `onboarding_tasks` — HR/owner manage, employee reads only their own). A trigger seeds the six-item exit checklist the first time anybody's status leaves `'active'`, whether they land on `'notice'` or jump straight to `'resigned'` — so the checklist is live during the notice period, not sprung on the last day. Backfilled for anyone already not-active. |
+| `supabase/tests/0012_rls_checks.sql` | Eight checks. The one that matters most: confirms an employee reading `exit_records` for their own id gets **zero rows**, not a redacted one. Flips a real member's status to `'notice'` and back to actually exercise the seed trigger, guarded so it only ever touches somebody who had no exit checklist yet, and cleans up afterward. **Not yet run against the live database.** |
+| `src/react/lib/hr.ts` | `ExitTask`, `ExitRecord`; `resignationDate`/`noticePeriodDays` added to `Employee`. |
+| `src/react/data/useExitTasks.ts`, `useExitRecords.ts` | The first mirrors every other Phase 2–4 hook. The second has no self-service caller anywhere in the app — it is only ever imported into `HrPage`, because there is nothing for a member's own screen to call that RLS would honor. |
+| `src/react/screens/HrPage.tsx` | New **Exit** rail item: everybody currently on notice or resigned, with checklist progress. The employee page gained an **Exit** section, shown only once `status !== 'active'` — resignation date, notice period, last working day, rehire eligibility, the reason (if one was given), and the checklist. The existing "Mark as resigned" modal now also asks for resignation date, notice period, a reason (labelled, in the modal itself, as HR/owner-only), and a rehire-eligible checkbox — one action, not a separate two-step notice-then-exit flow, since the brief didn't ask for a state machine, only for these facts to be recorded. |
+| `src/react/screens/Member.tsx` | **Exit is an eighth tab — shown only when that person's own status is not `'active'`.** An active employee never sees it; showing "Exit" to someone who isn't leaving would read as a strange, unprompted question. Read-only: status, resignation date, notice period, last working day, and the checklist as done/not-done chips. Never queries `exit_records` at all — the privacy design is enforced by what the screen doesn't ask for, not by a policy silently returning nothing underneath it. |
+
+## Verified in Chromium, not asserted
+
+`?demo=1&as=hr`: Exit rail page (Imran Shaikh, seeded partway through demo
+data, 2/6 done) → opened his record, confirmed resignation date/notice
+period/last working day/rehire/reason all render → ticked a checklist item,
+confirmed via the DOM. Ran the enriched "Mark as resigned" flow on Arjun
+Mehta end to end: filled notice period + reason, confirmed, watched his
+status flip to Resigned and a new **Exit** section appear on his own record
+with everything just entered, reason included. Confirmed by reading the
+component tree that `Member.tsx`'s Exit tab never imports or queries
+`exit_records` — the reason field literally cannot reach that screen, not
+just isn't shown by it. Mobile at 375px: the Exit rail page reflows cleanly;
+the HR tab strip is now five items wide and overflows, same pre-existing
+pattern noted in Phases 2–4.
+
+One demo-only gap, not a real one: `useExitTasks`'s demo branch returns a
+static seeded list rather than actually running the database trigger, so
+resigning somebody fresh in `?demo=1` (like Arjun, above) shows an empty
+checklist instead of the auto-seeded six — the real database trigger in 0012
+does not have this limitation, only the demo data does.
+
+## Deliberate calls, not asked because the brief already answered them
+
+- **No separate "start notice" / "confirm exit" workflow.** The brief listed
+  "notice period" as a fact to record, not a state machine to build. One
+  enriched "Mark as resigned" action captures it; `employees.status` already
+  supports `'notice'` as a value HR can set via the ordinary Edit form if they
+  want to reflect somebody serving notice before this action is taken.
+- **A fixed six-item default exit checklist**, editable the same way
+  onboarding's is not (no add/remove UI was built for this one, since the
+  brief's checklist items — assets returned, access revoked, settlement, exit
+  interview, experience letter — read as closer to a fixed compliance list
+  than onboarding's more variable one). Revisit if Adarsh wants per-person
+  customization here too.
+
+## The whole module, now that all five phases exist
+
+| Phase | Rail item | Employee-record section | Employee's own tab |
+|---|---|---|---|
+| 1 | Directory, Departments | — | (their record itself) |
+| 2 — Leave | Leave | Leave | Leave (request/cancel) |
+| 3 — Salary | Salary | Salary | Salary (read-only) |
+| 4 — Onboarding | Onboarding | Offer & onboarding | Onboarding (read-only) |
+| 5 — Exit | Exit | Exit (once not active) | Exit (read-only, once not active) |
+
+Every migration from 0009 through 0012 still needs to be pasted into the
+Supabase SQL editor and its test file run, in order, with results reported
+back — none of them have touched the live database yet. Still open from
+Phase 1 and never revisited in this session: Production, Content Creation,
+Video Editors, Developers and AI Staff still have no defined dashboard
+content, and the owner-into-HrPage route added in Phase 2 means the owner can
+now reach every one of these five phases the same way HR does.

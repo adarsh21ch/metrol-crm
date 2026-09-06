@@ -17,7 +17,8 @@ import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
-import { DOC_TYPE, LEAVE_STATUS, SALARY_STATUS, fmtDate, fmtPeriod, usedLeaveDays } from '@/lib/hr'
+import { useExitTasks } from '@/data/useExitTasks'
+import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, fmtDate, fmtPeriod, usedLeaveDays } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
@@ -30,7 +31,7 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave' | 'salary' | 'onboarding'
+type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave' | 'salary' | 'onboarding' | 'exit'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
@@ -39,7 +40,15 @@ const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   leave: { title: 'Leave', sub: 'Request time off and see your balance' },
   salary: { title: 'Salary', sub: 'Your payslip history' },
   onboarding: { title: 'Onboarding', sub: 'Your offer, checklist and documents on file' },
+  exit: { title: 'Exit', sub: 'What still needs handing back before your last day' },
 }
+
+/** One label / value pair — same small component HrPage uses for an
+ *  employee's own fields, kept local here rather than shared for one screen
+ *  each so far. */
+const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
+  <div className="hr-fld"><div className="l">{l}</div><div className="v">{v || '—'}</div></div>
+)
 
 /** One row of the Manage team tab. */
 interface TeamRow {
@@ -133,7 +142,15 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     () => (myEmployee ? myDocs.rows.filter((d) => d.employeeId === myEmployee.id) : []),
     [myDocs.rows, myEmployee],
   )
-  const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
+  // Only relevant once somebody is actually leaving — showing this tab to
+  // every active employee would read as a strange, unprompted question.
+  const isLeaving = !!myEmployee && myEmployee.status !== 'active'
+  const myExitTasks = useExitTasks(isLeaving)
+  const myOwnExitTasks = useMemo(
+    () => (myEmployee ? myExitTasks.rows.filter((t) => t.employeeId === myEmployee.id).sort((a, b) => a.sortOrder - b.sortOrder) : []),
+    [myExitTasks.rows, myEmployee],
+  )
+  const shownSec: MemberSec = (sec === 'team' && !isLead) || (sec === 'exit' && !isLeaving) ? 'overview' : sec
 
   const teamRows = useMemo<TeamRow[]>(() => {
     if (!isLead || !me?.departmentId) return []
@@ -363,7 +380,29 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </button>
               <button className={sec === 'salary' ? 'is-on' : ''} onClick={() => setSec('salary')}>Salary</button>
               <button className={sec === 'onboarding' ? 'is-on' : ''} onClick={() => setSec('onboarding')}>Onboarding</button>
+              {isLeaving && (
+                <button className={sec === 'exit' ? 'is-on' : ''} onClick={() => setSec('exit')}>Exit</button>
+              )}
             </div>
+
+            {shownSec === 'exit' && myEmployee && (
+              <>
+                <div className="hr-fields" style={{ marginBottom: 14 }}>
+                  <Fld l="Status" v={EMP_STATUS[myEmployee.status].label} />
+                  <Fld l="Resignation date" v={fmtDate(myEmployee.resignationDate)} />
+                  <Fld l="Notice period" v={myEmployee.noticePeriodDays != null ? `${myEmployee.noticePeriodDays} days` : null} />
+                  <Fld l="Last working day" v={fmtDate(myEmployee.lastWorkingDay)} />
+                </div>
+                <div className="section">
+                  <div className="section-head"><h3>Checklist</h3></div>
+                  <div className="hr-soon">
+                    {myOwnExitTasks.map((t) => (
+                      <Chip key={t.id} cls={t.done ? 'chip--good' : 'chip--mute'}>{t.done ? '✓ ' : ''}{t.label}</Chip>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             {shownSec === 'onboarding' && (
               <>

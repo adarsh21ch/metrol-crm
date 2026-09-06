@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, EmployeeDocument, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
+import type { Employee, EmployeeDocument, ExitTask, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
 import { initials } from '@/lib/format'
 
 /**
@@ -169,6 +169,7 @@ export const demoEmployees: Employee[] = [
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
     status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18,
     offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
+    resignationDate: null, noticePeriodDays: null,
   },
   ...demoMembers.map((m, i) => ({
     id: 'e' + (i + 1),
@@ -195,6 +196,8 @@ export const demoEmployees: Employee[] = [
     annualLeaveDays: 18,
     offerExtendedOn: JOINED[i] ?? '2024-01-01',
     offerAcceptedOn: JOINED[i] ?? '2024-01-01',
+    resignationDate: i === 4 ? '2026-09-01' : null,
+    noticePeriodDays: i === 4 ? 45 : null,
   })),
 ]
 
@@ -287,4 +290,23 @@ export const demoEmployeeDocuments: EmployeeDocument[] = demoEmployees.map((e, i
   uploadedBy: HR_PERSON.id,
   uploadedAt: iso(200 - i * 10),
   notes: '',
+}))
+
+const EXIT_TASKS = [
+  'Resignation letter received', 'Assets returned (laptop, ID card)', 'Access revoked',
+  'Full and final settlement', 'Exit interview completed', 'Experience letter issued',
+]
+
+/** Only Imran Shaikh (e5, status 'notice') has an exit checklist in demo —
+ *  the trigger that seeds one only fires when somebody actually leaves
+ *  'active', so nobody else should have one either. Partway through: notice
+ *  given and assets sorted, settlement and the rest still ahead. */
+export const demoExitTasks: ExitTask[] = EXIT_TASKS.map((label, i) => ({
+  id: 'et-e5-' + i,
+  employeeId: 'e5',
+  label,
+  done: i < 2,
+  doneAt: i < 2 ? iso(3) : null,
+  doneBy: i < 2 ? HR_PERSON.id : null,
+  sortOrder: i + 1,
 }))
