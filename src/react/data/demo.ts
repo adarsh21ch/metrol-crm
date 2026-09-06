@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, LeaveRequest, SalaryRecord } from '@/lib/hr'
+import type { Employee, EmployeeDocument, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
 import { initials } from '@/lib/format'
 
 /**
@@ -168,6 +168,7 @@ export const demoEmployees: Employee[] = [
     dateOfBirth: '1994-08-19', address: 'Vijay Nagar, Indore, MP',
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
     status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18,
+    offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
   },
   ...demoMembers.map((m, i) => ({
     id: 'e' + (i + 1),
@@ -192,6 +193,8 @@ export const demoEmployees: Employee[] = [
     notes: '',
     createdAt: iso(300 - i * 20),
     annualLeaveDays: 18,
+    offerExtendedOn: JOINED[i] ?? '2024-01-01',
+    offerAcceptedOn: JOINED[i] ?? '2024-01-01',
   })),
 ]
 
@@ -253,3 +256,35 @@ export const demoSalaryRecords: SalaryRecord[] = demoEmployees.flatMap((e, i) =>
     },
   ]
 })
+
+const DEFAULT_TASKS = ['Offer letter signed', 'ID proof collected', 'Bank details collected', 'Equipment issued', 'Induction completed']
+
+/** Every demo employee gets the standard five-item checklist, all done for
+ *  people who joined a while ago and partially done for the newest starter —
+ *  so the Onboarding rail page has both a finished record and one in
+ *  progress to show. */
+export const demoOnboardingTasks: OnboardingTask[] = demoEmployees.flatMap((e, ei) => {
+  const isNewest = e.id === 'e4' // Sneha Kulkarni — joined most recently among the seeded five
+  return DEFAULT_TASKS.map((label, i) => ({
+    id: 'ot-' + e.id + '-' + i,
+    employeeId: e.id,
+    label,
+    done: isNewest ? i < 2 : true,
+    doneAt: isNewest ? (i < 2 ? iso(5) : null) : iso(300 - ei * 10),
+    doneBy: isNewest ? (i < 2 ? HR_PERSON.id : null) : HR_PERSON.id,
+    sortOrder: i + 1,
+  }))
+})
+
+/** One document on file per person, so the Onboarding section has something
+ *  real-shaped without needing actual file bytes in demo mode. */
+export const demoEmployeeDocuments: EmployeeDocument[] = demoEmployees.map((e, i) => ({
+  id: 'doc-' + e.id,
+  employeeId: e.id,
+  docType: (['pan', 'aadhaar', 'bank_proof', 'photo', 'resume', 'other'] as const)[i % 6],
+  fileName: e.fullName.toLowerCase().replace(/\s+/g, '-') + '-id-proof.pdf',
+  filePath: e.id + '/id-proof.pdf',
+  uploadedBy: HR_PERSON.id,
+  uploadedAt: iso(200 - i * 10),
+  notes: '',
+}))

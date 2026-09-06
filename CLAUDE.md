@@ -1710,3 +1710,66 @@ enforced underneath it.
 - **0010 has not run against the live database yet** — same as 0009, paste
   and report back before trusting this with real money.
 - Phases 4 and 5 (offer/joining, exit) are untouched.
+
+---
+
+# HR Phase 4 — offer, onboarding checklist, documents (2026-09-06)
+
+The phase Phase 1 explicitly deferred here: *"PAN, Aadhaar, bank and
+documents wait for Phase 4 (they need file storage and stricter rules)."*
+No new decision was needed from Adarsh — the brief ("offer letter records,
+onboarding checklist per new hire, documents collected") was specific enough
+to build directly, with two scope calls recorded below rather than guessed at
+silently.
+
+## What shipped
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/0011_hr_onboarding.sql` | Three things in one file: two optional offer dates on `employees`; `onboarding_tasks` (one row per checklist item, auto-seeded with five defaults by a trigger on every new employee, backfilled for the six who already existed); `employee_documents` metadata plus a **private** `employee-documents` storage bucket with its own RLS on `storage.objects`. Every write to either table is owner/HR-only — like salary, an employee has no path to tick their own box or upload their own document; unlike salary, HR/owner **can** delete a checklist item or a document record, because a checklist entry is process tracking, not a financial fact. |
+| `supabase/tests/0011_rls_checks.sql` | Nine checks on the two Postgres tables, results as rows. Storage bucket policies are not simulated (that needs the real upload API, not a raw SQL insert) — the migration's own "proof" section confirms the four storage policies exist; verify one real upload through the UI as HR before trusting it. **Not yet run against the live database.** |
+| `src/react/lib/hr.ts` | `OnboardingTask`, `DocType`, `DOC_TYPE`, `EmployeeDocument`; `offerExtendedOn`/`offerAcceptedOn` added to `Employee`. |
+| `src/react/data/useOnboardingTasks.ts`, `useEmployeeDocuments.ts` | Same shape as the other Phase 2/3 hooks. `useEmployeeDocuments` calls `supabase.storage` directly for upload/remove/signed-URL, alongside the metadata table — the two always move together. |
+| `src/react/modals/DocumentUploadModal.tsx` | Doc type + file picker. HR/owner only — there is no self-service variant. |
+| `src/react/screens/HrPage.tsx` | New **Onboarding** rail item: company-wide roster with each active person's task completion and document count, linking into their own record. The employee page gained an **Offer & onboarding** section — offer dates, an inline checklist (checkbox + remove, plus an "Add task" input for anything beyond the seeded five), and a document list with upload/remove. |
+| `src/react/screens/Member.tsx` | **Onboarding is a seventh tab**, entirely read-only: checklist shown as done/not-done chips, documents listed with type and date. No controls of any kind — same reasoning as Salary. |
+
+## Verified in Chromium, not asserted
+
+`?demo=1&as=hr`: Onboarding rail page (roster, completion counts) → opened
+Sneha Kulkarni (the one demo employee seeded partway through, 2/5 done) →
+ticked a checkbox (state flipped, confirmed via the DOM, not just visually) →
+added a custom task ("Signed NDA") → removed it again. `?demo=1&as=member`:
+Onboarding tab shows exactly that person's own checklist and one document,
+**no edit/upload/remove controls present** — same confirmation pattern as
+Phase 3, that the RLS design is mirrored in the UI rather than only enforced
+beneath it. Mobile at 375px: the new section reflows cleanly; the HR mobile
+tab strip is now five items and overflows past the visible width the same
+way the member's tab strip already did from Phase 2 on — pre-existing
+horizontal-scroll behavior, not a new fault, and still out of scope to
+redesign in this pass.
+
+## Deliberate calls, not asked because the brief already answered them
+
+- **No candidate/applicant pipeline before an employee record exists.** Rule 4
+  for this whole module says these phases are sections on the *same* employee
+  record, not new entities — so "offer letter records" became two dates on
+  the existing record, not a new pre-hire stage.
+- **A fixed five-item default checklist** (offer letter, ID proof, bank
+  details, equipment, induction), auto-seeded per employee, but freely
+  editable — HR can add or remove items per person. Generic defaults rather
+  than an invented rigid process, extensible rather than locked.
+- **HR/owner upload every document; there is no employee self-upload.**
+  "Documents collected" reads as HR's job in the brief (an employee hands over
+  the physical document or scan) — consistent with the strict, no-self-write
+  shape Adarsh confirmed for salary being the right default for anything
+  identity- or money-adjacent, restrictable further later if he wants it
+  looser instead (e.g. letting an employee upload their own PAN card).
+
+## Open, deliberately
+
+- **0011 has not run against the live database yet**, storage bucket
+  included — paste it and the test file into the Supabase SQL editor, then
+  do one real upload through the HR UI as a manual check the automated tests
+  can't cover, and report both back before trusting this with real documents.
+- Phase 5 (exit) is untouched.

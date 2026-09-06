@@ -15,7 +15,9 @@ import { supabase } from '@/lib/supabase'
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
-import { LEAVE_STATUS, SALARY_STATUS, fmtDate, fmtPeriod, usedLeaveDays } from '@/lib/hr'
+import { useOnboardingTasks } from '@/data/useOnboardingTasks'
+import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
+import { DOC_TYPE, LEAVE_STATUS, SALARY_STATUS, fmtDate, fmtPeriod, usedLeaveDays } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
@@ -28,7 +30,7 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave' | 'salary'
+type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave' | 'salary' | 'onboarding'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
@@ -36,6 +38,7 @@ const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
   leave: { title: 'Leave', sub: 'Request time off and see your balance' },
   salary: { title: 'Salary', sub: 'Your payslip history' },
+  onboarding: { title: 'Onboarding', sub: 'Your offer, checklist and documents on file' },
 }
 
 /** One row of the Manage team tab. */
@@ -117,6 +120,18 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const mySalary = useMemo(
     () => (myEmployee ? salaryRecords.rows.filter((r) => r.employeeId === myEmployee.id) : []),
     [salaryRecords.rows, myEmployee],
+  )
+  // Read-only here too — RLS (0011) refuses every write to onboarding_tasks
+  // and employee_documents for anybody but the owner or HR.
+  const onboardingTasks = useOnboardingTasks(true)
+  const myTasks = useMemo(
+    () => (myEmployee ? onboardingTasks.rows.filter((t) => t.employeeId === myEmployee.id).sort((a, b) => a.sortOrder - b.sortOrder) : []),
+    [onboardingTasks.rows, myEmployee],
+  )
+  const myDocs = useEmployeeDocuments(true)
+  const myOwnDocs = useMemo(
+    () => (myEmployee ? myDocs.rows.filter((d) => d.employeeId === myEmployee.id) : []),
+    [myDocs.rows, myEmployee],
   )
   const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
 
@@ -347,7 +362,46 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 Leave {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
               </button>
               <button className={sec === 'salary' ? 'is-on' : ''} onClick={() => setSec('salary')}>Salary</button>
+              <button className={sec === 'onboarding' ? 'is-on' : ''} onClick={() => setSec('onboarding')}>Onboarding</button>
             </div>
+
+            {shownSec === 'onboarding' && (
+              <>
+                {!myEmployee ? (
+                  <div className="ov-card">
+                    <div className="ov-head"><h4>No employee record yet</h4></div>
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>HR has not added you to the directory yet.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="section">
+                      <div className="section-head"><h3>Checklist</h3></div>
+                      <div className="hr-soon">
+                        {myTasks.map((t) => (
+                          <Chip key={t.id} cls={t.done ? 'chip--good' : 'chip--mute'}>{t.done ? '✓ ' : ''}{t.label}</Chip>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="section">
+                      <div className="section-head"><h3>Documents on file</h3></div>
+                      {myOwnDocs.length === 0 ? (
+                        <p style={{ color: 'var(--ink-3)' }}>Nothing on file yet.</p>
+                      ) : (
+                        <div className="ov-actions">
+                          {myOwnDocs.map((d) => (
+                            <div className="ov-row" key={d.id} style={{ cursor: 'default' }}>
+                              <span className="ov-n">{DOC_TYPE[d.docType].slice(0, 2).toUpperCase()}</span>
+                              <span className="ov-l">{d.fileName} · {DOC_TYPE[d.docType]}</span>
+                              <span className="ov-cta">{fmtDate(d.uploadedAt.slice(0, 10))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
 
             {shownSec === 'salary' && (
               <>

@@ -32,6 +32,10 @@ export interface Employee {
    *  this minus their own approved days in the current year — computed, never
    *  stored, so nothing needs reconciling when a request changes. */
   annualLeaveDays: number
+  /** Phase 4: was an offer made, and did they accept it. Both optional — a
+   *  record for somebody who never signs in may never have either. */
+  offerExtendedOn: string | null
+  offerAcceptedOn: string | null
 }
 
 export const EMPLOYMENT: Record<EmploymentType, string> = {
@@ -130,6 +134,45 @@ export function fmtPeriod(period: string): string {
 
 /** The current month as a period value — always the 1st. */
 export const currentPeriod = () => todayISO().slice(0, 7) + '-01'
+
+/* --------------------------------------------------------- Phase 4: onboarding */
+
+/** One item on a new hire's checklist. HR ticks these, not the employee — see
+ *  0011: confirming a document was collected is HR verifying a fact. */
+export interface OnboardingTask {
+  id: string
+  employeeId: string
+  label: string
+  done: boolean
+  doneAt: string | null
+  doneBy: string | null
+  sortOrder: number
+}
+
+export type DocType = 'pan' | 'aadhaar' | 'bank_proof' | 'photo' | 'resume' | 'other'
+
+export const DOC_TYPE: Record<DocType, string> = {
+  pan: 'PAN card',
+  aadhaar: 'Aadhaar card',
+  bank_proof: 'Bank proof',
+  photo: 'Photo',
+  resume: 'Resume',
+  other: 'Other',
+}
+
+/** Metadata only — the actual bytes live in the private 'employee-documents'
+ *  storage bucket at `filePath`. Reading the file needs a signed URL, never a
+ *  permanent public link (0011). */
+export interface EmployeeDocument {
+  id: string
+  employeeId: string
+  docType: DocType
+  fileName: string
+  filePath: string
+  uploadedBy: string | null
+  uploadedAt: string
+  notes: string
+}
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 

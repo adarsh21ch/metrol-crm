@@ -13,12 +13,15 @@ import { EmployeeModal } from '@/modals/EmployeeModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
+import { DocumentUploadModal } from '@/modals/DocumentUploadModal'
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
+import { useOnboardingTasks } from '@/data/useOnboardingTasks'
+import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
 import {
-  EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, usedLeaveDays,
-  type Employee, type LeaveRequest, type SalaryRecord,
+  DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, usedLeaveDays,
+  type DocType, type Employee, type LeaveRequest, type SalaryRecord,
 } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -48,6 +51,11 @@ const SALARY_ICON = (
     <circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5a2.5 2.5 0 0 1 2.5-1h.3a2.2 2.2 0 0 1 0 4.4h-.6a2.2 2.2 0 0 0 0 4.4h.3a2.5 2.5 0 0 0 2.5-1" />
   </svg>
 )
+const ONBOARD_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+)
 
 /** One label / value pair on the employee page. */
 const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
@@ -74,8 +82,10 @@ export function HrPage({
   const hr = useEmployees()
   const leave = useLeaveRequests()
   const salary = useSalaryRecords()
+  const onboarding = useOnboardingTasks()
+  const docs = useEmployeeDocuments()
 
-  const [section, setSection] = useState<'directory' | 'departments' | 'leave' | 'salary'>('directory')
+  const [section, setSection] = useState<'directory' | 'departments' | 'leave' | 'salary' | 'onboarding'>('directory')
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
@@ -88,6 +98,8 @@ export function HrPage({
   const [addingSalaryFor, setAddingSalaryFor] = useState<string | null>(null)
   const [editingSalary, setEditingSalary] = useState<SalaryRecord | null>(null)
   const [salaryEmpId, setSalaryEmpId] = useState('')
+  const [newTaskLabel, setNewTaskLabel] = useState('')
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null)
 
   const [q, setQ] = useState('')
   const [deptId, setDeptId] = useState('')
@@ -117,7 +129,24 @@ export function HrPage({
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
+    { key: 'onboarding', label: 'Onboarding', icon: ONBOARD_ICON, onClick: () => { setSection('onboarding'); setOpenId(null) } },
   ]
+
+  const tasksFor = (employeeId: string) => onboarding.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
+  const docsFor = (employeeId: string) => docs.rows.filter((d) => d.employeeId === employeeId)
+  const inProgress = hr.rows.filter((e) => e.status !== 'resigned' && tasksFor(e.id).some((t) => !t.done))
+
+  const addTask = async (employeeId: string) => {
+    const message = await onboarding.add(employeeId, newTaskLabel)
+    if (!message) { toast('Task added.'); setNewTaskLabel('') }
+    return message
+  }
+
+  const uploadDoc = async (employeeId: string, file: File, docType: DocType) => {
+    const message = await docs.upload(employeeId, file, docType, ws.me?.id ?? '')
+    if (!message) toast('Document uploaded.')
+    return message
+  }
 
   const currentPeriodStr = currentPeriod()
   const pendingSalary = salary.rows.filter((r) => r.status === 'pending')
@@ -268,6 +297,8 @@ export function HrPage({
                     onClick={() => { setSection('leave'); setOpenId(null) }}>Leave</button>
             <button className={section === 'salary' ? 'is-on' : ''}
                     onClick={() => { setSection('salary'); setOpenId(null) }}>Salary</button>
+            <button className={section === 'onboarding' ? 'is-on' : ''}
+                    onClick={() => { setSection('onboarding'); setOpenId(null) }}>Onboarding</button>
           </div>
 
           <div className="wrap">
@@ -374,12 +405,56 @@ export function HrPage({
                 </div>
 
                 <div className="section">
+                  <div className="section-head"><h3>Offer &amp; onboarding</h3></div>
+                  <div className="hr-fields" style={{ marginBottom: 12 }}>
+                    <Fld l="Offer extended" v={fmtDate(open.offerExtendedOn)} />
+                    <Fld l="Offer accepted" v={fmtDate(open.offerAcceptedOn)} />
+                  </div>
+
+                  <div className="hr-soon" style={{ marginBottom: 14 }}>
+                    {tasksFor(open.id).map((t) => (
+                      <label key={t.id} className="chip chip--mute" style={{ cursor: 'pointer', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
+                        <input type="checkbox" checked={t.done}
+                               onChange={(e) => void onboarding.toggle(t.id, e.target.checked, ws.me?.id ?? '')} />
+                        {t.label}
+                        <button type="button" className="icon-btn" title="Remove task"
+                                onClick={() => void onboarding.remove(t.id)} style={{ marginLeft: 2 }}>×</button>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+                    <input className="input" placeholder="Add a checklist item…" value={newTaskLabel}
+                           onChange={(e) => setNewTaskLabel(e.target.value)} style={{ maxWidth: 260 }} />
+                    <button className="btn btn--sm" disabled={!newTaskLabel.trim()} onClick={() => void addTask(open.id)}>Add task</button>
+                  </div>
+
+                  <div className="section-head">
+                    <h3 style={{ fontSize: 14 }}>Documents</h3>
+                    <div className="section-tools">
+                      <button className="btn btn--sm" onClick={() => setUploadingFor(open.id)}>Upload document</button>
+                    </div>
+                  </div>
+                  {docsFor(open.id).length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No documents on file.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {docsFor(open.id).map((d) => (
+                        <div className="ov-row" key={d.id} style={{ cursor: 'default' }}>
+                          <span className="ov-n">{DOC_TYPE[d.docType].slice(0, 2).toUpperCase()}</span>
+                          <span className="ov-l">{d.fileName} · {DOC_TYPE[d.docType]} · {fmtDate(d.uploadedAt.slice(0, 10))}</span>
+                          <button className="btn btn--sm" onClick={() => void docs.remove(d).then((m) => m && toast(m))}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="section">
                   <div className="section-head">
                     <h3>Later phases</h3>
                     <div className="sub">These arrive on this same page rather than as new screens.</div>
                   </div>
                   <div className="hr-soon">
-                    <Chip cls="chip--mute">Onboarding · phase 4</Chip>
                     <Chip cls="chip--mute">Exit · phase 5</Chip>
                   </div>
                 </div>
@@ -553,6 +628,39 @@ export function HrPage({
                 </div>
               </>
             )}
+
+            {/* ---------------------------------------------- onboarding */}
+            {!open && section === 'onboarding' && (
+              <>
+                <div className="page-head">
+                  <h1>Onboarding</h1>
+                  <div className="sub">Offer, checklist and documents — open a person's own record to manage theirs.</div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="Still in progress" value={inProgress.length} sub="at least one task left" />
+                  <Kpi label="Documents on file" value={docs.rows.length} sub="across the company" />
+                  <Kpi label="Checklist items" value={onboarding.rows.length} sub={count(onboarding.rows.filter((t) => t.done).length, 'done', 'done')} />
+                </div>
+
+                <div className="section">
+                  <div className="section-head"><h3>Everybody</h3></div>
+                  <div className="ov-actions">
+                    {hr.rows.filter((e) => e.status !== 'resigned').map((e) => {
+                      const tasks = tasksFor(e.id)
+                      const done = tasks.filter((t) => t.done).length
+                      return (
+                        <button className="ov-row" key={e.id} onClick={() => { setOpenId(e.id); setSection('directory') }}>
+                          <span className="ov-n">{initials(e.fullName)}</span>
+                          <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
+                          <span className="ov-cta">{done}/{tasks.length} tasks · {count(docsFor(e.id).length, 'document')} →</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -573,6 +681,10 @@ export function HrPage({
       )}
       {editingSalary && (
         <SalaryRecordModal employeeId={editingSalary.employeeId} record={editingSalary} onClose={() => setEditingSalary(null)} onSave={saveSalaryEdit} />
+      )}
+
+      {uploadingFor && (
+        <DocumentUploadModal onClose={() => setUploadingFor(null)} onUpload={(file, docType) => uploadDoc(uploadingFor, file, docType)} />
       )}
 
       {adding && (
