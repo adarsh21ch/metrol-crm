@@ -2073,3 +2073,34 @@ Running 0013, 0014 and 0015 separately is what failed the first time — 0014
 needs 0013's tables and the SQL editor rolled the whole thing back. They are
 concatenated in order as **`supabase/RUN-THIS-attendance.sql`**, safe to run
 more than once. Use that, not the three files, when talking Adarsh through it.
+
+## Installed on the live database — 2026-09-12
+
+`RUN-THIS-attendance.sql` (0013 + 0014 + 0015) ran clean against the Metrol
+Media project. Proof came back: both punch-method columns present,
+`punch_by_qr` exists, zero sequential employee codes remaining, the one real
+employee record converted to a random four-digit code (6068), zero branches —
+which is correct, HR creates those from the Branches screen.
+
+### The RLS test file is STALE and must not be run as it stands
+
+`supabase/tests/0013_rls_checks.sql` still saves and restores
+`attendance_settings.office_lat / office_lng / radius_meters`, and 0014 dropped
+those columns. It will error immediately. It is also the only proof that an
+employee cannot write to `public.attendance` directly, which is the entire
+security claim of this module — so it needs rewriting against
+`office_locations`, not deleting.
+
+What it has to cover once rewritten, on top of what it already checked:
+- a member cannot insert into or update `office_locations` (moving a branch to
+  their house is the same attack as moving the old single office)
+- `punch_by_qr()` with a valid token from 3 km away is refused
+- `punch_by_qr()` with a rotated-away token is refused
+- a second scan within 2 minutes is refused as a double-scan
+- with `allow_any_branch = false`, a Sector 6 person scanning Sector 10's code
+  is refused; with it true, the punch lands and `attendance.office_id` records
+  Sector 10 rather than their assigned branch
+
+Until that is done, nobody has PROVEN the geofence holds on this database — it
+is verified by reading the policies, not by exercising them. Say that plainly
+rather than implying the module is proven.
