@@ -2358,3 +2358,104 @@ pbcopy < /Users/apple/metrol-crm/supabase/tests/0016_rls_checks.sql
 His instruction, after three rounds of being handed file cards. Printing the
 whole file inline also works but cost real money on a $114 session; the pbcopy
 command crosses once.
+
+---
+
+# Deploy confirmed live — 2026-09-12
+
+`493aa08` pushed to `main`; Vercel built and served it. Proof: the new bundle
+`/assets/main-nkUT4C6v.js` returns HTTP 200 on company.metrol.in, and that
+filename exists only in this build. Seven commits went live at once — Phase 6
+(attendance + geofence), 6b (two branches), 6c (QR punch + four-digit IDs) and
+Phase 7 (leave types, working-day counts, holidays).
+
+**Watch for this when checking a deploy:** `index.html` is served from Vercel's
+edge cache (`cache-control: max-age=0, must-revalidate`, but an `age` of ~16
+minutes was observed), so it can still name the PREVIOUS bundle for a while
+after a successful deploy. Comparing the hash in `index.html` against the local
+`dist/` therefore reports a false negative. The reliable test is to request the
+NEW bundle's path directly and look for a 200 — a hash that only exists in the
+new build cannot be served unless that build deployed.
+
+---
+
+# HANDOFF → Phase 8 (joining form) and Phase 9 (sign in by employee ID)
+
+Written at the end of the session that shipped Phase 7, deliberately in a NEW
+session's favour: this file plus the sections above is the whole context. Nothing
+below needs re-deriving, and no migration or test needs re-running — the install
+state and the test results above are measured facts, not claims.
+
+## Start here, in this order
+
+1. Read this file. Do not re-run `WHATS-INSTALLED.sql` or either RLS test — the
+   PROVEN section above records their results.
+2. Phase 8 — the joining form. The brief is in the Phase 6 section under
+   "Phase 8 — the joining form"; the decisions are below.
+3. Phase 9 — sign in by employee ID or email, plus change-password in the
+   profile modal. It depends on Phase 8 only in that Phase 8 creates the
+   accounts; the RPC itself is independent and small.
+
+## The architecture constraint that shapes Phase 8 — read before designing
+
+**The Resend API key must NEVER reach the browser.** Anything named `VITE_*` in
+this Vite app is compiled into the public bundle and readable by every visitor.
+So the email cannot be sent from React. It has to go through a **Supabase Edge
+Function** with the key stored as a Supabase secret.
+
+That is this project's first server-side code. Two ways to get the function
+deployed, and it needs a decision before the phase is finished:
+
+- **Supabase dashboard → Edge Functions → create in the browser editor**, paste
+  the TypeScript, add the secret under Settings. No CLI, no login flow. Slower
+  to iterate, but Adarsh can do it himself from the dashboard he already uses.
+- **`supabase login` + `supabase link` + `supabase functions deploy`** from this
+  machine. The CLI is installed (`/opt/homebrew/bin/supabase`) but there is no
+  login, no project link and no database password here — `login` opens a browser
+  flow only Adarsh can complete.
+
+Whichever is chosen, the function's shape is the same. Write it to
+`supabase/functions/send-employee-id/index.ts` either way so it is in the repo.
+
+**Resend also needs a verified sending domain.** A `from` address on an
+unverified domain is rejected by Resend, so "does metrol.in exist in the Resend
+account, and what should the From address be" is a real blocker, not a detail.
+
+## The design tension in Adarsh's own brief, and how it was resolved
+
+He said both *"the candidate… sets their own password"* and *"nothing is created
+until HR approves it."* Taken literally those conflict — a password cannot be
+stored for later without creating something, and storing a plaintext password in
+an application row would be indefensible for a table the public can write to.
+
+See the ANSWERS section below for which way he chose.
+
+## What Phase 8 needs regardless of the answers
+
+- A `job_applications` table the **anon** role can INSERT into and cannot SELECT
+  from — a public-write table is a spam surface, so: no read for anon, a rate
+  limit or a per-link token, and HR/owner read-and-decide only.
+- A **quarantined** storage bucket for anonymous uploads, separate from
+  `employee-documents`. Files from an unapproved stranger must not land in the
+  same bucket as a real employee's PAN card. On approval, move or re-link them.
+- An approval step that creates the auth user, the `profiles` row and the
+  `employees` row **in one transaction or not at all** — a half-created employee
+  is worse than a rejected application. `employees` already auto-generates the
+  four-digit code and auto-seeds the onboarding checklist, so approval should
+  reuse those triggers rather than duplicate them.
+- A **resend** button on the application, as asked.
+- The public form is a route with no auth guard. Check `App.tsx`'s routing: every
+  existing screen sits behind a session. This is the first one that must render
+  for a signed-out stranger, and it must not pull `useWorkspace` or any hook
+  that queries a policied table.
+
+## Phase 9, in one paragraph
+
+Supabase Auth is email-keyed, so `6068` has to become an email before
+`signInWithPassword` can be called. A `security definer` RPC granted to `anon`
+that takes a code and returns ONLY the work email — never the name, never
+anything else — plus a guard against using it to enumerate the company
+(four-digit codes are a 9,000-wide space, so rate-limit it or accept that it
+confirms whether a code exists). Then `SignIn.tsx` tries: if the field has no
+`@`, resolve it first. Change-password already exists in `ProfileModal` from the
+avatars round — confirm it works rather than rebuilding it.
