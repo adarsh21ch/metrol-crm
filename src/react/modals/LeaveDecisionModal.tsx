@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
+import { LEAVE_TYPE, fmtDate } from '@/lib/hr'
+import { count } from '@/lib/format'
 import type { LeaveRequest } from '@/lib/hr'
 
 /** HR or the owner approving or rejecting one request. One modal for both
@@ -29,7 +31,11 @@ export function LeaveDecisionModal({
   return (
     <Modal
       title={action === 'approved' ? 'Approve leave' : 'Reject leave'}
-      sub={`${employeeName} · ${request.startDate} to ${request.endDate} · ${request.daysCount} day${request.daysCount === 1 ? '' : 's'}`}
+      // The type belongs up here, not buried: approving three unpaid days is
+      // not the same decision as approving three sick ones. The raw ISO dates
+      // that used to be in this line read like a database field, so they moved
+      // into the body where there is room to say them properly.
+      sub={`${employeeName} · ${LEAVE_TYPE[request.leaveType].label} leave`}
       onClose={onClose}
       foot={
         <>
@@ -41,6 +47,14 @@ export function LeaveDecisionModal({
       }
     >
       {err && <div className="auth-err" style={{ marginBottom: 12 }}>{err}</div>}
+      <p style={{ margin: '0 0 10px', fontWeight: 500 }}>
+        {fmtDate(request.startDate)} – {fmtDate(request.endDate)} · {count(request.daysCount, 'working day')}
+      </p>
+      {request.leaveType === 'unpaid' && (
+        <p className="punch-note" style={{ margin: '0 0 10px' }}>
+          Unpaid, so approving this does not take anything out of their paid balance for the year.
+        </p>
+      )}
       {request.reason && <p style={{ marginBottom: 12, color: 'var(--ink-3)' }}>“{request.reason}”</p>}
       <div className="field">
         <label htmlFor="lvNote">Note {action === 'rejected' ? '' : '(optional)'}</label>

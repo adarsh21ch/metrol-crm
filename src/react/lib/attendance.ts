@@ -88,6 +88,16 @@ export interface AttendanceSettings {
   updatedAt: string | null
 }
 
+/** A day the office is shut. The date is the primary key (0013), so a company
+ *  cannot accidentally hold two names for one day. Phase 7 gave this table its
+ *  first UI — until then it existed and was always empty, which made "leave
+ *  excludes holidays" a promise nothing could keep. */
+export interface Holiday {
+  /** YYYY-MM-DD. */
+  date: string
+  name: string
+}
+
 export const PUNCH_METHOD: Record<PunchMethod, string> = {
   button: 'Button',
   qr: 'QR scan',

@@ -25,7 +25,7 @@ import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
 import {
-  DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, usedLeaveDays,
+  DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, unpaidLeaveDays, usedLeaveDays,
   type DocType, type Employee, type LeaveRequest, type SalaryRecord,
 } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
@@ -117,6 +117,8 @@ export function HrPage({
   const [profileOpen, setProfileOpen] = useState(false)
   const [loggingFor, setLoggingFor] = useState<string | null>(null)
   const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
+  const [holDate, setHolDate] = useState('')
+  const [holName, setHolName] = useState('')
   const [logEmpId, setLogEmpId] = useState('')
   const [addingSalaryFor, setAddingSalaryFor] = useState<string | null>(null)
   const [editingSalary, setEditingSalary] = useState<SalaryRecord | null>(null)
@@ -229,6 +231,7 @@ export function HrPage({
     { key: 'who', label: 'Employee', width: 190, render: (r) => employeeName(r.employeeId) },
     { key: 'when', label: 'Dates', width: 190, render: (r) => `${fmtDate(r.startDate)} – ${fmtDate(r.endDate)}` },
     { key: 'days', label: 'Days', width: 72, render: (r) => r.daysCount },
+    { key: 'type', label: 'Type', width: 100, render: (r) => <Chip cls={LEAVE_TYPE[r.leaveType].cls}>{LEAVE_TYPE[r.leaveType].label}</Chip> },
     { key: 'reason', label: 'Reason', width: 220, render: (r) => r.reason || <span className="cell-dash">—</span> },
     { key: 'status', label: 'Status', width: 120, render: (r) => <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip> },
     {
@@ -478,6 +481,9 @@ export function HrPage({
                     <Fld l="Annual entitlement" v={`${open.annualLeaveDays} days`} />
                     <Fld l="Used this year" v={`${usedLeaveDays(leave.rows, open.id)} days`} />
                     <Fld l="Remaining" v={`${Math.max(0, open.annualLeaveDays - usedLeaveDays(leave.rows, open.id))} days`} />
+                    {/* Separate, because it is not a withdrawal from the
+                        entitlement — it is still an absence HR should see. */}
+                    <Fld l="Unpaid taken" v={`${unpaidLeaveDays(leave.rows, open.id)} days`} />
                   </div>
                   {leave.rows.filter((r) => r.employeeId === open.id).length === 0 ? (
                     <p style={{ color: 'var(--ink-3)' }}>No leave requests on record.</p>
@@ -674,11 +680,12 @@ export function HrPage({
               </>
             )}
 
-            {/* --------------------------------------------------- leave */}
             {/* ---------------------------------------------- attendance */}
             {!open && section === 'attendance' && (
               <HrAttendance att={att} employees={hr.rows} toast={toast} />
             )}
+
+            {/* --------------------------------------------------- leave */}
 
             {!open && section === 'leave' && (
               <>
@@ -709,6 +716,53 @@ export function HrPage({
                             storageKey="hr-leave"
                             empty="No leave requests yet."
                             foot={<div className="grid-foot"><span>{count(leave.rows.length, 'request')}</span></div>} />
+                </div>
+
+                {/* The holidays list. It lives here rather than on a rail item
+                    of its own because the only thing it changes is how leave
+                    is counted, and this is the page somebody is already on
+                    when they think about that. */}
+                <div className="section">
+                  <div className="section-head"><h3>Holidays</h3></div>
+                  <p className="punch-note" style={{ margin: '0 0 12px' }}>
+                    A leave day count skips Sundays and every day on this list, so nobody spends leave on a day
+                    the office was shut. Adding or removing one changes how <em>new</em> requests are counted —
+                    requests already decided keep the number they were approved with.
+                  </p>
+                  <div className="hol-add">
+                    <input className="input" type="date" aria-label="Holiday date"
+                           value={holDate} onChange={(e) => setHolDate(e.target.value)} />
+                    <input className="input" type="text" aria-label="Holiday name" placeholder="What it is, e.g. Diwali"
+                           value={holName} onChange={(e) => setHolName(e.target.value)} />
+                    <button className="btn btn--sm btn--primary" disabled={!holDate}
+                            onClick={() => void att.addHoliday(holDate, holName).then((m) => {
+                              toast(m ?? 'Holiday added.')
+                              if (!m) { setHolDate(''); setHolName('') }
+                            })}>
+                      Add holiday
+                    </button>
+                  </div>
+                  {att.holidays.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>
+                      No holidays entered yet, so leave counts currently skip Sundays only.
+                    </p>
+                  ) : (
+                    <div className="ov-actions">
+                      {att.holidays.map((h) => (
+                        <div className="ov-row" key={h.date} style={{ cursor: 'default' }}>
+                          {/* Name first, date after — .ov-n is sized for a
+                              number, and a full date in it dominated the one
+                              thing somebody actually reads. Same shape as a
+                              leave row on the employee's own screen. */}
+                          <span className="ov-l"><strong>{h.name}</strong> · {fmtDate(h.date)}</span>
+                          <button className="btn btn--sm" style={{ marginLeft: 10 }}
+                                  onClick={() => void att.removeHoliday(h.date).then((m) => toast(m ?? 'Holiday removed.'))}>
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -829,7 +883,8 @@ export function HrPage({
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
 
       {loggingFor && (
-        <LeaveRequestModal employeeId={loggingFor} onClose={() => setLoggingFor(null)} onSave={logLeave} />
+        <LeaveRequestModal employeeId={loggingFor} weekOffs={att.settings?.weekOffs ?? [0]} holidays={att.holidays}
+                           onClose={() => setLoggingFor(null)} onSave={logLeave} />
       )}
       {deciding && (
         <LeaveDecisionModal request={deciding.request} action={deciding.action} employeeName={employeeName(deciding.request.employeeId)}

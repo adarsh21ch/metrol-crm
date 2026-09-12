@@ -74,6 +74,13 @@ export const HR_DEPARTMENT = 'Human Resources'
 
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
+/** Phase 7. Sick and casual both draw from the one shared entitlement
+ *  (employees.annualLeaveDays); unpaid draws from nothing and is counted
+ *  separately — Adarsh's call, 2026-09-12. Nothing about that is stored: it is
+ *  how these rows are read, which is why changing the policy later is a change
+ *  to usedLeaveDays() and not a migration. */
+export type LeaveType = 'sick' | 'casual' | 'unpaid'
+
 /** One request. `daysCount` is set by a database trigger (0009) from the two
  *  dates, never trusted from the client — a mismatched request must not be
  *  able to inflate or shrink anybody's balance. */
@@ -82,7 +89,11 @@ export interface LeaveRequest {
   employeeId: string
   startDate: string
   endDate: string
+  /** WORKING days between the two dates — Sundays and holidays already taken
+   *  out. Set by the 0016 trigger, so it is the database's number, not one the
+   *  browser worked out and sent. */
   daysCount: number
+  leaveType: LeaveType
   reason: string
   status: LeaveStatus
   decidedBy: string | null
@@ -99,15 +110,73 @@ export const LEAVE_STATUS: Record<LeaveStatus, { label: string; cls: string }> =
   cancelled: { label: 'Cancelled', cls: 'chip--mute' },
 }
 
+/** Deliberately NOT the green/amber/red family: a leave type is a category,
+ *  not a verdict, and Pending-amber / Approved-green already own that meaning
+ *  two columns away. Unpaid is the one that gets a stronger edge, because it is
+ *  the one somebody scanning the table needs to notice. */
+export const LEAVE_TYPE: Record<LeaveType, { label: string; cls: string; short: string }> = {
+  casual: { label: 'Casual', cls: 'chip--mute', short: 'CL' },
+  sick: { label: 'Sick', cls: 'chip--mute', short: 'SL' },
+  unpaid: { label: 'Unpaid', cls: 'chip--accent', short: 'LWP' },
+}
+
+/** Does this type come out of the paid annual entitlement? */
+export const isPaidLeave = (t: LeaveType) => t !== 'unpaid'
+
 /** The calendar year a request's balance counts against — the year it starts
  *  in, so a request spanning New Year's Eve does not straddle two balances. */
 export const leaveYear = (r: Pick<LeaveRequest, 'startDate'>) => Number((r.startDate || '').slice(0, 4))
 
-/** Approved days this person has already used in `year` (default: this year). */
+/** Approved PAID days this person has used in `year` (default: this year) —
+ *  sick and casual, the two that share the entitlement. Unpaid is excluded on
+ *  purpose: taking leave without pay is not spending a paid day. */
 export function usedLeaveDays(requests: LeaveRequest[], employeeId: string, year = new Date().getFullYear()): number {
   return requests
-    .filter((r) => r.employeeId === employeeId && r.status === 'approved' && leaveYear(r) === year)
+    .filter((r) => r.employeeId === employeeId && r.status === 'approved' && leaveYear(r) === year && isPaidLeave(r.leaveType))
     .reduce((t, r) => t + r.daysCount, 0)
+}
+
+/** Approved unpaid days this year. Shown beside the balance rather than
+ *  inside it — it is a real absence somebody should see, it just is not a
+ *  withdrawal from the eighteen. */
+export function unpaidLeaveDays(requests: LeaveRequest[], employeeId: string, year = new Date().getFullYear()): number {
+  return requests
+    .filter((r) => r.employeeId === employeeId && r.status === 'approved' && leaveYear(r) === year && !isPaidLeave(r.leaveType))
+    .reduce((t, r) => t + r.daysCount, 0)
+}
+
+/** The working days in an inclusive date range, for the REQUEST FORM'S PREVIEW
+ *  and for demo mode only. The number that gets stored is always the
+ *  database's (0016's `working_days_between` inside the insert trigger), and
+ *  useLeaveRequests re-reads the saved row rather than trusting this — so if
+ *  the two ever disagree, the record is still right and only a preview was
+ *  wrong. It exists because asking the server on every keystroke to render one
+ *  sentence is not worth a round trip.
+ *
+ *  `weekOffs` is 0 = Sunday, matching Postgres's `extract(dow)` and
+ *  `attendance_settings.week_offs`. `holidays` is a list of YYYY-MM-DD. */
+export function workingDaysBetween(
+  startISO: string, endISO: string, weekOffs: number[] = [0], holidays: string[] = [],
+): { total: number; weekOffDays: number; holidayDays: number; holidayHits: string[] } {
+  const out = { total: 0, weekOffDays: 0, holidayDays: 0, holidayHits: [] as string[] }
+  if (!startISO || !endISO || endISO < startISO) return out
+  const off = new Set(weekOffs)
+  const hol = new Set(holidays)
+  // Midnight local, stepped by calendar date rather than by adding 86400000 —
+  // a DST jump would otherwise skip or repeat a day. India has none, but this
+  // is two lines either way.
+  const d = new Date(startISO + 'T00:00:00')
+  const end = new Date(endISO + 'T00:00:00')
+  if (Number.isNaN(d.getTime()) || Number.isNaN(end.getTime())) return out
+  let guard = 0
+  while (d <= end && guard++ < 1000) {
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (off.has(d.getDay())) out.weekOffDays += 1
+    else if (hol.has(iso)) { out.holidayDays += 1; out.holidayHits.push(iso) }
+    else out.total += 1
+    d.setDate(d.getDate() + 1)
+  }
+  return out
 }
 
 /* ------------------------------------------------------------ Phase 3: salary */

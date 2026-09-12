@@ -1,6 +1,7 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import type { Employee, EmployeeDocument, ExitTask, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
-import type { AttendanceRow, AttendanceSettings, OfficeLocation, Shift } from '@/lib/attendance'
+import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
+import { workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
 
 /**
@@ -211,34 +212,71 @@ export const demoEmployees: Employee[] = [
 
 const YEAR = new Date().getFullYear()
 
-/** Leave requests for ?demo — one of every state, spread across the HR
- *  manager and the salespeople, so the directory's Leave section and the
+/** Holidays for ?demo. Phase 7's whole point is visible here: Diwali sits
+ *  inside e3's 20–24 Oct request, so that request reads 4 working days, not 5,
+ *  and the form says why. A real company enters its own list — nothing is
+ *  seeded into the live database. */
+export const demoHolidays: Holiday[] = [
+  { date: YEAR + '-01-26', name: 'Republic Day' },
+  { date: YEAR + '-08-15', name: 'Independence Day' },
+  { date: YEAR + '-10-21', name: 'Diwali' },
+]
+
+const HOLIDAY_DATES = demoHolidays.map((h) => h.date)
+
+/** Computed, never typed. The real day count comes from 0016's trigger, and a
+ *  hand-written number here would drift from it the moment a demo date crossed
+ *  a Sunday in a different year — YEAR is the current year, so these dates
+ *  land on different weekdays every January. */
+const wdays = (a: string, b: string) => workingDaysBetween(a, b, [0], HOLIDAY_DATES).total
+
+/** Leave requests for ?demo — one of every state and every type, spread across
+ *  the HR manager and the salespeople, so the directory's Leave section and the
  *  member's own tab both have something real-shaped to show. */
 export const demoLeaveRequests: LeaveRequest[] = [
   {
-    id: 'lv1', employeeId: 'e2', startDate: YEAR + '-01-10', endDate: YEAR + '-01-12', daysCount: 3,
+    id: 'lv1', employeeId: 'e2', startDate: YEAR + '-01-10', endDate: YEAR + '-01-12',
+    daysCount: wdays(YEAR + '-01-10', YEAR + '-01-12'), leaveType: 'casual',
     reason: 'Family function', status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(200), decisionNote: null,
     createdAt: iso(205),
   },
   {
-    id: 'lv2', employeeId: 'e2', startDate: YEAR + '-11-02', endDate: YEAR + '-11-02', daysCount: 1,
+    id: 'lv2', employeeId: 'e2', startDate: YEAR + '-11-02', endDate: YEAR + '-11-02',
+    daysCount: wdays(YEAR + '-11-02', YEAR + '-11-02'), leaveType: 'sick',
     reason: 'Not feeling well', status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null,
     createdAt: iso(1),
   },
   {
-    id: 'lv3', employeeId: 'e3', startDate: YEAR + '-10-20', endDate: YEAR + '-10-24', daysCount: 5,
+    id: 'lv3', employeeId: 'e3', startDate: YEAR + '-10-20', endDate: YEAR + '-10-24',
+    daysCount: wdays(YEAR + '-10-20', YEAR + '-10-24'), leaveType: 'casual',
     reason: 'Diwali travel', status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null,
     createdAt: iso(2),
   },
   {
-    id: 'lv4', employeeId: 'e4', startDate: YEAR + '-06-05', endDate: YEAR + '-06-05', daysCount: 1,
+    id: 'lv4', employeeId: 'e4', startDate: YEAR + '-06-05', endDate: YEAR + '-06-05',
+    daysCount: wdays(YEAR + '-06-05', YEAR + '-06-05'), leaveType: 'casual',
     reason: 'Personal', status: 'rejected', decidedBy: HR_PERSON.id, decidedAt: iso(90), decisionNote: 'Clashed with the Nova Motors launch week.',
     createdAt: iso(92),
   },
   {
-    id: 'lv5', employeeId: 'e1', startDate: YEAR + '-03-01', endDate: YEAR + '-03-02', daysCount: 2,
+    id: 'lv5', employeeId: 'e1', startDate: YEAR + '-03-01', endDate: YEAR + '-03-02',
+    daysCount: wdays(YEAR + '-03-01', YEAR + '-03-02'), leaveType: 'casual',
     reason: 'Moving house', status: 'cancelled', decidedBy: null, decidedAt: null, decisionNote: null,
     createdAt: iso(180),
+  },
+  // e1 is whose screen ?demo=1&as=member shows. Without these two, every tile
+  // on their Leave tab reads zero and the balance arithmetic proves nothing.
+  {
+    id: 'lv6', employeeId: 'e1', startDate: YEAR + '-05-14', endDate: YEAR + '-05-16',
+    daysCount: wdays(YEAR + '-05-14', YEAR + '-05-16'), leaveType: 'sick',
+    reason: 'Viral fever', status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(118), decisionNote: null,
+    createdAt: iso(120),
+  },
+  {
+    id: 'lv7', employeeId: 'e1', startDate: YEAR + '-07-06', endDate: YEAR + '-07-07',
+    daysCount: wdays(YEAR + '-07-06', YEAR + '-07-07'), leaveType: 'unpaid',
+    reason: 'Extended trip, balance already used', status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(68), decisionNote: 'Approved without pay.',
+    createdAt: iso(70),
   },
 ]
 

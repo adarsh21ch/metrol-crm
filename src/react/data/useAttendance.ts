@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { demoAttendance, demoAttendanceSettings, demoEmployees, demoOffices, demoShifts, isDemo } from '@/data/demo'
-import { officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
+import { demoAttendance, demoAttendanceSettings, demoEmployees, demoHolidays, demoOffices, demoShifts, isDemo } from '@/data/demo'
+import { officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type Holiday, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
 
 type Row = Record<string, unknown>
 
@@ -57,6 +57,11 @@ const toOffice = (r: Row): OfficeLocation => ({
   sortOrder: Number(r.sort_order) || 0,
   qrToken: str(r.qr_token),
   qrRotatedAt: (r.qr_rotated_at as string | null) ?? null,
+})
+
+const toHoliday = (r: Row): Holiday => ({
+  date: str(r.holiday_date),
+  name: str(r.name),
 })
 
 const toShift = (r: Row): Shift => ({
@@ -126,6 +131,10 @@ export function useAttendance(enabled = true) {
   const [settings, setSettings] = useState<AttendanceSettings | null>(null)
   const [shifts, setShifts] = useState<Shift[]>([])
   const [offices, setOffices] = useState<OfficeLocation[]>([])
+  // Phase 7 put holidays here rather than in a hook of their own: this one
+  // already owns week_offs, and a leave day count needs both together or it is
+  // wrong. Every screen that asks about leave already calls useAttendance.
+  const [holidays, setHolidays] = useState<Holiday[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
@@ -136,20 +145,23 @@ export function useAttendance(enabled = true) {
       setSettings(demoAttendanceSettings)
       setShifts(demoShifts)
       setOffices(demoOffices)
+      setHolidays(demoHolidays)
       setLoading(false)
       return
     }
-    const [att, set, sh, off] = await Promise.all([
+    const [att, set, sh, off, hol] = await Promise.all([
       supabase.from('attendance').select('*').order('work_date', { ascending: false }).limit(2000),
       supabase.from('attendance_settings').select('*').limit(1).maybeSingle(),
       supabase.from('shifts').select('*').order('sort_order'),
       supabase.from('office_locations').select('*').order('sort_order'),
+      supabase.from('holidays').select('*').order('holiday_date'),
     ])
     if (att.error) { setError(att.error.message); setLoading(false); return }
     setRows((att.data ?? []).map((r) => toRow(r as Row)))
     if (set.data) setSettings(toSettings(set.data as Row))
     setShifts((sh.data ?? []).map((r) => toShift(r as Row)))
     setOffices((off.data ?? []).map((r) => toOffice(r as Row)))
+    setHolidays((hol.data ?? []).map((r) => toHoliday(r as Row)))
     setLoading(false)
   }, [enabled])
 
@@ -389,6 +401,39 @@ export function useAttendance(enabled = true) {
     return null
   }, [])
 
+  /* ------------------------------------------------------------- holidays */
+
+  /** The date is the primary key, so entering the same day twice is an upsert,
+   *  not a duplicate row and not an error thrown in HR's face. */
+  const addHoliday = useCallback(async (date: string, name: string): Promise<string | null> => {
+    const clean = name.trim() || 'Holiday'
+    if (isDemo()) {
+      setHolidays((p) => [...p.filter((h) => h.date !== date), { date, name: clean }].sort((a, b) => a.date.localeCompare(b.date)))
+      return null
+    }
+    const { data, error: err } = await supabase
+      .from('holidays').upsert({ holiday_date: date, name: clean }).select('*').single()
+    if (err) return err.message
+    if (data) {
+      const h = toHoliday(data as Row)
+      setHolidays((p) => [...p.filter((x) => x.date !== h.date), h].sort((a, b) => a.date.localeCompare(b.date)))
+    }
+    return null
+  }, [])
+
+  /** The one table in this module where deleting is right: a holiday on the
+   *  wrong date is a typo, not a fact of anybody's employment history. */
+  const removeHoliday = useCallback(async (date: string): Promise<string | null> => {
+    if (isDemo()) {
+      setHolidays((p) => p.filter((h) => h.date !== date))
+      return null
+    }
+    const { error: err } = await supabase.from('holidays').delete().eq('holiday_date', date)
+    if (err) return err.message
+    setHolidays((p) => p.filter((h) => h.date !== date))
+    return null
+  }, [])
+
   /** Past days still sitting at 'in_progress' become 'missing_punch_out' so HR
    *  can see them. Free plans have no cron, so the HR screen calls this. */
   const finalizeOpen = useCallback(async () => {
@@ -397,9 +442,9 @@ export function useAttendance(enabled = true) {
   }, [])
 
   return {
-    rows, settings, shifts, offices, loading, error,
+    rows, settings, shifts, offices, holidays, loading, error,
     reload: load, punchIn, punchOut, punchByQr, saveSettings, correct, addDay, finalizeOpen,
-    createOffice, updateOffice, rotateQr,
+    createOffice, updateOffice, rotateQr, addHoliday, removeHoliday,
     clearError: () => setError(null),
   }
 }

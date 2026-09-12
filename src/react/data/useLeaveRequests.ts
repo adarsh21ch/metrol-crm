@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { demoLeaveRequests, isDemo } from '@/data/demo'
-import type { LeaveRequest, LeaveStatus } from '@/lib/hr'
+import { demoHolidays, demoLeaveRequests, isDemo } from '@/data/demo'
+import { workingDaysBetween } from '@/lib/hr'
+import type { LeaveRequest, LeaveStatus, LeaveType } from '@/lib/hr'
 
 type Row = Record<string, unknown>
 
@@ -13,6 +14,7 @@ const toLeaveRequest = (r: Row): LeaveRequest => ({
   startDate: str(r.start_date),
   endDate: str(r.end_date),
   daysCount: Number(r.days_count) || 0,
+  leaveType: (r.leave_type as LeaveType) ?? 'casual',
   reason: str(r.reason),
   status: (r.status as LeaveStatus) ?? 'pending',
   decidedBy: (r.decided_by as string | null) ?? null,
@@ -25,6 +27,7 @@ export interface LeaveDraft {
   employeeId: string
   startDate: string
   endDate: string
+  leaveType: LeaveType
   reason: string
 }
 
@@ -66,13 +69,16 @@ export function useLeaveRequests(enabled = true) {
 
   const create = useCallback(async (draft: LeaveDraft): Promise<string | null> => {
     if (isDemo()) {
-      const days = Math.round((new Date(draft.endDate).getTime() - new Date(draft.startDate).getTime()) / 86400000) + 1
+      // The same rule 0016's trigger applies, so demo mode cannot show a day
+      // count the real database would never produce.
+      const days = workingDaysBetween(draft.startDate, draft.endDate, [0], demoHolidays.map((h) => h.date)).total
       setRows((p) => [{
         id: 'demo-leave-' + (p.length + 1),
         employeeId: draft.employeeId,
         startDate: draft.startDate,
         endDate: draft.endDate,
         daysCount: days,
+        leaveType: draft.leaveType,
         reason: draft.reason,
         status: 'pending',
         decidedBy: null,
@@ -88,7 +94,11 @@ export function useLeaveRequests(enabled = true) {
         employee_id: draft.employeeId,
         start_date: draft.startDate,
         end_date: draft.endDate,
+        leave_type: draft.leaveType,
         reason: draft.reason.trim(),
+        // days_count is deliberately not sent. 0016's trigger works it out
+        // from the two dates, minus Sundays and holidays, and overwrites
+        // anything the client puts here.
       })
       .select('*').single()
     if (err) return err.message

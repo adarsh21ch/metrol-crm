@@ -21,7 +21,7 @@ import { useExitTasks } from '@/data/useExitTasks'
 import { useAttendance } from '@/data/useAttendance'
 import { PunchCard } from '@/components/PunchCard'
 import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
-import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, fmtDate, fmtPeriod, usedLeaveDays } from '@/lib/hr'
+import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod, unpaidLeaveDays, usedLeaveDays } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
@@ -571,9 +571,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 ) : (
                   <>
                     <div className="kpis">
-                      <Kpi accent label="Remaining" value={Math.max(0, myEmployee.annualLeaveDays - usedLeaveDays(leave.rows, myEmployee.id))} sub="days left this year" />
-                      <Kpi label="Entitlement" value={myEmployee.annualLeaveDays} sub="days this year" />
-                      <Kpi label="Used" value={usedLeaveDays(leave.rows, myEmployee.id)} sub="approved this year" />
+                      <Kpi accent label="Remaining" value={Math.max(0, myEmployee.annualLeaveDays - usedLeaveDays(leave.rows, myEmployee.id))}
+                           sub={`of ${myEmployee.annualLeaveDays} paid days this year`} />
+                      <Kpi label="Used" value={usedLeaveDays(leave.rows, myEmployee.id)} sub="approved sick or casual" />
+                      {/* Its own tile rather than folded into Used: unpaid days
+                          are a real absence, and they are not spent from the
+                          number above. Two facts, two tiles. */}
+                      <Kpi label="Unpaid" value={unpaidLeaveDays(leave.rows, myEmployee.id)} sub="approved without pay" />
                       <Kpi label="Pending" value={myLeave.filter((r) => r.status === 'pending').length} sub="awaiting a decision" />
                     </div>
 
@@ -594,7 +598,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
                               <span className="ov-n">{r.daysCount}d</span>
                               <span className="ov-l">
-                                {fmtDate(r.startDate)} – {fmtDate(r.endDate)}{r.reason ? ' · ' + r.reason : ''}
+                                <strong>{LEAVE_TYPE[r.leaveType].label}</strong> · {fmtDate(r.startDate)} – {fmtDate(r.endDate)}
+                                {r.reason ? ' · ' + r.reason : ''}
                                 {r.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {r.decisionNote}</span> : null}
                               </span>
                               <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip>
@@ -738,6 +743,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       {requestingLeave && myEmployee && (
         <LeaveRequestModal
           employeeId={myEmployee.id}
+          weekOffs={att.settings?.weekOffs ?? [0]}
+          holidays={att.holidays}
           onClose={() => setRequestingLeave(false)}
           onSave={async (draft) => {
             const message = await leave.create(draft)

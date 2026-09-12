@@ -2082,25 +2082,173 @@ Media project. Proof came back: both punch-method columns present,
 employee record converted to a random four-digit code (6068), zero branches —
 which is correct, HR creates those from the Branches screen.
 
-### The RLS test file is STALE and must not be run as it stands
+### The RLS test file — rewritten for office_locations (2026-09-12)
 
-`supabase/tests/0013_rls_checks.sql` still saves and restores
-`attendance_settings.office_lat / office_lng / radius_meters`, and 0014 dropped
-those columns. It will error immediately. It is also the only proof that an
-employee cannot write to `public.attendance` directly, which is the entire
-security claim of this module — so it needs rewriting against
-`office_locations`, not deleting.
+The old `supabase/tests/0013_rls_checks.sql` saved and restored
+`attendance_settings.office_lat / office_lng / radius_meters`, which 0014
+dropped. It errored on its first statement, so for six days the security claim
+of this whole module rested on reading the policies rather than exercising
+them. Rewritten in place — **same path**, so nothing else has to change.
 
-What it has to cover once rewritten, on top of what it already checked:
-- a member cannot insert into or update `office_locations` (moving a branch to
-  their house is the same attack as moving the old single office)
-- `punch_by_qr()` with a valid token from 3 km away is refused
-- `punch_by_qr()` with a rotated-away token is refused
-- a second scan within 2 minutes is refused as a double-scan
-- with `allow_any_branch = false`, a Sector 6 person scanning Sector 10's code
-  is refused; with it true, the punch lands and `attendance.office_id` records
-  Sector 10 rather than their assigned branch
+What it does now: creates two throwaway branches (`ZZ Test Branch A` / `B`) at a
+Jabalpur-ish coordinate ~800 km from the real Noida offices, so no real branch
+can ever be the one a test punch resolves to; borrows one real member whose
+employee record is `active` or `notice`; assigns them to Branch A for the run;
+and puts everything back — branches deleted, the member's own branch restored,
+`max_accuracy_meters` and `allow_any_branch` restored, every test row removed.
+Dates are in 2099 wherever a date can be chosen. **It never touches a member who
+already has a real row for today** — every punch check reports SKIPPED instead.
+The whole thing is one `do` block, so an uncaught error rolls back the test
+branches too: it cannot leave the fence half-moved.
 
-Until that is done, nobody has PROVEN the geofence holds on this database — it
-is verified by reading the policies, not by exercising them. Say that plainly
-rather than implying the module is proven.
+Twenty-six checks. The new ones over the old file:
+
+- `has_function_privilege` on `punch_in` / `punch_out` / `punch_by_qr` **first**.
+  A missing grant makes every later call raise, which aborts the `do` block and
+  prints nothing at all — which is precisely how the old file managed to be
+  useless without anybody noticing. This one names the cause.
+- a member cannot INSERT into `office_locations` (invent a branch at their house)
+- a member cannot UPDATE one (move a branch, or widen its radius to 5 km)
+- a member cannot loosen `attendance_settings` (`max_accuracy_meters`, grace)
+- a member cannot call `rotate_office_qr`
+- rotating actually changes the token — run through the RPC as HR, so the
+  rotation path is proven and not just the refusal
+- `punch_by_qr()` with a **valid** code from 3 km away is refused
+- `punch_by_qr()` with a **rotated-away** code is refused, while standing at
+  that very branch — the photocopied-poster case
+- `allow_any_branch = false`: a Branch-A person scanning Branch B's code is
+  refused, **and no row is written by the refusal**
+- `allow_any_branch = true`: the same scan lands, and `attendance.office_id`
+  records **Branch B**, not their assigned branch
+- a second scan within 2 minutes is refused as a double-scan, **and the day is
+  still open** — not closed for HR to fix
+- the button punch stores `punch_in_method = 'button'` and the scan stores
+  `'qr'`, so the How column on HR's table is proven, not assumed
+
+Everything the old file checked is kept: the haversine sanity pair, a member
+cannot insert or update `public.attendance` at all, `punch_in` too_far /
+weak_fix / inside-records-it / already_in / punch_out-grades-it, the four
+grading rules, an HR correction landing in `attendance_edits` and being
+re-graded, and a member reading nobody else's day.
+
+**It has NOT been run yet.** There is no Postgres, no Docker and no `.env` on
+this machine, so it was structurally linted (block nesting balanced, dollar
+quotes paired) and not executed. Until Adarsh pastes it into the SQL editor and
+the rows come back, the geofence is still only verified by reading the policies.
+Say that plainly rather than implying the module is proven.
+
+---
+
+# HR Phase 7 — leave, finished (2026-09-12)
+
+The phase this file has been carrying since Round 6's handoff note. Adarsh
+settled every open question before a line was written, so these are decisions,
+not guesses — **do not re-ask them**:
+
+1. **HR (and the owner) approve.** Not a line manager. So there is no
+   `approver_id`, no approver dropdown and no per-request routing; 0009's
+   policies already said exactly this and were left alone. The
+   "assigned manager" idea in the old Phase 7 note is **dropped**, on his word.
+2. **Sick and casual share ONE entitlement** (`employees.annual_leave_days`,
+   18 by default).
+3. **Unpaid does not touch that balance.** It is recorded, counted and shown on
+   its own, because taking leave without pay is not spending a paid day.
+4. **HR enters the holiday list themselves.** Nothing seeded — a company's
+   closures are its own, and a pre-loaded national-holiday list would have to
+   be pruned before it was true.
+
+Pending-amber / approved-green was **already** right (`LEAVE_STATUS` has used
+`chip--warn` / `chip--good` since Phase 2). Confirmed on screen rather than
+taken from the code, and not rebuilt.
+
+## What shipped
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/0016_leave_types_and_working_days.sql` | `leave_requests.leave_type` (`sick`/`casual`/`unpaid`, defaulted to casual, constrained); `working_days_between(date,date)` — Sundays via `attendance_settings.week_offs`, holidays via the `holidays` table; `set_leave_days_count()` rewritten to use it. **It recounts every existing row**, which changes historical day counts on purpose: two arithmetics inside one balance would be worse. `security definer` deliberately — both tables it reads are select-true today, but a tightened policy later must not silently make holidays count as working days. |
+| `supabase/tests/0016_rls_checks.sql` | Fourteen checks. The two that matter: a member sending `days_count = 99` with a one-day request gets **1** stored, and a member **cannot** turn their own pending request into an approved one — the regression test 0009's policy never had. Also: the Saturday-counts rule, a holiday removing a day, an invented leave type refused, no-type defaulting to casual, a member unable to enter or remove a holiday, HR able to decide, and a member reading nobody else's requests. **Not yet run against the live database.** |
+| `src/react/lib/hr.ts` | `LeaveType`, `LEAVE_TYPE`, `isPaidLeave`, `unpaidLeaveDays()`, and `workingDaysBetween()` — the last is for the **form's preview and demo mode only**. The stored number is always the trigger's, and the hook re-reads the saved row, so a drift between the two leaves the record right and only a sentence wrong. |
+| `src/react/data/useLeaveRequests.ts` | Maps `leave_type`; the draft carries it; `days_count` is deliberately **not sent** on insert. |
+| `src/react/data/useAttendance.ts` | Now also loads `holidays`, with `addHoliday` (upsert — the date is the PK, so entering a day twice is not an error in HR's face) and `removeHoliday`. It went here, not into a hook of its own, because this hook already owns `week_offs` and a leave count needs both together or it is wrong — and every screen that asks about leave already calls it. |
+| `src/react/lib/attendance.ts` | `Holiday`. |
+| `src/react/modals/LeaveRequestModal.tsx` | A three-way type picker and the sentence that **is** this phase: *"5 working days — 1 Sunday and Diwali are not counted."* Refuses to send a range that is all Sundays and holidays, naming the day when it is only one. |
+| `src/react/modals/LeaveDecisionModal.tsx` | Now says the **type** in the header — approving three unpaid days is not the same decision as three sick ones — and an extra line for unpaid saying it takes nothing out of their balance. The raw ISO dates that used to be in the subtitle (`2026-11-02 to 2026-11-02`) moved into the body through `fmtDate`; they read like a database field. |
+| `src/react/screens/HrPage.tsx` | A **Type** column on the company-wide table, an **Unpaid taken** field on the employee record's Leave section, and the **Holidays** list — add, remove, with the consequence stated: changing the list changes how *new* requests are counted, and decided ones keep the number they were approved with. |
+| `src/react/screens/Member.tsx` | The Entitlement tile folded into Remaining's own sub line (*"15 — of 18 paid days this year"*) to make room for an **Unpaid** tile; the type named in bold on each request row rather than given a second chip, because that row already carries a status chip and sometimes a Cancel button at 375px. |
+| `src/prototype.css` | `.seg--form` (the segmented control as a form choice: full width, equal thirds, 34px instead of the topbar's 26px — a modal a salesperson fills in on a bus needs a real touch target), `.field-hint`, `.hol-add`. |
+
+## Judgement calls worth Adarsh seeing
+
+1. **No holidays rail item.** The list sits on the Leave page, because the only
+   thing it changes is how leave is counted and that is the page somebody is
+   already on when they think about it. One fewer nav item.
+2. **Removing a holiday does not rewrite decided requests.** The trigger only
+   fires when the dates change, so an approved 4-day request stays 4 days. That
+   is the honest behaviour — a number somebody was told and agreed to should not
+   move under them — and the card says so in words.
+3. **Not built, noted instead:** half-day leave, carry-forward, a month
+   calendar view, per-type approval routing. None were asked for.
+
+## Two real bugs found by testing, not by reading
+
+1. **"2 Sundays is not counted."** The verb keyed off how many *phrases*
+   described the exclusions, not how many *days* were excluded — one phrase
+   reading "2 Sundays" still takes a plural verb. This is the Round 19 failure
+   mode exactly, and it only appeared because the modal was driven through
+   one-Sunday, two-Sunday and one-holiday ranges rather than looked at once.
+2. **`.hol-add` had no CSS at all.** `.input` is `width:100%`, so on a 1280px
+   screen the date, the name and the button stacked as three full-width rows.
+   Measured, not eyeballed — it looked deliberate in a screenshot. Now one row
+   on a laptop, wrapping to two on a phone.
+
+Also fixed in passing: the holiday row put the full date in `.ov-n`, a slot
+sized for a number like "34", so "21 Oct 2026" shouted and the holiday's name
+whispered. Name first now, matching a leave row on the employee's own screen.
+
+## Verified in Chromium, not asserted
+
+`tsc --noEmit` and `npm run build` both clean.
+
+`?demo=1&as=member` at 375px: Remaining 15 of 18, Used 3, Unpaid 2, Pending 0 —
+and 18 − 3 = 15 with the 2 unpaid days **not** deducted, which is decision 3
+proved arithmetically rather than described. Filed an unpaid request over a
+weekend: preview said *"3 working days — 1 Sunday is not counted"*, the row
+landed as `3d Unpaid … Pending` with an amber chip, Pending went to 1, Remaining
+did **not** move (pending deducts nothing), the tab badge read `Leave 1`.
+Cancelled it: status flipped, badge cleared. A Sunday alone and Diwali alone
+were each refused by name with Send disabled.
+
+`?demo=1&as=hr`: Type column present; Arjun's 20–24 Oct reads **4 days**, not 5,
+because Diwali sits inside it. Approved a request — modal reads
+*"Arjun Mehta · Casual leave / 20 Oct 2026 – 24 Oct 2026 · 4 working days"* —
+Pending 2→1, Decided this month 0→1. Logged leave for somebody else as unpaid
+and the approval modal carried the unpaid line. Added a holiday (appeared in
+date order, toast fired, inputs cleared), removed it, emptied the list entirely
+and got *"No holidays entered yet, so leave counts currently skip Sundays
+only."* `?demo=1` (owner) reaches the same page through the rail's HR button.
+
+375px and 1280px, light and dark, `scrollWidth === clientWidth` on every screen
+touched. Singular/plural checked deliberately at 1 day, 1 Sunday and 2 Sundays.
+Only console error throughout: the Google Fonts stylesheet this sandbox blocks
+(`index.html:14`), pre-existing and fine on Vercel.
+
+## Noted for the UI/UX pass (item 4), not changed here
+
+- **`.btn--sm` is 28px tall.** The Cancel button on a pending leave row measures
+  28×59 at 375px, well under a comfortable touch target. It is a global class
+  used everywhere, so moving it is the layout pass's job, not this phase's.
+- **The employee tab strip is now seven items** (Overview, Attendance, My leads,
+  My sales, Leave, Salary, Onboarding) and scrolls off both edges at 375px —
+  the pre-existing overflow noted since Phase 2, now definitely worth solving.
+- **A salary row wraps to 77px** at 375px while its neighbour is 49px, because
+  "Net ₹28,520 · Gross ₹31,000" breaks mid-line.
+
+## Open
+
+- **0016 and its test file have not been run against the live database.** Same
+  backlog as the rewritten `0013_rls_checks.sql`. Nothing here is proven until
+  both come back as rows.
+- **CLAUDE.md was wrong about 0009–0012 never having been run.** The attendance
+  SQL that ran clean on 2026-09-12 creates policies calling
+  `my_employee_id()`, which only 0009 defines — so 0009 is installed. Verify
+  the rest with the inventory query rather than trusting either claim.
