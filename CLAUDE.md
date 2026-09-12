@@ -2459,3 +2459,33 @@ anything else — plus a guard against using it to enumerate the company
 confirms whether a code exists). Then `SignIn.tsx` tries: if the field has no
 `@`, resolve it first. Change-password already exists in `ProfileModal` from the
 avatars round — confirm it works rather than rebuilding it.
+
+## ANSWERS — Adarsh settled these on 2026-09-12. Do NOT re-ask.
+
+**1. Password: a set-password link AFTER approval.** The candidate fills the form
+and uploads documents; **no auth account, no profile and no employee row exists
+at that point** — only a `job_applications` row. On approval they get one email
+carrying their four-digit employee ID *and* a link to set their own password.
+This resolves the contradiction in his brief in favour of "nothing is created
+until HR approves", and it closes the abuse surface: anybody who gets the
+WhatsApp link can submit an application, but nobody can create a login.
+
+**2. Mandatory uploads before the form will submit:** photo, PAN, Aadhaar, bank
+proof (cancelled cheque or passbook), and a previous experience / relieving
+letter. Education certificates are **not** required.
+
+> **Flagged, needs one decision before the form goes to real candidates:** a
+> fresher has no relieving letter and under this rule literally cannot submit.
+> The likely fix is a "no previous employment" checkbox that waives that one
+> upload. Do not silently make it optional — ask him, since he chose it
+> deliberately, and the answer is probably the checkbox.
+
+**3. HR fills at approval, not the candidate:** branch, department, shift,
+designation, joining date, salary (gross and net), and leave entitlement. The
+candidate fills only their own personal details and the documents. Salary stays
+owner/HR-only exactly as `salary_records` already enforces. Leave entitlement
+still defaults to 18 if HR leaves it alone.
+
+**4. Email: `metrol.in` IS verified in Resend. Send from `hr@metrol.in`.** The
+key goes in as a **Supabase secret**, never into `.env` and never with a `VITE_`
+prefix — tell him the exact place to paste it and never ask for it in chat.
