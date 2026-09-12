@@ -507,7 +507,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   <>
                     <div style={{ marginBottom: 16 }}>
                       <PunchCard att={att} myEmployeeId={myEmployee.id}
-                                 shiftStart={att.shifts.find((s) => s.id === myEmployee.shiftId)?.startsAt ?? null} toast={toast} />
+                                 shiftStart={att.shifts.find((s) => s.id === myEmployee.shiftId)?.startsAt ?? null}
+                                 myOfficeId={myEmployee.officeId} toast={toast} />
                     </div>
 
                     <div className="section">

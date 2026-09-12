@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { demoAttendance, demoAttendanceSettings, demoEmployees, demoShifts, isDemo } from '@/data/demo'
-import { officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type Shift } from '@/lib/attendance'
+import { demoAttendance, demoAttendanceSettings, demoEmployees, demoOffices, demoShifts, isDemo } from '@/data/demo'
+import { officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
 
 type Row = Record<string, unknown>
 
@@ -24,6 +24,9 @@ const toRow = (r: Row): AttendanceRow => ({
   punchOutLng: num(r.punch_out_lng),
   punchOutAccuracy: num(r.punch_out_accuracy),
   punchOutDistance: num(r.punch_out_distance_m),
+  officeId: (r.office_id as string | null) ?? null,
+  punchInMethod: (r.punch_in_method as PunchMethod) ?? 'button',
+  punchOutMethod: (r.punch_out_method as PunchMethod) ?? 'button',
   workedMinutes: Number(r.worked_minutes) || 0,
   lateMinutes: Number(r.late_minutes) || 0,
   status: (r.status as AttendanceStatus) ?? 'in_progress',
@@ -33,17 +36,27 @@ const toRow = (r: Row): AttendanceRow => ({
 })
 
 const toSettings = (r: Row): AttendanceSettings => ({
-  officeLabel: str(r.office_label) || 'Head office',
-  officeLat: num(r.office_lat),
-  officeLng: num(r.office_lng),
-  radiusMeters: Number(r.radius_meters) || 50,
   graceMinutes: Number(r.grace_minutes) || 0,
   requiredMinutes: Number(r.required_minutes) || 540,
   halfDayMinutes: Number(r.half_day_minutes) || 270,
   maxAccuracyMeters: Number(r.max_accuracy_meters) || 100,
   weekOffs: Array.isArray(r.week_offs) ? (r.week_offs as number[]).map(Number) : [0],
   timezone: str(r.timezone) || 'Asia/Kolkata',
+  allowAnyBranch: r.allow_any_branch !== false,
   updatedAt: (r.updated_at as string | null) ?? null,
+})
+
+const toOffice = (r: Row): OfficeLocation => ({
+  id: str(r.id),
+  name: str(r.name),
+  address: str(r.address),
+  lat: Number(r.lat),
+  lng: Number(r.lng),
+  radiusMeters: Number(r.radius_meters) || 50,
+  isActive: r.is_active !== false,
+  sortOrder: Number(r.sort_order) || 0,
+  qrToken: str(r.qr_token),
+  qrRotatedAt: (r.qr_rotated_at as string | null) ?? null,
 })
 
 const toShift = (r: Row): Shift => ({
@@ -60,6 +73,10 @@ export interface PunchResult {
   ok: boolean
   reason?: string
   message: string
+  /** Which branch the punch landed at — named in the message too, because
+   *  somebody punching at the other office should be told, not just logged. */
+  office?: string
+  action?: string
   distance?: number
   status?: string
   lateMinutes?: number
@@ -67,14 +84,20 @@ export interface PunchResult {
 }
 
 export interface SettingsDraft {
-  officeLabel: string
-  officeLat: number | null
-  officeLng: number | null
-  radiusMeters: number
   graceMinutes: number
   requiredMinutes: number
   halfDayMinutes: number
   maxAccuracyMeters: number
+  allowAnyBranch: boolean
+}
+
+export interface OfficeDraft {
+  name: string
+  address: string
+  lat: number
+  lng: number
+  radiusMeters: number
+  isActive: boolean
 }
 
 /** A manual correction, or a day HR is filling in from the paper register.
@@ -102,6 +125,7 @@ export function useAttendance(enabled = true) {
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [settings, setSettings] = useState<AttendanceSettings | null>(null)
   const [shifts, setShifts] = useState<Shift[]>([])
+  const [offices, setOffices] = useState<OfficeLocation[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
@@ -111,18 +135,21 @@ export function useAttendance(enabled = true) {
       setRows(demoAttendance)
       setSettings(demoAttendanceSettings)
       setShifts(demoShifts)
+      setOffices(demoOffices)
       setLoading(false)
       return
     }
-    const [att, set, sh] = await Promise.all([
+    const [att, set, sh, off] = await Promise.all([
       supabase.from('attendance').select('*').order('work_date', { ascending: false }).limit(2000),
       supabase.from('attendance_settings').select('*').limit(1).maybeSingle(),
       supabase.from('shifts').select('*').order('sort_order'),
+      supabase.from('office_locations').select('*').order('sort_order'),
     ])
     if (att.error) { setError(att.error.message); setLoading(false); return }
     setRows((att.data ?? []).map((r) => toRow(r as Row)))
     if (set.data) setSettings(toSettings(set.data as Row))
     setShifts((sh.data ?? []).map((r) => toShift(r as Row)))
+    setOffices((off.data ?? []).map((r) => toOffice(r as Row)))
     setLoading(false)
   }, [enabled])
 
@@ -139,18 +166,21 @@ export function useAttendance(enabled = true) {
       const today = officeToday()
       const id = myEmployeeId ?? 'e1'
       const existing = rows.find((r) => r.employeeId === id && r.workDate === today)
+      const me = demoEmployees.find((e) => e.id === id)
+      const branch = offices.find((o) => o.id === me?.officeId) ?? offices[0]
       if (kind === 'in') {
         if (existing?.punchInAt) return { ok: false, reason: 'already_in', message: 'You are already punched in for today.' }
         const now = new Date().toISOString()
-        const myShift = shifts.find((s) => s.id === (demoEmployees.find((e) => e.id === id)?.shiftId ?? '')) ?? shifts[0]
+        const myShift = shifts.find((s) => s.id === (me?.shiftId ?? '')) ?? shifts[0]
         setRows((p) => [{
           id: 'att-demo-' + today, employeeId: id, workDate: today,
+          officeId: branch?.id ?? null, punchInMethod: 'button', punchOutMethod: 'button',
           shiftId: myShift?.id ?? null, shiftStart: myShift?.startsAt ?? null,
           punchInAt: now, punchInLat: fix.lat, punchInLng: fix.lng, punchInAccuracy: fix.accuracy, punchInDistance: 18,
           punchOutAt: null, punchOutLat: null, punchOutLng: null, punchOutAccuracy: null, punchOutDistance: null,
           workedMinutes: 0, lateMinutes: 0, status: 'in_progress', source: 'self', editedBy: null, editReason: null,
         }, ...p])
-        return { ok: true, message: 'Punched in. Have a good day.', distance: 18 }
+        return { ok: true, message: `Punched in at ${branch?.name ?? 'the office'}. Have a good day.`, distance: 18, office: branch?.name }
       }
       if (!existing?.punchInAt) return { ok: false, reason: 'not_in', message: 'You have not punched in today.' }
       if (existing.punchOutAt) return { ok: false, reason: 'already_out', message: 'You already punched out today.' }
@@ -185,6 +215,91 @@ export function useAttendance(enabled = true) {
   const punchIn = useCallback((fix: { lat: number; lng: number; accuracy: number }, empId?: string) => punch('in', fix, empId), [punch])
   const punchOut = useCallback((fix: { lat: number; lng: number; accuracy: number }, empId?: string) => punch('out', fix, empId), [punch])
 
+  /** The printed poster. One call for both directions, because that is how it
+   *  is used: the same code, scanned on the way in and on the way out. The
+   *  token only names the branch — the database still checks that this phone is
+   *  standing at it, so a photographed code is worth nothing off-site. */
+  const punchByQr = useCallback(async (
+    token: string,
+    fix: { lat: number; lng: number; accuracy: number },
+    myEmployeeId?: string,
+  ): Promise<PunchResult> => {
+    if (isDemo()) {
+      const branch = offices.find((o) => o.qrToken === token)
+      if (!branch) return { ok: false, reason: 'bad_code', message: 'This QR code is not in use any more. Ask HR for the current one.' }
+      const today = officeToday()
+      const id = myEmployeeId ?? 'e1'
+      const existing = rows.find((r) => r.employeeId === id && r.workDate === today)
+      const res = await punch(existing?.punchInAt && !existing.punchOutAt ? 'out' : 'in', fix, id)
+      if (res.ok) return { ...res, office: branch.name, message: res.message.replace('the office', branch.name) }
+      return res
+    }
+    const { data, error: err } = await supabase.rpc('punch_by_qr', {
+      p_token: token, p_lat: fix.lat, p_lng: fix.lng, p_accuracy: Math.round(fix.accuracy),
+    })
+    if (err) return { ok: false, reason: 'error', message: err.message }
+    const d = (data ?? {}) as Record<string, unknown>
+    await load()
+    return {
+      ok: d.ok === true,
+      reason: d.reason as string | undefined,
+      message: str(d.message) || (d.ok === true ? 'Done.' : 'Could not record that.'),
+      distance: d.distance == null ? undefined : Number(d.distance),
+      office: d.office as string | undefined,
+      status: d.status as string | undefined,
+      action: d.action as string | undefined,
+    }
+  }, [offices, rows, punch, load])
+
+  /* ------------------------------------------------------------- branches */
+
+  const createOffice = useCallback(async (draft: OfficeDraft): Promise<string | null> => {
+    if (isDemo()) {
+      setOffices((p) => [...p, {
+        ...draft, id: 'off-' + (p.length + 1), sortOrder: p.length + 1,
+        qrToken: 'demo-token-' + (p.length + 1), qrRotatedAt: new Date().toISOString(),
+      }])
+      return null
+    }
+    const { data, error: err } = await supabase.from('office_locations').insert({
+      name: draft.name.trim(), address: draft.address.trim(),
+      lat: draft.lat, lng: draft.lng, radius_meters: draft.radiusMeters, is_active: draft.isActive,
+    }).select('*').single()
+    if (err) return err.message
+    if (data) setOffices((p) => [...p, toOffice(data as Row)])
+    return null
+  }, [])
+
+  const updateOffice = useCallback(async (id: string, draft: OfficeDraft): Promise<string | null> => {
+    if (isDemo()) {
+      setOffices((p) => p.map((o) => (o.id === id ? { ...o, ...draft } : o)))
+      return null
+    }
+    const { data, error: err } = await supabase.from('office_locations').update({
+      name: draft.name.trim(), address: draft.address.trim(),
+      lat: draft.lat, lng: draft.lng, radius_meters: draft.radiusMeters, is_active: draft.isActive,
+    }).eq('id', id).select('*').single()
+    if (err) return err.message
+    if (data) setOffices((p) => p.map((o) => (o.id === id ? toOffice(data as Row) : o)))
+    return null
+  }, [])
+
+  /** A printout walked. Every photocopy of the old code stops working. */
+  const rotateQr = useCallback(async (id: string): Promise<string | null> => {
+    if (isDemo()) {
+      setOffices((p) => p.map((o) => (o.id === id
+        ? { ...o, qrToken: 'demo-token-' + Math.random().toString(36).slice(2, 10), qrRotatedAt: new Date().toISOString() }
+        : o)))
+      return null
+    }
+    const { data, error: err } = await supabase.rpc('rotate_office_qr', { p_office: id })
+    if (err) return err.message
+    const d = (data ?? {}) as Record<string, unknown>
+    if (d.ok !== true) return str(d.message) || 'Could not make a new code.'
+    await load()
+    return null
+  }, [load])
+
   /* ------------------------------------------------------- HR's own writing */
 
   const saveSettings = useCallback(async (draft: SettingsDraft): Promise<string | null> => {
@@ -195,14 +310,11 @@ export function useAttendance(enabled = true) {
     const { data, error: err } = await supabase
       .from('attendance_settings')
       .update({
-        office_label: draft.officeLabel.trim() || 'Head office',
-        office_lat: draft.officeLat,
-        office_lng: draft.officeLng,
-        radius_meters: draft.radiusMeters,
         grace_minutes: draft.graceMinutes,
         required_minutes: draft.requiredMinutes,
         half_day_minutes: draft.halfDayMinutes,
         max_accuracy_meters: draft.maxAccuracyMeters,
+        allow_any_branch: draft.allowAnyBranch,
       })
       .eq('id', true).select('*').single()
     if (err) return err.message
@@ -254,7 +366,8 @@ export function useAttendance(enabled = true) {
     if (isDemo()) {
       setRows((p) => [{
         id: 'att-hr-' + employeeId + '-' + workDate, employeeId, workDate,
-        shiftId: null, shiftStart: draft.shiftStart,
+        shiftId: null, shiftStart: draft.shiftStart, officeId: null,
+        punchInMethod: 'hr', punchOutMethod: 'hr',
         punchInAt: draft.punchInAt, punchInLat: null, punchInLng: null, punchInAccuracy: null, punchInDistance: null,
         punchOutAt: draft.punchOutAt, punchOutLat: null, punchOutLng: null, punchOutAccuracy: null, punchOutDistance: null,
         workedMinutes: 0, lateMinutes: 0, status: draft.status ?? 'present', source: 'hr', editedBy: null, editReason: draft.editReason,
@@ -284,8 +397,9 @@ export function useAttendance(enabled = true) {
   }, [])
 
   return {
-    rows, settings, shifts, loading, error,
-    reload: load, punchIn, punchOut, saveSettings, correct, addDay, finalizeOpen,
+    rows, settings, shifts, offices, loading, error,
+    reload: load, punchIn, punchOut, punchByQr, saveSettings, correct, addDay, finalizeOpen,
+    createOffice, updateOffice, rotateQr,
     clearError: () => setError(null),
   }
 }

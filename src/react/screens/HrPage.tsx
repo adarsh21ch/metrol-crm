@@ -848,11 +848,11 @@ export function HrPage({
       )}
 
       {adding && (
-        <EmployeeModal ws={ws} employee={null} employees={hr.rows} shifts={att.shifts} prefill={adding}
+        <EmployeeModal ws={ws} employee={null} employees={hr.rows} shifts={att.shifts} offices={att.offices} prefill={adding}
                        onClose={() => setAdding(null)} onSave={saveNew} />
       )}
       {editing && (
-        <EmployeeModal ws={ws} employee={editing} employees={hr.rows} shifts={att.shifts}
+        <EmployeeModal ws={ws} employee={editing} employees={hr.rows} shifts={att.shifts} offices={att.offices}
                        onClose={() => setEditing(null)} onSave={saveEdit} />
       )}
 

@@ -1,6 +1,6 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import type { Employee, EmployeeDocument, ExitTask, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
-import type { AttendanceRow, AttendanceSettings, Shift } from '@/lib/attendance'
+import type { AttendanceRow, AttendanceSettings, OfficeLocation, Shift } from '@/lib/attendance'
 import { initials } from '@/lib/format'
 
 /**
@@ -162,19 +162,22 @@ const JOINED = ['2023-04-11', '2022-09-01', '2024-01-15', '2025-03-03', '2021-11
  *  person working their notice, so the directory has every state in it. */
 export const demoEmployees: Employee[] = [
   {
-    id: 'e0', employeeCode: 'MM-001', profileId: HR_PERSON.id, fullName: HR_PERSON.name,
+    id: 'e0', employeeCode: '4821', profileId: HR_PERSON.id, fullName: HR_PERSON.name,
     designation: 'HR Manager', departmentId: 'd7', employmentType: 'full_time',
     dateOfJoining: '2024-02-05', reportingTo: null,
     workEmail: HR_PERSON.email ?? '', personalEmail: 'priya.s@gmail.com', phone: '+91 98200 11001',
     dateOfBirth: '1994-08-19', address: 'Vijay Nagar, Indore, MP',
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
-    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18, shiftId: 'sh1',
+    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18, shiftId: 'sh1', officeId: 'off1',
     offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
     resignationDate: null, noticePeriodDays: null,
   },
   ...demoMembers.map((m, i) => ({
     id: 'e' + (i + 1),
-    employeeCode: 'MM-' + String(i + 2).padStart(3, '0'),
+    // Four random digits, like the real generator in 0015 — a sequence would
+    // tell anybody holding two ID cards who joined first and how many people
+    // work here. Fixed values here so the demo reads the same every time.
+    employeeCode: ['7845', '3015', '9264', '5107', '6390'][i] ?? '1000',
     profileId: m.id,
     fullName: m.name,
     designation: DESIGNATIONS[i] ?? 'Sales Executive',
@@ -202,6 +205,7 @@ export const demoEmployees: Employee[] = [
     // The five are spread across the three shifts, so the demo shows what a
     // 09:30 person and a 10:30 person being "late" actually mean.
     shiftId: 'sh' + ((i % 3) + 1),
+    officeId: i < 2 ? 'off1' : 'off2',
   })),
 ]
 
@@ -323,17 +327,30 @@ export const demoExitTasks: ExitTask[] = EXIT_TASKS.map((label, i) => ({
  *  what a person at their desk would see. */
 export const DEMO_OFFICE = { lat: 22.719568, lng: 75.857727, label: 'Metrol Media, Indore' }
 
+/** Two branches, because Metrol has two. The second sits about 1.9 km from the
+ *  first, which is far enough that the demo's simulated fix is inside exactly
+ *  one of them at a time. */
+export const demoOffices: OfficeLocation[] = [
+  {
+    id: 'off1', name: 'Noida Sector 6', address: 'C-56, Sector 6, Noida',
+    lat: DEMO_OFFICE.lat, lng: DEMO_OFFICE.lng, radiusMeters: 50,
+    isActive: true, sortOrder: 1, qrToken: 'demo-token-1', qrRotatedAt: iso(30),
+  },
+  {
+    id: 'off2', name: 'Noida Sector 10', address: 'B-14, Sector 10, Noida',
+    lat: DEMO_OFFICE.lat + 0.017, lng: DEMO_OFFICE.lng + 0.004, radiusMeters: 75,
+    isActive: true, sortOrder: 2, qrToken: 'demo-token-2', qrRotatedAt: iso(12),
+  },
+]
+
 export const demoAttendanceSettings: AttendanceSettings = {
-  officeLabel: DEMO_OFFICE.label,
-  officeLat: DEMO_OFFICE.lat,
-  officeLng: DEMO_OFFICE.lng,
-  radiusMeters: 50,
   graceMinutes: 7,
   requiredMinutes: 540,
   halfDayMinutes: 270,
   maxAccuracyMeters: 100,
   weekOffs: [0],
   timezone: 'Asia/Kolkata',
+  allowAnyBranch: true,
   updatedAt: iso(9),
 }
 
@@ -379,10 +396,15 @@ export const demoAttendance: AttendanceRow[] = (() => {
       const at = (mins: number) => new Date(`${date}T${pad(Math.floor(mins / 60))}:${pad(mins % 60)}:00+05:30`).toISOString()
       const late = Math.max(0, lateBy - 7)
       const open = back === 0                                   // today: still in the office
+      const branch = demoEmployees.find((e) => e.id === id)?.officeId ?? 'off1'
       rows.push({
         id: `att-${id}-${date}`,
         employeeId: id,
         workDate: date,
+        officeId: branch,
+        // A spread of both methods, so HR's table shows what each looks like.
+        punchInMethod: seed % 4 === 1 ? 'qr' : 'button',
+        punchOutMethod: seed % 4 === 1 ? 'qr' : 'button',
         shiftId: shift.id,
         shiftStart: shift.startsAt,
         punchInAt: at(inMin),

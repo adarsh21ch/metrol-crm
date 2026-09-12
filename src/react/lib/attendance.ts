@@ -33,6 +33,13 @@ export interface AttendanceRow {
   punchOutLng: number | null
   punchOutAccuracy: number | null
   punchOutDistance: number | null
+  /** Which branch this day was measured against, snapshotted at punch-in — a
+   *  transfer next month must not rewrite where somebody stood today, and a
+   *  Sector 6 person spending a day at Sector 10 shows as exactly that. */
+  officeId: string | null
+  /** How the day was opened and closed: the button, a scanned poster, or HR. */
+  punchInMethod: PunchMethod
+  punchOutMethod: PunchMethod
   workedMinutes: number
   lateMinutes: number
   status: AttendanceStatus
@@ -43,18 +50,48 @@ export interface AttendanceRow {
   editReason: string | null
 }
 
-export interface AttendanceSettings {
-  officeLabel: string
-  officeLat: number | null
-  officeLng: number | null
+export type PunchMethod = 'button' | 'qr' | 'hr'
+
+/** One office. Metrol has two and will have three; adding the third is a row,
+ *  not a migration. Coordinates are required — a branch nobody can punch at is
+ *  not a branch — so HR captures the location in the step that creates it. */
+export interface OfficeLocation {
+  id: string
+  name: string
+  address: string
+  lat: number
+  lng: number
+  /** Per branch: a small office off a main road and a floor in a tower do not
+   *  deserve the same fence. */
   radiusMeters: number
+  isActive: boolean
+  sortOrder: number
+  /** What the printed poster encodes. Rotating it kills every photocopy of the
+   *  old one, which is the answer when a printout walks. */
+  qrToken: string
+  qrRotatedAt: string | null
+}
+
+/** What is true company-wide. The office used to live here and does not any
+ *  more (0014): two branches cannot share one set of coordinates. */
+export interface AttendanceSettings {
   graceMinutes: number
   requiredMinutes: number
   halfDayMinutes: number
   maxAccuracyMeters: number
   weekOffs: number[]
   timezone: string
+  /** Off means a punch is only ever accepted at the branch that person is
+   *  assigned to. On (the default) lets somebody working out of the other
+   *  office that day punch there, and the row records which one it was. */
+  allowAnyBranch: boolean
   updatedAt: string | null
+}
+
+export const PUNCH_METHOD: Record<PunchMethod, string> = {
+  button: 'Button',
+  qr: 'QR scan',
+  hr: 'HR entry',
 }
 
 export interface Shift {

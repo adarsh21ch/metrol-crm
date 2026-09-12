@@ -3,8 +3,9 @@ import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Chip, Kpi } from '@/components/bits'
 import { AttendanceSettingsModal } from '@/modals/AttendanceSettingsModal'
 import { AttendanceEditModal } from '@/modals/AttendanceEditModal'
+import { OfficeModal } from '@/modals/OfficeModal'
 import { count } from '@/lib/format'
-import { statusChip, fmtDuration, fmtShift, fmtTime, officeToday, type AttendanceRow } from '@/lib/attendance'
+import { PUNCH_METHOD, statusChip, fmtDuration, fmtShift, fmtTime, officeToday, type AttendanceRow, type OfficeLocation } from '@/lib/attendance'
 import type { Attendance } from '@/data/useAttendance'
 import type { Employee } from '@/lib/hr'
 
@@ -16,6 +17,7 @@ interface DayRow {
   employeeId: string
   name: string
   code: string
+  officeId: string | null
   row: AttendanceRow | null
 }
 
@@ -37,6 +39,11 @@ export function HrAttendance({
   const [q, setQ] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [editing, setEditing] = useState<AttendanceRow | null>(null)
+  const [branch, setBranch] = useState('')            // '' = every branch
+  const [editingOffice, setEditingOffice] = useState<OfficeLocation | null>(null)
+  const [addingOffice, setAddingOffice] = useState(false)
+  const [showBranches, setShowBranches] = useState(false)
+  const officeName = (id: string | null) => att.offices.find((o) => o.id === id)?.name ?? '—'
 
   // Days somebody walked out of without punching out would otherwise sit at
   // "in office" for ever. Free plans have no scheduler, so the screen that
@@ -51,7 +58,11 @@ export function HrAttendance({
   const dayRows: DayRow[] = useMemo(() => {
     const byEmp = new Map(att.rows.filter((r) => r.workDate === date).map((r) => [r.employeeId, r]))
     return staff
-      .map((e) => ({ id: e.id, employeeId: e.id, name: e.fullName, code: e.employeeCode, row: byEmp.get(e.id) ?? null }))
+      .map((e) => ({ id: e.id, employeeId: e.id, name: e.fullName, code: e.employeeCode, officeId: e.officeId, row: byEmp.get(e.id) ?? null }))
+      // Filtering by branch asks about the PERSON's branch, not the day's: the
+      // question is "how is Sector 6 doing today", and somebody from Sector 6
+      // who happens to be at the other office is still Sector 6's person.
+      .filter((r) => !branch || r.officeId === branch)
       .filter((r) => !q || r.name.toLowerCase().includes(q.toLowerCase()) || (r.code ?? '').toLowerCase().includes(q.toLowerCase()))
       .sort((a, b) => {
         // In the office first, then late, then everybody who has not arrived —
@@ -59,7 +70,7 @@ export function HrAttendance({
         const rank = (x: DayRow) => (x.row?.status === 'in_progress' ? 0 : x.row ? 1 : 2)
         return rank(a) - rank(b) || a.name.localeCompare(b.name)
       })
-  }, [att.rows, staff, date, q])
+  }, [att.rows, staff, date, q, branch])
 
   const inOffice = dayRows.filter((r) => r.row?.status === 'in_progress').length
   const lateToday = dayRows.filter((r) => (r.row?.lateMinutes ?? 0) > 0).length
@@ -78,6 +89,19 @@ export function HrAttendance({
       render: (r) => (r.row?.lateMinutes ? <span className="cell-mono">{r.row.lateMinutes}m</span> : <span className="cell-dash">—</span>),
     },
     {
+      key: 'branch', label: 'Branch', width: 132,
+      render: (r) => {
+        const at = r.row?.officeId
+        const away = at && r.officeId && at !== r.officeId
+        // Somebody punching at the other office is the case the client asked to
+        // keep flexible, so it is shown rather than hidden — as a fact, not a
+        // warning.
+        return away
+          ? <span className="att-src">{officeName(at)} (visiting)</span>
+          : <span className="cell-mute">{officeName(at ?? r.officeId)}</span>
+      },
+    },
+    {
       key: 'status', label: 'Status', width: 130,
       render: (r) => (r.row
         ? <Chip cls={statusChip(r.row.status).cls}>{statusChip(r.row.status).label}</Chip>
@@ -93,8 +117,10 @@ export function HrAttendance({
         : <span className="cell-dash">—</span>),
     },
     {
-      key: 'src', label: 'Source', width: 96,
-      render: (r) => (r.row ? <span className="att-src">{r.row.source === 'hr' ? 'HR entry' : 'Punched'}</span> : <span className="cell-dash">—</span>),
+      key: 'src', label: 'How', width: 100,
+      render: (r) => (r.row
+        ? <span className="att-src">{r.row.source === 'hr' ? 'HR entry' : PUNCH_METHOD[r.row.punchInMethod]}</span>
+        : <span className="cell-dash">—</span>),
     },
     {
       key: 'act', label: '', width: 96,
@@ -115,7 +141,7 @@ export function HrAttendance({
   }
 
   const settings = att.settings
-  const noOffice = !settings?.officeLat || !settings?.officeLng
+  const noOffice = att.offices.filter((o) => o.isActive).length === 0
 
   return (
     <>
@@ -125,6 +151,15 @@ export function HrAttendance({
         <div className="section-tools">
           <input className="input" type="date" value={date} max={officeToday(tz)} onChange={(e) => setDate(e.target.value)} />
           <input className="input search" placeholder="Search name or ID" value={q} onChange={(e) => setQ(e.target.value)} />
+          {att.offices.length > 1 && (
+            <select className="input" value={branch} onChange={(e) => setBranch(e.target.value)}>
+              <option value="">All branches</option>
+              {att.offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
+          <button className="btn btn--sm" onClick={() => setShowBranches((v) => !v)}>
+            {showBranches ? 'Hide branches' : 'Branches'}
+          </button>
           <button className="btn btn--sm" onClick={() => setSettingsOpen(true)}>Settings</button>
         </div>
       </div>
@@ -132,10 +167,41 @@ export function HrAttendance({
       {noOffice && (
         <div className="banner">
           <div>
-            <strong>The office location is not set yet.</strong> Nobody can punch in until it is.
-            Stand inside the office, open Settings, and press "Use my current location".
+            <strong>No branch has been added yet.</strong> Nobody can punch in until one is.
+            Stand inside the office, press Add branch, and use "Use my current location".
           </div>
-          <button className="btn btn--sm btn--primary" onClick={() => setSettingsOpen(true)}>Set it now</button>
+          <button className="btn btn--sm btn--primary" onClick={() => setAddingOffice(true)}>Add branch</button>
+        </div>
+      )}
+
+      {showBranches && (
+        <div className="section">
+          <div className="section-head">
+            <h3>Branches</h3>
+            <div className="section-tools">
+              <button className="btn btn--sm btn--primary" onClick={() => setAddingOffice(true)}>Add branch</button>
+            </div>
+          </div>
+          <div className="ov-actions">
+            {att.offices.length === 0 && <p style={{ color: 'var(--ink-3)' }}>No branches yet.</p>}
+            {att.offices.map((o) => (
+              <div className="ov-row" key={o.id} style={{ cursor: 'default' }}>
+                <span className="ov-n">{staff.filter((e) => e.officeId === o.id).length}</span>
+                <span className="ov-l">
+                  <strong>{o.name}</strong>
+                  <span style={{ color: 'var(--ink-3)' }}>
+                    {o.address ? '  ·  ' + o.address : ''}{'  ·  '}within {o.radiusMeters} m
+                    {!o.isActive ? '  ·  closed' : ''}
+                  </span>
+                </span>
+                <button className="btn btn--sm" onClick={() => setEditingOffice(o)}>Edit &amp; print code</button>
+              </div>
+            ))}
+          </div>
+          <p className="punch-note">
+            Each branch has its own location, its own allowed distance and its own printed QR code.
+            Adding a third one later changes nothing else.
+          </p>
         </div>
       )}
 
@@ -152,7 +218,7 @@ export function HrAttendance({
         <div className="section-head">
           <h3>{date === officeToday(tz) ? 'Today' : date}</h3>
           <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-            {settings?.officeLabel} · within {settings?.radiusMeters} m · full day {fmtDuration(settings?.requiredMinutes ?? 540)}
+            {count(att.offices.filter((o) => o.isActive).length, 'branch')} · full day {fmtDuration(settings?.requiredMinutes ?? 540)} · {settings?.graceMinutes ?? 7} min relaxation
           </div>
         </div>
         <DataGrid
@@ -171,6 +237,19 @@ export function HrAttendance({
           onSave={async (d) => {
             const message = await att.saveSettings(d)
             if (!message) toast('Attendance settings saved.')
+            return message
+          }}
+        />
+      )}
+
+      {(addingOffice || editingOffice) && (
+        <OfficeModal
+          office={editingOffice}
+          onClose={() => { setAddingOffice(false); setEditingOffice(null) }}
+          onRotate={editingOffice ? (id) => att.rotateQr(id) : undefined}
+          onSave={async (d) => {
+            const message = editingOffice ? await att.updateOffice(editingOffice.id, d) : await att.createOffice(d)
+            if (!message) toast(editingOffice ? 'Branch saved.' : 'Branch added.')
             return message
           }}
         />

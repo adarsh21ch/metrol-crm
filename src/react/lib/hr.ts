@@ -41,6 +41,10 @@ export interface Employee {
    *  is HR/owner-only (see 0012). */
   resignationDate: string | null
   noticePeriodDays: number | null
+  /** Phase 6b: which branch this person works at. Their punches are measured
+   *  against it, and whether they may punch at another one is a company
+   *  setting, not a per-person permission. */
+  officeId: string | null
   /** Phase 6: which of the three shifts this person works. Null means nobody
    *  has scheduled them yet — they can still punch, and the day is recorded,
    *  but nothing is judged late against a start time that does not exist. */

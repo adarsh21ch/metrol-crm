@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '@/components/Modal'
+import { QrScanner } from '@/components/QrScanner'
 import { isDemo } from '@/data/demo'
 import type { Attendance } from '@/data/useAttendance'
 import {
@@ -16,11 +17,14 @@ import {
  *  time and whether today is already closed, so a person who fakes the button
  *  into appearing gains nothing. */
 export function PunchCard({
-  att, myEmployeeId, shiftStart, toast,
+  att, myEmployeeId, shiftStart, myOfficeId, toast,
 }: {
   att: Attendance
   myEmployeeId: string | null
   shiftStart: string | null
+  /** The branch HR assigned this person to. Named on the card so somebody who
+   *  has been moved finds out here rather than by being refused at the door. */
+  myOfficeId: string | null
   toast: (m: string) => void
 }) {
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
@@ -33,6 +37,7 @@ export function PunchCard({
   const [busy, setBusy] = useState<null | 'in' | 'out'>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [, forceTick] = useState(0)
 
   // The "you have been in for 3h 12m" line has to keep moving, or it reads as
@@ -49,8 +54,33 @@ export function PunchCard({
     ? Math.max(0, Math.round((Date.now() - new Date(row.punchInAt).getTime()) / 60000))
     : row?.workedMinutes ?? 0
 
+  const myOffice = att.offices.find((o) => o.id === myOfficeId) ?? null
+  // The branch this DAY happened at, which is not always the assigned one.
+  const dayOffice = att.offices.find((o) => o.id === row?.officeId) ?? null
+  const noOffice = att.offices.filter((o) => o.isActive).length === 0
+
   const required = att.settings?.requiredMinutes ?? 540
   const shortBy = Math.max(0, required - elapsed)
+
+  /** The poster on the attendance desk. The code only names a branch — the
+   *  distance is still checked — so scanning is a shortcut, not a bypass. */
+  async function scanned(code: string) {
+    setScanning(false)
+    setProblem(null)
+    setBusy(row?.punchInAt && !row?.punchOutAt ? 'out' : 'in')
+    try {
+      const fix = isDemo()
+        ? { lat: myOffice?.lat ?? 0, lng: myOffice?.lng ?? 0, accuracy: 14 }
+        : await getFix()
+      const res = await att.punchByQr(code, fix, myEmployeeId ?? undefined)
+      if (res.ok) toast(res.message)
+      else setProblem(res.message)
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : 'Could not read your location.')
+    } finally {
+      setBusy(null)
+    }
+  }
 
   async function go(kind: 'in' | 'out') {
     setProblem(null)
@@ -59,7 +89,7 @@ export function PunchCard({
       // In demo there is no real office to stand in, so a fix is simulated at
       // the door. Every other path asks the browser for a real one.
       const fix = isDemo()
-        ? { lat: att.settings?.officeLat ?? 0, lng: att.settings?.officeLng ?? 0, accuracy: 14 }
+        ? { lat: myOffice?.lat ?? att.offices[0]?.lat ?? 0, lng: myOffice?.lng ?? att.offices[0]?.lng ?? 0, accuracy: 14 }
         : await getFix()
       const res = kind === 'in' ? await att.punchIn(fix, myEmployeeId ?? undefined) : await att.punchOut(fix, myEmployeeId ?? undefined)
       if (res.ok) toast(res.message)
@@ -72,8 +102,6 @@ export function PunchCard({
     }
   }
 
-  const settings = att.settings
-  const noOffice = !settings?.officeLat || !settings?.officeLng
 
   return (
     <div className="punch">
@@ -81,7 +109,7 @@ export function PunchCard({
         <div>
           <div className="punch-date">{new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}</div>
           <div className="punch-office">
-            {settings?.officeLabel ?? 'Office'}
+            {dayOffice?.name ?? myOffice?.name ?? 'No branch assigned'}
             {shiftStart && <> · shift {fmtShift(shiftStart)}</>}
           </div>
         </div>
@@ -104,15 +132,25 @@ export function PunchCard({
       </div>
 
       {noOffice ? (
-        <p className="punch-note">HR has not set the office location yet. Punching starts once they do.</p>
+        <p className="punch-note">HR has not added an office location yet. Punching starts once they do.</p>
       ) : !row?.punchInAt ? (
-        <button className="btn btn--primary btn--block btn--lg" disabled={busy !== null} onClick={() => void go('in')}>
-          {busy === 'in' ? 'Checking your location…' : 'Punch in'}
-        </button>
+        <>
+          <button className="btn btn--primary btn--block btn--lg" disabled={busy !== null} onClick={() => void go('in')}>
+            {busy === 'in' ? 'Checking your location…' : 'Punch in'}
+          </button>
+          <button className="btn btn--block" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => setScanning(true)}>
+            Scan office code
+          </button>
+        </>
       ) : !row.punchOutAt ? (
-        <button className="btn btn--block btn--lg" disabled={busy !== null} onClick={() => setConfirming(true)}>
-          {busy === 'out' ? 'Checking your location…' : 'Punch out'}
-        </button>
+        <>
+          <button className="btn btn--block btn--lg" disabled={busy !== null} onClick={() => setConfirming(true)}>
+            {busy === 'out' ? 'Checking your location…' : 'Punch out'}
+          </button>
+          <button className="btn btn--block" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => setScanning(true)}>
+            Scan office code
+          </button>
+        </>
       ) : (
         <p className="punch-note">Today is closed. If something is wrong with it, ask HR to correct it.</p>
       )}
@@ -121,9 +159,13 @@ export function PunchCard({
 
       {!noOffice && !row?.punchOutAt && (
         <p className="punch-note">
-          You have to be within {settings?.radiusMeters} m of {settings?.officeLabel} — your location is checked when you press the button.
+          {myOffice
+            ? <>You have to be within {myOffice.radiusMeters} m of {myOffice.name} — your location is checked whichever way you punch.</>
+            : <>HR has not put you at a branch yet. You can still punch at any office, and the day will record which one.</>}
         </p>
       )}
+
+      {scanning && <QrScanner onClose={() => setScanning(false)} onCode={(c) => void scanned(c)} />}
 
       {/* Punching out by mistake is the failure the client called out by name.
           A confirm step costs one tap; the alternative costs an HR correction

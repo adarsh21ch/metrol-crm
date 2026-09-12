@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { EMPLOYMENT, EMP_STATUS, todayISO, type Employee, type EmployeeStatus, type EmploymentType } from '@/lib/hr'
-import { fmtShift, type Shift } from '@/lib/attendance'
+import { fmtShift, type OfficeLocation, type Shift } from '@/lib/attendance'
 import type { EmployeeDraft } from '@/data/useEmployees'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -30,6 +30,7 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
   resignationDate: null,
   noticePeriodDays: null,
   shiftId: null,
+  officeId: null,
   ...prefill,
 })
 
@@ -39,7 +40,7 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
  * resigned and the record stays.
  */
 export function EmployeeModal({
-  ws, employee, employees, shifts, prefill, onClose, onSave,
+  ws, employee, employees, shifts, offices, prefill, onClose, onSave,
 }: {
   ws: Workspace
   /** null adds a new record. */
@@ -47,6 +48,9 @@ export function EmployeeModal({
   employees: Employee[]
   /** The shifts HR can put somebody on. Empty until 0013 has been run. */
   shifts?: Shift[]
+  /** The branches. Which one somebody is assigned to decides where their
+   *  punches are measured from. */
+  offices?: OfficeLocation[]
   prefill?: Partial<EmployeeDraft>
   onClose: () => void
   onSave: (draft: EmployeeDraft) => Promise<string | null>
@@ -252,6 +256,17 @@ export function EmployeeModal({
           <label htmlFor="emOfferAcc">Offer accepted</label>
           <input className="input" id="emOfferAcc" type="date" value={f.offerAcceptedOn ?? ''}
                  onChange={(e) => set('offerAcceptedOn', e.target.value || null)} />
+        </div>
+
+        <div className="field">
+          <label htmlFor="emOffice">Branch</label>
+          <select className="input" id="emOffice" value={f.officeId ?? ''}
+                  onChange={(e) => set('officeId', e.target.value || null)}>
+            <option value="">Not assigned</option>
+            {(offices ?? []).filter((o) => o.isActive).map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="field">

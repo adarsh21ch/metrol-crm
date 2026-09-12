@@ -1980,3 +1980,96 @@ note:
 
 Do them in that order: 7 is small and closes a module that is already live, 8 is
 the one with an external dependency, 9 depends on 8 having created the accounts.
+
+---
+
+# Phase 6b/6c — two branches, the QR punch, and four-digit IDs (2026-09-12)
+
+Adarsh, same day, after seeing Phase 6: Metrol has two offices (Noida Sector 6
+and Sector 10), a third is likely, each has its own location; HR assigns a
+person to a branch; somebody sitting at the other branch for a day should still
+work. Then: a QR poster per office, scanned to punch in and scanned again to
+punch out, with the location still checked. And employee IDs as four random
+digits, not MM-001.
+
+## Branches — the office stops being a setting
+
+`attendance_settings` held one office because there was one. That was the wrong
+shape the moment there were two, so `office_locations` is a table: name,
+address, coordinates, **its own radius** (a small office off a main road and a
+floor in a tower do not deserve the same fence), active flag, QR token. The old
+`office_*` columns are **dropped** in 0014 — a location with two homes is a
+location that disagrees with itself within a month. A third branch is one row
+from the Branches screen: no migration, no code change.
+
+`employees.office_id` says where somebody works. `attendance.office_id`
+snapshots where the day was actually measured — a transfer next month must not
+rewrite where somebody stood today, and it is also what records the flexible
+case the client asked for. `resolve_punch_office()` is the single place that
+decides: your own branch if you are standing in it, otherwise any active branch
+you are standing in (`allow_any_branch`, on by default and switchable), and the
+punch **says so out loud** — "Punched in at Noida Sector 10 — not your usual
+branch. It is recorded that way." HR's table shows it as "Sector 10 (visiting)".
+
+Branches are never deleted — attendance rows point at them and history must not
+lose where it happened. Closing one is `is_active = false`.
+
+## The QR punch — and what it is actually worth
+
+**The QR is not the security.** Anybody can photograph a printed poster. What
+makes it worth having is that `punch_by_qr()` measures the phone against *that*
+branch exactly like the button does, so a photographed code scanned from home is
+refused for being 8 km away. The code's job is to say WHICH branch, instantly,
+without the app guessing. The geofence still says whether you are in it.
+
+- One function for both directions, because that is how a poster is used: no
+  row yet means arriving, an open row means leaving, a closed day says so.
+- A scan **within 2 minutes** of punching in is refused as a double-scan rather
+  than closing somebody's day and making HR fix it.
+- `punch_in_method` / `punch_out_method` record button / qr / hr, and HR's table
+  shows it. The button is untouched — Adarsh's call is that both exist and each
+  office uses whichever it prefers.
+- If a printout walks, **Make a new code** rotates the token and every photocopy
+  stops working.
+- `jsQR` over the browser's BarcodeDetector: that API is Chrome-only and half
+  the office is on an iPhone. One code path that works everywhere beats a fast
+  path plus a fallback nobody tests. Frames are downscaled to 480px before
+  decoding — full-resolution scanning on a mid-range phone buys nothing.
+
+## Employee IDs
+
+MM-001 tells anybody holding two ID cards who joined first, how many people work
+here, and what the next number will be. Now four random digits, 1000–9999, with
+a retry loop on collision and the unique index as the backstop. Existing
+sequential codes are converted by 0015 so the company does not end up with two
+styles of ID; nothing joins on `employee_code`, it is only ever displayed.
+
+## Answers Adarsh gave, now settled
+
+- **Sunday is the only week off.** (`week_offs` already defaults to `{0}`.)
+- **HR approves leave**, not a line manager — so Phase 7's approver work is
+  smaller than planned: the assigned-manager dropdown is not needed yet.
+- **Resend** is the email service (they have a subscription). Used for the
+  joining-form approval mail in Phase 8.
+
+## Verified in Chromium
+
+Demo now carries two branches with three people each. HR: branch list with
+head-counts, per-branch radius, Branch column showing "(visiting)" when a day
+happened at the other office, How column showing QR scan vs Button, branch
+filter, and the QR poster rendering at 640px with Print and rotate. Member at
+375px: the card names the person's branch, both Punch in and Scan office code
+are there, and the scanner degrades to a plain sentence when the camera is
+refused — which is what a staff member who denies permission will see.
+
+**The camera itself could not be tested here** (the preview pane blocks capture).
+What WAS tested is the pair it depends on: a token rendered by `QrPoster` and
+decoded by `QrScanner`'s exact jsQR call round-trips byte for byte. First scan
+on a real phone is still the thing to watch.
+
+## One file to run
+
+Running 0013, 0014 and 0015 separately is what failed the first time — 0014
+needs 0013's tables and the SQL editor rolled the whole thing back. They are
+concatenated in order as **`supabase/RUN-THIS-attendance.sql`**, safe to run
+more than once. Use that, not the three files, when talking Adarsh through it.
