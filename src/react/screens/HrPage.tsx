@@ -10,6 +10,7 @@ import { count, initials, money } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { EmployeeModal } from '@/modals/EmployeeModal'
+import { HrAttendance } from '@/screens/sections/HrAttendance'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
@@ -21,6 +22,8 @@ import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
 import { useExitTasks } from '@/data/useExitTasks'
 import { useExitRecords } from '@/data/useExitRecords'
+import { useAttendance } from '@/data/useAttendance'
+import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
 import {
   DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, usedLeaveDays,
   type DocType, type Employee, type LeaveRequest, type SalaryRecord,
@@ -58,6 +61,12 @@ const ONBOARD_ICON = (
     <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
   </svg>
 )
+const ATT_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+  </svg>
+)
+
 const EXIT_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
@@ -93,8 +102,9 @@ export function HrPage({
   const docs = useEmployeeDocuments()
   const exitTasks = useExitTasks()
   const exitRecords = useExitRecords()
+  const att = useAttendance()
 
-  const [section, setSection] = useState<'directory' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit'>('directory')
+  const [section, setSection] = useState<'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit'>('directory')
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
@@ -140,6 +150,7 @@ export function HrPage({
   const railItems: RailItem[] = [
     { key: 'directory', label: 'Directory', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
+    { key: 'attendance', label: 'Attendance', icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) } },
     { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
     { key: 'onboarding', label: 'Onboarding', icon: ONBOARD_ICON, onClick: () => { setSection('onboarding'); setOpenId(null) } },
@@ -322,6 +333,8 @@ export function HrPage({
                     onClick={() => { setSection('directory'); setOpenId(null) }}>Directory</button>
             <button className={section === 'departments' ? 'is-on' : ''}
                     onClick={() => { setSection('departments'); setOpenId(null) }}>Departments</button>
+            <button className={section === 'attendance' ? 'is-on' : ''}
+                    onClick={() => { setSection('attendance'); setOpenId(null) }}>Attendance</button>
             <button className={section === 'leave' ? 'is-on' : ''}
                     onClick={() => { setSection('leave'); setOpenId(null) }}>Leave</button>
             <button className={section === 'salary' ? 'is-on' : ''}
@@ -401,6 +414,58 @@ export function HrPage({
                     <p style={{ whiteSpace: 'pre-wrap' }}>{open.notes}</p>
                   </div>
                 )}
+
+                {/* This person's attendance, on their own record — the month
+                    they are having, then the days themselves. The company-wide
+                    view is one day across everybody; this is one person across
+                    days, which is the question you ask when you are standing on
+                    somebody's record page. */}
+                <div className="section">
+                  <div className="section-head">
+                    <h3>Attendance</h3>
+                    <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                      Shift {fmtShift(att.shifts.find((sh) => sh.id === open.shiftId)?.startsAt ?? null)}
+                    </div>
+                  </div>
+                  {(() => {
+                    const mine = att.rows
+                      .filter((r) => r.employeeId === open.id)
+                      .sort((a, b) => b.workDate.localeCompare(a.workDate))
+                    const tz = att.settings?.timezone ?? 'Asia/Kolkata'
+                    const month = summarise(mine.filter((r) => monthOf(r.workDate) === monthOf(officeToday(tz))))
+                    if (mine.length === 0) {
+                      return <p style={{ color: 'var(--ink-3)' }}>Nothing recorded yet.</p>
+                    }
+                    return (
+                      <>
+                        <div className="att-sum" style={{ marginBottom: 12 }}>
+                          <div className="att-sum-tile"><div className="n">{month.present}</div><div className="l">Present</div></div>
+                          <div className="att-sum-tile"><div className="n">{month.late}</div><div className="l">Late coming</div></div>
+                          <div className="att-sum-tile"><div className="n">{month.halfDay}</div><div className="l">Half days</div></div>
+                          <div className="att-sum-tile"><div className="n">{month.missing}</div><div className="l">No punch out</div></div>
+                          <div className="att-sum-tile"><div className="n">{fmtDuration(month.workedMinutes)}</div><div className="l">This month</div></div>
+                        </div>
+                        <div className="ov-actions">
+                          {mine.slice(0, 15).map((r) => (
+                            <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                              <span className="ov-n">{fmtDate(r.workDate).slice(0, 6)}</span>
+                              <span className="ov-l">
+                                {fmtTime(r.punchInAt, tz)} – {fmtTime(r.punchOutAt, tz)}
+                                <span style={{ color: 'var(--ink-3)' }}>
+                                  {'  ·  '}{fmtDuration(r.workedMinutes)}
+                                  {r.lateMinutes ? ' · ' + r.lateMinutes + ' min late' : ''}
+                                  {r.punchInDistance != null ? ' · ' + Math.round(r.punchInDistance) + ' m away' : ''}
+                                  {r.source === 'hr' ? ' · HR entry' : ''}
+                                </span>
+                              </span>
+                              <Chip cls={statusChip(r.status).cls}>{statusChip(r.status).label}</Chip>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
 
                 <div className="section">
                   <div className="section-head">
@@ -610,6 +675,11 @@ export function HrPage({
             )}
 
             {/* --------------------------------------------------- leave */}
+            {/* ---------------------------------------------- attendance */}
+            {!open && section === 'attendance' && (
+              <HrAttendance att={att} employees={hr.rows} toast={toast} />
+            )}
+
             {!open && section === 'leave' && (
               <>
                 <div className="page-head">
@@ -778,11 +848,11 @@ export function HrPage({
       )}
 
       {adding && (
-        <EmployeeModal ws={ws} employee={null} employees={hr.rows} prefill={adding}
+        <EmployeeModal ws={ws} employee={null} employees={hr.rows} shifts={att.shifts} prefill={adding}
                        onClose={() => setAdding(null)} onSave={saveNew} />
       )}
       {editing && (
-        <EmployeeModal ws={ws} employee={editing} employees={hr.rows}
+        <EmployeeModal ws={ws} employee={editing} employees={hr.rows} shifts={att.shifts}
                        onClose={() => setEditing(null)} onSave={saveEdit} />
       )}
 

@@ -41,6 +41,10 @@ export interface Employee {
    *  is HR/owner-only (see 0012). */
   resignationDate: string | null
   noticePeriodDays: number | null
+  /** Phase 6: which of the three shifts this person works. Null means nobody
+   *  has scheduled them yet — they can still punch, and the day is recorded,
+   *  but nothing is judged late against a start time that does not exist. */
+  shiftId: string | null
 }
 
 export const EMPLOYMENT: Record<EmploymentType, string> = {

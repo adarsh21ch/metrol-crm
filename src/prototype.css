@@ -1060,3 +1060,48 @@ table.hist .what{font-weight:500}
   .section-tools .search{ flex:1 1 100%; }
   .section-tools select.input{ flex:1 1 150px; min-width:150px; }
 }
+
+/* ------------------------------------------------------------- attendance
+   The punch card is the only screen in this app built phone-first and then
+   allowed to grow, rather than the other way round: it is used standing in a
+   doorway, one-handed, in a hurry. The button is 52px so a thumb cannot miss
+   it, and nothing above it is tappable, so nothing else can be hit instead. */
+.punch{
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:16px;box-shadow:var(--shadow-md);max-width:420px;
+}
+.punch-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.punch-date{font-family:var(--display);font-weight:700;font-size:15px;color:var(--ink)}
+.punch-office{font-size:12px;color:var(--ink-3);margin-top:2px}
+.punch-clock{text-align:center;padding:18px 0 14px}
+.punch-big{font-family:var(--display);font-weight:800;font-size:40px;line-height:1;letter-spacing:-.02em;color:var(--ink)}
+.punch-cap{font-size:12px;color:var(--ink-3);margin-top:6px}
+.punch-times{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;
+}
+.punch-times > div{
+  background:var(--surface-2);border:1px solid var(--line-2);border-radius:var(--r);
+  padding:8px 10px;display:flex;flex-direction:column;gap:2px;
+}
+.punch-times span{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
+.punch-times strong{font-family:var(--mono);font-size:14px;color:var(--ink);font-weight:600}
+.punch-note{font-size:12px;color:var(--ink-3);margin:10px 0 0;line-height:1.5}
+.punch-err{
+  font-size:12.5px;line-height:1.5;margin:10px 0 0;padding:9px 11px;
+  background:var(--bad-soft);border:1px solid var(--bad-line);color:var(--bad);border-radius:var(--r);
+}
+/* The evidence line under a day in HR's table: where the phone said it was.
+   Deliberately quiet — it matters when somebody disputes a day, and never
+   otherwise. */
+.att-evid{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.att-src{font-size:11px;color:var(--ink-3);font-style:italic}
+.att-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-bottom:14px}
+.att-sum-tile{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;
+}
+.att-sum-tile .n{font-family:var(--display);font-weight:800;font-size:22px;line-height:1.1;color:var(--ink)}
+.att-sum-tile .l{font-size:11px;color:var(--ink-3);margin-top:3px}
+@media (max-width:520px){
+  .punch{max-width:none;border-radius:10px}
+  .punch-big{font-size:34px}
+}

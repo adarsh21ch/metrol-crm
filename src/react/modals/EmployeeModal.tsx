@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { EMPLOYMENT, EMP_STATUS, todayISO, type Employee, type EmployeeStatus, type EmploymentType } from '@/lib/hr'
+import { fmtShift, type Shift } from '@/lib/attendance'
 import type { EmployeeDraft } from '@/data/useEmployees'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -28,6 +29,7 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
   offerAcceptedOn: null,
   resignationDate: null,
   noticePeriodDays: null,
+  shiftId: null,
   ...prefill,
 })
 
@@ -37,12 +39,14 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
  * resigned and the record stays.
  */
 export function EmployeeModal({
-  ws, employee, employees, prefill, onClose, onSave,
+  ws, employee, employees, shifts, prefill, onClose, onSave,
 }: {
   ws: Workspace
   /** null adds a new record. */
   employee: Employee | null
   employees: Employee[]
+  /** The shifts HR can put somebody on. Empty until 0013 has been run. */
+  shifts?: Shift[]
   prefill?: Partial<EmployeeDraft>
   onClose: () => void
   onSave: (draft: EmployeeDraft) => Promise<string | null>
@@ -248,6 +252,17 @@ export function EmployeeModal({
           <label htmlFor="emOfferAcc">Offer accepted</label>
           <input className="input" id="emOfferAcc" type="date" value={f.offerAcceptedOn ?? ''}
                  onChange={(e) => set('offerAcceptedOn', e.target.value || null)} />
+        </div>
+
+        <div className="field">
+          <label htmlFor="emShift">Shift</label>
+          <select className="input" id="emShift" value={f.shiftId ?? ''}
+                  onChange={(e) => set('shiftId', e.target.value || null)}>
+            <option value="">Not scheduled</option>
+            {(shifts ?? []).filter((s) => s.isActive).map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — {fmtShift(s.startsAt)}</option>
+            ))}
+          </select>
         </div>
 
         <div className="field">

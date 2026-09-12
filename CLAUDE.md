@@ -1856,3 +1856,127 @@ Phase 1 and never revisited in this session: Production, Content Creation,
 Video Editors, Developers and AI Staff still have no defined dashboard
 content, and the owner-into-HrPage route added in Phase 2 means the owner can
 now reach every one of these five phases the same way HR does.
+
+---
+
+# HR Phase 6 — attendance: punch in, punch out, and the geofence (2026-09-12)
+
+The paper register goes away. Adarsh's brief, in his words: everybody logs in,
+presses punch in when they reach the office and punch out when they leave;
+somebody who is not at the office must not be able to register attendance; HR
+sets the office location and the radius; a punch out asks "are you sure"; HR
+can correct a time by hand; three shifts (09:30 / 10:00 / 10:30); nine hours
+makes a full day; seven minutes of relaxation, past which the day is a late
+coming and the late comings are counted.
+
+## The one thing to say out loud about this feature
+
+**A browser location can be faked.** Devtools on a laptop, a mock-location app
+on a rooted Android. Nothing written here changes that, and the client should
+hear it from us rather than discover it. What IS true:
+
+- The distance is computed **in the database**, in `punch_in()` / `punch_out()`,
+  not in the page. A hand-made REST call with "I am at the office" in it gets
+  the same check.
+- The **time comes from `now()` inside the function.** The phone's clock is
+  never read, so changing it does nothing.
+- **An employee has no insert and no update policy on `public.attendance` at
+  all** (0013). The two security-definer functions are the only way a row can
+  appear. This is the whole design: the geofence is not UI, it is RLS.
+- The **accuracy filter** is the practical anti-spoof measure. A phone on GPS
+  knows itself to ~10–30 m; a laptop guessing from wifi, and most fake-location
+  setups, report something much vaguer. Anything worse than
+  `max_accuracy_meters` (default 100) is refused with "step outside and try
+  again". HR can raise it, and the modal says plainly that raising it a lot
+  makes punching easier and the record weaker.
+- Every punch stores its **raw coordinates, accuracy and computed distance**,
+  and every row says whether it came from the geofence (`source = 'self'`) or
+  from HR (`'hr'`). That is what a dispute is settled with.
+
+Genuinely spoof-proof needs a native app with device attestation, or a fixed
+tablet at the door. Not a browser. Say so before anybody assumes otherwise.
+
+## What shipped
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/0013_hr_attendance.sql` | `attendance_settings` (one row, enforced by a boolean primary key: office lat/lng, radius, grace, required and half-day minutes, accuracy ceiling, week offs, timezone), `shifts` seeded with the three, `employees.shift_id`, `holidays`, `attendance` (one row per person per day, unique on it), `attendance_edits` (before/after JSON of every HR change). `meters_between()` is haversine in plain SQL — no extension to enable on somebody else's project. `grade_attendance()` is the single grading rule, used by punch-out AND by HR's correction so a fixed day is judged like any other. `punch_in()` / `punch_out()` return jsonb rather than raising, because "you are 3 km away" is a normal thing to tell somebody, not a 500. `finalize_open_attendance()` settles yesterday's unclosed days (a free plan has no cron, so the HR screen calls it). |
+| `supabase/tests/0013_rls_checks.sql` | Sixteen checks. The ones that matter: a member cannot INSERT or UPDATE attendance at all; punch_in from 3 km away is refused; punch_in with a 2 km accuracy fix is refused; inside 50 m it records and stores the evidence; a second punch-in is refused; the four grading rules (09:35 on a 09:30 shift with 9 h → present; 09:50 → late; on time but 5½ h → half day; never punched out → in_progress); an HR correction lands in `attendance_edits` AND is re-graded; a member cannot move the office location. Borrows a real member, moves the office to a test coordinate, puts everything back. **Not yet run against the live database.** |
+| `src/react/lib/attendance.ts` | Types, `ATT_STATUS` read through `statusChip()` (a status from a newer migration must not blank the screen), `getFix()` with `enableHighAccuracy` and `maximumAge: 0` — a cached fix from an hour ago is not evidence of standing in the office — and three distinct permission/unavailable/timeout messages, because the fix for each is different. |
+| `src/react/data/useAttendance.ts` | Rows, settings and shifts in one hook. `punchIn`/`punchOut` call the RPCs and then **re-read** rather than patching the response in: the database decided the status, and guessing it here is how two truths start to exist. |
+| `src/react/components/PunchCard.tsx` | The employee's whole day. Phone-first: 52px button, a running clock while they are in, the distance rule stated in plain words, and a **confirm step on punch out** showing how far short of a full day they are — the mistaken-punch-out case Adarsh called out by name. |
+| `src/react/modals/AttendanceSettingsModal.tsx` | HR stands in the office and presses "Use my current location". Typing coordinates is not a thing to ask of anybody and a map picker is a third-party script this app does not load. A fix worse than 50 m is refused **as the office centre** — it would move the whole fence. |
+| `src/react/modals/AttendanceEditModal.tsx` | HR's correction. A reason is required, not optional — a trail of timestamps with no "why" is not a trail. Leaving Status on "work it out from the times" re-grades by the ordinary rule; picking one says something the clock cannot (on leave, holiday). |
+| `src/react/screens/sections/HrAttendance.tsx` | One day across everybody, not a month grid — the question at 10am is "who is in and who is not". People with no row show as **Not in** with an "Add day" button; everybody else sorts in-office → recorded → absent. A Distance column shows `16 m ±17`, which is also how you notice somebody punching from 49 m away every single day. |
+| `HrPage.tsx` / `Member.tsx` | A rail item and a mobile-nav entry for HR; an **Attendance tab, second** in the employee's own app — it is what they open the app to do. Each person's own record page gained an Attendance section: this month's tiles, then the days. |
+
+## Decisions made rather than asked
+
+- **The fence applies on the way out too.** Punching out from the bus would
+  make the last hour of every day unverifiable.
+- **"Late coming" counts arrivals, not days graded late.** Somebody who comes
+  in at 11 and leaves at 4 is a half day AND a late arrival; counting only the
+  first hides exactly what HR is looking for.
+- **`late_minutes` is measured past the grace period, not past the shift.**
+  Inside the relaxation it is zero, not "4 minutes late" — a day nobody
+  considers late should not carry a number.
+- **Short of the full day but past half of it is `half_day`; below that is
+  `absent`.** Both thresholds are settings, not constants.
+- **A day HR typed is labelled as such on the employee's own screen too.** They
+  are entitled to see which of their days came from the geofence.
+
+## Verified in Chromium, not asserted
+
+Demo mode, both roles, at 375px and desktop. Member: punch in → `0h 00m` and
+"In office" → punch out → confirm modal states how short the day is → recorded
+and graded. HR: today's list with five in the office, one late, one with no
+punch; correction modal **refuses to save without a reason**; corrected day
+re-graded to Half day and relabelled "HR entry"; a correction that picks
+"On leave" keeps that status instead of re-grading; settings modal captured a
+location, saved, and the toast confirmed. No horizontal overflow at 375px on
+either screen. `tsc --noEmit` clean, `npm run build` clean.
+
+Two real bugs found by testing rather than reading: a day that had just started
+rendered as `—` instead of `0h 00m` (the dash meant "no hours", which is a
+different fact), and the demo correction path spread `status: undefined` over
+the row and took the screen down — fixed at the cause, plus `statusChip()` so
+an unknown status can never do it again.
+
+## Still open on attendance, deliberately
+
+- Nobody has run 0013 or its test file against the live database yet. Same
+  backlog as 0009–0012.
+- **Week offs and holidays have a column and a table but no UI** — a Sunday
+  simply has no rows. Absence reporting needs them; nobody has asked for
+  absence reporting yet.
+- No monthly export. When payroll wants it, it is a CSV of what is already on
+  screen.
+- Team leads cannot see their department's attendance. One policy, when asked.
+
+## The rest of the brief, not yet built (phases 7–9)
+
+Recorded here so the next session does not have to re-derive it from the voice
+note:
+
+- **Phase 7 — leave, finished.** Today a request goes to HR/owner. Adarsh wants
+  an **assigned manager**, picked by name or employee ID from a dropdown, who
+  approves it; pending shows amber, approved green, on the employee's own
+  dashboard. Needs `leave_requests.approver_id`, a policy letting that person
+  (and only that person, plus HR/owner) decide it, a leave TYPE (sick / casual /
+  unpaid), and the day count excluding week offs and holidays.
+- **Phase 8 — the joining form.** What exists today is HR adding an employee and
+  ticking an onboarding checklist. What Adarsh wants is a **public link HR sends
+  on WhatsApp**: the candidate fills it in, uploads documents (the form cannot
+  be submitted until they do), sets their own password, and gets nothing until
+  HR approves. On approval they are emailed their employee ID, with a resend
+  button. Real work: a public-write table for applications, anonymous document
+  upload into a quarantined bucket, an approval step that creates the auth user,
+  and an email path (the app has no transactional email yet — this is the piece
+  with an external dependency).
+- **Phase 9 — sign in with employee ID or email.** Supabase Auth is email-keyed,
+  so MM-004 has to be resolved to an email first — a `security definer` RPC that
+  takes a code and returns only the work email, rate-limited, plus "change
+  password" in the profile modal.
+
+Do them in that order: 7 is small and closes a module that is already live, 8 is
+the one with an external dependency, 9 depends on 8 having created the accounts.

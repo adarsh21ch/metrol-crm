@@ -1,5 +1,6 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import type { Employee, EmployeeDocument, ExitTask, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
+import type { AttendanceRow, AttendanceSettings, Shift } from '@/lib/attendance'
 import { initials } from '@/lib/format'
 
 /**
@@ -167,7 +168,7 @@ export const demoEmployees: Employee[] = [
     workEmail: HR_PERSON.email ?? '', personalEmail: 'priya.s@gmail.com', phone: '+91 98200 11001',
     dateOfBirth: '1994-08-19', address: 'Vijay Nagar, Indore, MP',
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
-    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18,
+    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18, shiftId: 'sh1',
     offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
     resignationDate: null, noticePeriodDays: null,
   },
@@ -198,6 +199,9 @@ export const demoEmployees: Employee[] = [
     offerAcceptedOn: JOINED[i] ?? '2024-01-01',
     resignationDate: i === 4 ? '2026-09-01' : null,
     noticePeriodDays: i === 4 ? 45 : null,
+    // The five are spread across the three shifts, so the demo shows what a
+    // 09:30 person and a 10:30 person being "late" actually mean.
+    shiftId: 'sh' + ((i % 3) + 1),
   })),
 ]
 
@@ -310,3 +314,95 @@ export const demoExitTasks: ExitTask[] = EXIT_TASKS.map((label, i) => ({
   doneBy: i < 2 ? HR_PERSON.id : null,
   sortOrder: i + 1,
 }))
+
+/* --------------------------------------------------------- Phase 6: attendance */
+
+/** The office in ?demo is a real-looking coordinate with a 50 m fence. The
+ *  punch screen in demo never asks the browser for a location — it cannot be
+ *  standing in a fictional office — so it simulates a fix 18 m away, which is
+ *  what a person at their desk would see. */
+export const DEMO_OFFICE = { lat: 22.719568, lng: 75.857727, label: 'Metrol Media, Indore' }
+
+export const demoAttendanceSettings: AttendanceSettings = {
+  officeLabel: DEMO_OFFICE.label,
+  officeLat: DEMO_OFFICE.lat,
+  officeLng: DEMO_OFFICE.lng,
+  radiusMeters: 50,
+  graceMinutes: 7,
+  requiredMinutes: 540,
+  halfDayMinutes: 270,
+  maxAccuracyMeters: 100,
+  weekOffs: [0],
+  timezone: 'Asia/Kolkata',
+  updatedAt: iso(9),
+}
+
+export const demoShifts: Shift[] = [
+  { id: 'sh1', name: 'Shift 1', startsAt: '09:30:00', sortOrder: 1, isActive: true },
+  { id: 'sh2', name: 'Shift 2', startsAt: '10:00:00', sortOrder: 2, isActive: true },
+  { id: 'sh3', name: 'Shift 3', startsAt: '10:30:00', sortOrder: 3, isActive: true },
+]
+
+/** Six weeks of days for everybody but the signed-in demo member, who is left
+ *  without a row for today on purpose: the first thing anybody opening this
+ *  screen wants to see is a punch button that works, not a day already closed.
+ *  Sundays are skipped, because Sunday is the seeded week off. */
+export const demoAttendance: AttendanceRow[] = (() => {
+  const rows: AttendanceRow[] = []
+  const empIds = ['e0', 'e1', 'e2', 'e3', 'e4', 'e5']
+  // The shift a day is judged against comes from the person's own record, not
+  // from their position in this list — otherwise the demo shows somebody on a
+  // 10:00 shift with a history full of 09:30 days.
+  const shiftFor = (id: string) =>
+    demoShifts.find((s) => s.id === demoEmployees.find((e) => e.id === id)?.shiftId) ?? demoShifts[0]!
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  for (let back = 42; back >= 0; back--) {
+    const d = new Date()
+    d.setDate(d.getDate() - back)
+    if (d.getDay() === 0) continue
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+    empIds.forEach((id, i) => {
+      // The signed-in member's today is deliberately empty.
+      if (back === 0 && id === 'e1') return
+      // A plausible spread rather than a perfect one: most days on time, a
+      // late morning every couple of weeks, the occasional short day.
+      const seed = (back * 7 + i * 13) % 17
+      if (seed === 3) return                                   // no row at all — absent
+      const shift = shiftFor(id)
+      const startH = Number(shift.startsAt.slice(0, 2))
+      const startM = Number(shift.startsAt.slice(3, 5))
+      const lateBy = seed === 5 ? 24 : seed === 11 ? 13 : seed % 3 === 0 ? 4 : 0
+      const inMin = startH * 60 + startM + lateBy
+      const workMin = seed === 8 ? 320 : 540 + (seed % 4) * 6
+      const at = (mins: number) => new Date(`${date}T${pad(Math.floor(mins / 60))}:${pad(mins % 60)}:00+05:30`).toISOString()
+      const late = Math.max(0, lateBy - 7)
+      const open = back === 0                                   // today: still in the office
+      rows.push({
+        id: `att-${id}-${date}`,
+        employeeId: id,
+        workDate: date,
+        shiftId: shift.id,
+        shiftStart: shift.startsAt,
+        punchInAt: at(inMin),
+        punchInLat: DEMO_OFFICE.lat + 0.0001,
+        punchInLng: DEMO_OFFICE.lng,
+        punchInAccuracy: 12 + (seed % 9),
+        punchInDistance: 11 + (seed % 20),
+        punchOutAt: open ? null : at(inMin + workMin),
+        punchOutLat: open ? null : DEMO_OFFICE.lat,
+        punchOutLng: open ? null : DEMO_OFFICE.lng,
+        punchOutAccuracy: open ? null : 14,
+        punchOutDistance: open ? null : 9 + (seed % 14),
+        workedMinutes: open ? 0 : workMin,
+        lateMinutes: late,
+        status: open ? 'in_progress' : workMin < 270 ? 'absent' : workMin < 540 ? 'half_day' : late > 0 ? 'late' : 'present',
+        source: 'self',
+        editedBy: null,
+        editReason: null,
+      })
+    })
+  }
+  return rows
+})()

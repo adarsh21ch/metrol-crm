@@ -18,6 +18,9 @@ import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
 import { useExitTasks } from '@/data/useExitTasks'
+import { useAttendance } from '@/data/useAttendance'
+import { PunchCard } from '@/components/PunchCard'
+import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
 import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, SALARY_STATUS, fmtDate, fmtPeriod, usedLeaveDays } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -31,9 +34,10 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'leads' | 'sales' | 'team' | 'leave' | 'salary' | 'onboarding' | 'exit'
+type MemberSec = 'overview' | 'attendance' | 'leads' | 'sales' | 'team' | 'leave' | 'salary' | 'onboarding' | 'exit'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
+  attendance: { title: 'Attendance', sub: 'Punch in when you reach the office, punch out when you leave' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
   sales: { title: 'My sales', sub: '' },
   team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
@@ -117,9 +121,28 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const staff = useEmployees(true)
   const myEmployee = staff.rows.find((e) => e.profileId === me?.id) ?? null
   const leave = useLeaveRequests(true)
+  // Attendance is the one HR table an ordinary employee writes to every day —
+  // through punch_in()/punch_out(), never directly. RLS hands back only their
+  // own rows, so `att.rows` here IS their history, not a filtered view of
+  // everyone's.
+  const att = useAttendance(true)
   const myLeave = useMemo(
     () => (myEmployee ? leave.rows.filter((r) => r.employeeId === myEmployee.id) : []),
     [leave.rows, myEmployee],
+  )
+  const tz = att.settings?.timezone ?? 'Asia/Kolkata'
+  const myAtt = useMemo(
+    () => (myEmployee
+      ? att.rows.filter((r) => r.employeeId === myEmployee.id).sort((a, b) => b.workDate.localeCompare(a.workDate))
+      : []),
+    [att.rows, myEmployee],
+  )
+  /* "Late 3" is a count of this month, not of all time — the client asked for
+     a running number, and a number that only ever goes up stops meaning
+     anything by March. */
+  const monthSummary = useMemo(
+    () => summarise(myAtt.filter((r) => monthOf(r.workDate) === monthOf(officeToday(tz)))),
+    [myAtt, tz],
   )
   const [requestingLeave, setRequestingLeave] = useState(false)
   // No create/update calls live on this screen at all — RLS (0010) refuses
@@ -364,6 +387,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
 
             <div className="tabs">
               <button className={sec === 'overview' ? 'is-on' : ''} onClick={() => setSec('overview')}>Overview</button>
+              <button className={sec === 'attendance' ? 'is-on' : ''} onClick={() => setSec('attendance')}>
+                Attendance
+              </button>
               <button className={sec === 'leads' ? 'is-on' : ''} onClick={() => setSec('leads')}>
                 My leads <span className="count">{mine.length}</span>
               </button>
@@ -463,6 +489,70 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                       ))}
                     </div>
                   </div>
+                )}
+              </>
+            )}
+
+            {shownSec === 'attendance' && (
+              <>
+                {!myEmployee ? (
+                  <div className="ov-card">
+                    <div className="ov-head"><h4>No employee record yet</h4></div>
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>
+                      HR has not added you to the directory yet, so there is nothing to record attendance against.
+                      Ask HR to add your record.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 16 }}>
+                      <PunchCard att={att} myEmployeeId={myEmployee.id}
+                                 shiftStart={att.shifts.find((s) => s.id === myEmployee.shiftId)?.startsAt ?? null} toast={toast} />
+                    </div>
+
+                    <div className="section">
+                      <div className="section-head">
+                        <h3>This month</h3>
+                        <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                          {fmtDuration(monthSummary.workedMinutes)} worked across {count(monthSummary.days, 'day')}
+                        </div>
+                      </div>
+                      <div className="att-sum">
+                        <div className="att-sum-tile"><div className="n">{monthSummary.present}</div><div className="l">Present</div></div>
+                        <div className="att-sum-tile"><div className="n">{monthSummary.late}</div><div className="l">Late coming</div></div>
+                        <div className="att-sum-tile"><div className="n">{monthSummary.halfDay}</div><div className="l">Half days</div></div>
+                        <div className="att-sum-tile"><div className="n">{monthSummary.missing}</div><div className="l">No punch out</div></div>
+                      </div>
+                    </div>
+
+                    <div className="section">
+                      <div className="section-head"><h3>Recent days</h3></div>
+                      {myAtt.length === 0 ? (
+                        <p style={{ color: 'var(--ink-3)' }}>Nothing recorded yet. Your first punch in will show up here.</p>
+                      ) : (
+                        <div className="ov-actions">
+                          {myAtt.slice(0, 30).map((r) => (
+                            <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                              <span className="ov-n">{fmtDate(r.workDate).slice(0, 6)}</span>
+                              <span className="ov-l">
+                                {fmtTime(r.punchInAt, tz)} – {fmtTime(r.punchOutAt, tz)}
+                                <span style={{ color: 'var(--ink-3)' }}>
+                                  {'  ·  '}{fmtDuration(r.workedMinutes)}
+                                  {r.shiftStart ? ' · shift ' + fmtShift(r.shiftStart) : ''}
+                                  {r.lateMinutes ? ' · ' + r.lateMinutes + ' min late' : ''}
+                                  {/* A day HR typed in is a different kind of fact from one the
+                                      geofence recorded, and the person it belongs to should be
+                                      able to see which is which. */}
+                                  {r.source === 'hr' ? ' · corrected by HR' : ''}
+                                </span>
+                              </span>
+                              <Chip cls={statusChip(r.status).cls}>{statusChip(r.status).label}</Chip>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </>
             )}
