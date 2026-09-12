@@ -2248,7 +2248,113 @@ Only console error throughout: the Google Fonts stylesheet this sandbox blocks
 - **0016 and its test file have not been run against the live database.** Same
   backlog as the rewritten `0013_rls_checks.sql`. Nothing here is proven until
   both come back as rows.
-- **CLAUDE.md was wrong about 0009–0012 never having been run.** The attendance
-  SQL that ran clean on 2026-09-12 creates policies calling
-  `my_employee_id()`, which only 0009 defines — so 0009 is installed. Verify
-  the rest with the inventory query rather than trusting either claim.
+## Install state — CONFIRMED against the live database, 2026-09-12
+
+`supabase/WHATS-INSTALLED.sql` was run and **0016 was run**. Both came back
+clean. This replaces every earlier claim in this file about what has and has not
+touched the database — several of which were wrong. Do not re-derive it:
+
+- **Migrations 0006 through 0016 are ALL installed.** `employees`,
+  `leave_requests`, `my_employee_id()`, `salary_records`, `onboarding_tasks`,
+  `employee_documents`, `exit_records`, `attendance`, `holidays`,
+  `office_locations`, `punch_by_qr()`, `leave_type`, `working_days_between()` —
+  every one present, and the dropped `attendance_settings.office_lat` confirmed
+  gone. **The repeated "0009–0012 have never run" note in the Phase 2–5
+  sections above is FALSE** and was corrected by measurement, not argument.
+- **0016's own arithmetic proved itself on the live database**: Mon→Fri = 5,
+  Fri→Mon = **3** (Saturday in, Sunday out), a Sunday alone = 0.
+- **`leave requests recounted: 0`.** There are zero leave requests company-wide,
+  so 0016's recount changed no historical number. The risk flagged when it was
+  written did not materialise and cannot now.
+
+### What the data says, and what it blocks
+
+| | Count | What it means |
+|---|---|---|
+| office branches | **0** | **Attendance is inert.** `punch_in()` returns `no_office`; nobody can punch anything until HR stands in an office and saves it from the Branches screen. A physical errand, not code. |
+| employees on record | **1** | **Both RLS test files will mostly report SKIPPED.** They borrow a real ordinary member (`role = 'member'`, department ≠ Human Resources, employee status active/notice) to run the punch and leave checks as. With one record there is very likely no such person, so the checks that matter cannot execute. |
+| holidays entered | **0** | Leave counts currently skip Sundays only — correct and expected; HR enters the list. |
+
+**Before telling Adarsh to run `0013_rls_checks.sql` or `0016_rls_checks.sql`,
+establish that an ordinary member with a linked employee record exists.** Running
+them against a one-record company produces a page of SKIPPED and proves nothing,
+which is worse than not running them — it looks like a pass at a glance. The
+tests are correct to skip rather than fake it; the company data is what is
+missing, and HR creating the real employee records is the fix.
+
+---
+
+# PROVEN on the live database — 2026-09-12
+
+Both RLS test files were run against the Metrol Media project and **every check
+passed. 31 of 31 on attendance, 16 of 16 on leave. Zero FAIL, zero SKIPPED.**
+
+Nothing SKIPPED matters as much as the passes: it means the borrowed-person
+guards all found somebody, so every check actually executed. The one employee
+record on the books (6068, Adarsh, `role = member`, department *AI & Developers*,
+status active) is a valid ordinary member, and `metrolhr` sits in Human
+Resources — so the member-side and HR-side branches both ran for real.
+
+**Delete the hedging.** Every earlier note in this file saying the geofence is
+"verified by reading the policies, not by exercising them" is now obsolete. It
+has been exercised. What is established, by measurement:
+
+- A member cannot INSERT or UPDATE `public.attendance`, create an
+  `office_locations` row, move a branch, widen its radius, loosen
+  `max_accuracy_meters`/`grace_minutes`, or call `rotate_office_qr`. All seven
+  refused at the database.
+- `punch_in()` 3 km away → `too_far` ("about 3002 m from … within 50 m").
+  A 2000 m accuracy fix → `weak_fix`. Inside 22.2 m → recorded, with branch,
+  coordinates, distance and a server timestamp on the row. Second punch-in →
+  `already_in`. `punch_out()` closed and graded it.
+- `punch_by_qr()` with a valid code 3 km away → `too_far`. With a
+  rotated-away token while standing AT that branch → `bad_code`. Rotation
+  through the RPC as HR genuinely changed the token.
+- `allow_any_branch = false` → `wrong_branch`, **and no row was written by the
+  refusal**. `allow_any_branch = true` → punch landed and
+  `attendance.office_id` recorded **Branch B**, the visited one.
+- A second scan inside 2 minutes → `too_soon`, **and `punch_out_at` stayed
+  null** — the day was not closed for HR to clean up.
+- All four grading rules: 09:35 on a 09:30 shift with 9 h → `present`, 0 late;
+  09:50 → `late`, 13 min past the grace; 5 h 30 → `half_day`; no punch-out →
+  `in_progress`.
+- An HR correction wrote to `attendance_edits` AND was re-graded (present, ~9 h)
+  rather than left as typed.
+- A member read 0 other people's days.
+
+And Phase 7: `working_days_between` correct at 5 / 3 / 0 / 1, a holiday inside a
+range removing exactly one day, a member asking for **99 days on a one-day
+request getting 1 stored**, an invented leave type refused by the constraint, a
+missing type defaulting to casual, a member unable to approve their own request
+but able to cancel it, a member unable to enter or remove a holiday, HR able to
+approve, and a member reading 0 other people's requests.
+
+Both files cleaned up after themselves (`Clean up: PASS` on each) — test
+branches deleted, test rows deleted, the borrowed member's `office_id` and the
+company settings restored.
+
+## What is still NOT done — and it is not code
+
+| | Count | Consequence |
+|---|---|---|
+| office branches | **0** | Attendance is inert. `punch_in()` returns `no_office`. Somebody has to stand in each office and save it from HR → Attendance → Branches. |
+| employees on record | **1** | Only Adarsh. HR enters the rest before leave, salary or attendance means anything to the team. |
+| holidays | **0** | Leave counts skip Sundays only until HR enters the list. |
+
+Phase 7's code is committed locally and **not deployed** — the database is ahead
+of the site, which is harmless (the new column goes unread by the old bundle)
+but means nobody sees leave types or the holiday list yet.
+
+## How to hand Adarsh SQL, from now on
+
+He cannot open files. Do not send attachments or paths. Give **one `pbcopy`
+command per file in a bash block** — the desktop app puts a Run button on bash
+blocks, so one click loads it onto his clipboard for the Supabase editor:
+
+```bash
+pbcopy < /Users/apple/metrol-crm/supabase/tests/0016_rls_checks.sql
+```
+
+His instruction, after three rounds of being handed file cards. Printing the
+whole file inline also works but cost real money on a $114 session; the pbcopy
+command crosses once.
