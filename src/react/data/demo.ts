@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, EmployeeDocument, ExitTask, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
+import type { Employee, EmployeeDocument, ExitTask, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
 import { workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
@@ -466,3 +466,35 @@ export const demoAttendance: AttendanceRow[] = (() => {
   }
   return rows
 })()
+
+/** Phase 8 for ?demo: one of each state a real inbox will have — a fresh
+ *  submission, one already approved (with an invite already sent), and one
+ *  HR turned down. Nothing here can actually be approved from the demo —
+ *  that needs the real Edge Function — but the review screen and its layout
+ *  are fully walkable. */
+export const demoJobApplications: JobApplication[] = [
+  {
+    id: 'app1', fullName: 'Rakesh Kumar', phone: '+91 98765 43210', email: 'rakesh.kumar@example.com',
+    positionInterest: 'Video Editor', noPreviousEmployment: false,
+    photoPath: 'app1/photo.jpg', panPath: 'app1/pan.jpg', aadhaarPath: 'app1/aadhaar.jpg',
+    bankProofPath: 'app1/bank.jpg', relievingLetterPath: 'app1/relieving.pdf',
+    status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null, employeeId: null,
+    inviteSentCount: 0, inviteSentAt: null, createdAt: iso(1),
+  },
+  {
+    id: 'app2', fullName: 'Sneha Iyer', phone: '+91 98200 55221', email: 'sneha.iyer@example.com',
+    positionInterest: 'Sales Executive', noPreviousEmployment: true,
+    photoPath: 'app2/photo.jpg', panPath: 'app2/pan.jpg', aadhaarPath: 'app2/aadhaar.jpg',
+    bankProofPath: 'app2/bank.jpg', relievingLetterPath: null,
+    status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(2), decisionNote: null, employeeId: 'e6',
+    inviteSentCount: 1, inviteSentAt: iso(2), createdAt: iso(4),
+  },
+  {
+    id: 'app3', fullName: 'Manoj Tiwari', phone: '+91 90000 12121', email: 'manoj.t@example.com',
+    positionInterest: 'Developer', noPreviousEmployment: false,
+    photoPath: 'app3/photo.jpg', panPath: 'app3/pan.jpg', aadhaarPath: 'app3/aadhaar.jpg',
+    bankProofPath: 'app3/bank.jpg', relievingLetterPath: 'app3/relieving.pdf',
+    status: 'rejected', decidedBy: HR_PERSON.id, decidedAt: iso(6), decisionNote: 'Not the right fit for this opening.',
+    employeeId: null, inviteSentCount: 0, inviteSentAt: null, createdAt: iso(8),
+  },
+]

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Rail, type RailItem } from '@/components/Rail'
+import { BottomNav, type BottomNavItem } from '@/components/BottomNav'
 import { Modal } from '@/components/Modal'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
@@ -15,7 +16,9 @@ import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
 import { DocumentUploadModal } from '@/modals/DocumentUploadModal'
+import { ApplicationReviewModal } from '@/modals/ApplicationReviewModal'
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
+import { useJobApplications } from '@/data/useJobApplications'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
@@ -25,8 +28,8 @@ import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
 import {
-  DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, unpaidLeaveDays, usedLeaveDays,
-  type DocType, type Employee, type LeaveRequest, type SalaryRecord,
+  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, unpaidLeaveDays, usedLeaveDays,
+  type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord,
 } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -73,6 +76,13 @@ const EXIT_ICON = (
   </svg>
 )
 
+const APPLY_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+    <path d="M9 15l2 2 4-4" />
+  </svg>
+)
+
 /** One label / value pair on the employee page. */
 const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
   <div className="hr-fld"><div className="l">{l}</div><div className="v">{v || '—'}</div></div>
@@ -103,8 +113,10 @@ export function HrPage({
   const exitTasks = useExitTasks()
   const exitRecords = useExitRecords()
   const att = useAttendance()
+  const applications = useJobApplications()
 
-  const [section, setSection] = useState<'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit'>('directory')
+  const [section, setSection] = useState<'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications'>('directory')
+  const [reviewingApp, setReviewingApp] = useState<JobApplication | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
@@ -149,8 +161,14 @@ export function HrPage({
   const recorded = new Set(hr.rows.map((e) => e.profileId).filter(Boolean))
   const unrecorded = ws.members.filter((m) => !recorded.has(m.id))
 
+  const pendingApps = applications.rows.filter((a) => a.status === 'pending')
+
   const railItems: RailItem[] = [
     { key: 'directory', label: 'Directory', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
+    {
+      key: 'applications', label: pendingApps.length ? `Applications (${pendingApps.length})` : 'Applications',
+      icon: APPLY_ICON, onClick: () => { setSection('applications'); setOpenId(null) },
+    },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'attendance', label: 'Attendance', icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) } },
     { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
@@ -158,6 +176,26 @@ export function HrPage({
     { key: 'onboarding', label: 'Onboarding', icon: ONBOARD_ICON, onClick: () => { setSection('onboarding'); setOpenId(null) } },
     { key: 'exit', label: 'Exit', icon: EXIT_ICON, onClick: () => { setSection('exit'); setOpenId(null) } },
   ]
+
+  /* The phone's tab bar carries the same eight sections in a different order:
+     a sidebar can list them all, five tabs cannot, so the four HR touches
+     daily go on the bar and the rest live behind More. Labels are shortened
+     for a 75px tab, and Applications' count moves out of the words and onto
+     the icon where a tab bar puts it. */
+  const NAV_SHORT: Record<string, string> = {
+    directory: 'People', applications: 'Applied', attendance: 'Attendance', leave: 'Leave',
+    departments: 'Departments', salary: 'Salary', onboarding: 'Onboarding', exit: 'Exit',
+  }
+  const navItems: BottomNavItem[] = ['directory', 'applications', 'attendance', 'leave', 'departments', 'salary', 'onboarding', 'exit']
+    .map((key) => {
+      const it = railItems.find((r) => r.key === key)!
+      return {
+        ...it,
+        label: key === 'applications' ? 'Applications' : it.label,
+        short: NAV_SHORT[key],
+        badge: key === 'applications' ? pendingApps.length : undefined,
+      }
+    })
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
   const exitRecordFor = (employeeId: string) => exitRecords.rows.find((r) => r.employeeId === employeeId) ?? null
@@ -331,22 +369,6 @@ export function HrPage({
         <Rail ws={ws} active={open ? 'directory' : section} panes={panes} tip={tip} items={railItems} />
 
         <div className="workspace">
-          <div className="mobile-nav">
-            <button className={section === 'directory' ? 'is-on' : ''}
-                    onClick={() => { setSection('directory'); setOpenId(null) }}>Directory</button>
-            <button className={section === 'departments' ? 'is-on' : ''}
-                    onClick={() => { setSection('departments'); setOpenId(null) }}>Departments</button>
-            <button className={section === 'attendance' ? 'is-on' : ''}
-                    onClick={() => { setSection('attendance'); setOpenId(null) }}>Attendance</button>
-            <button className={section === 'leave' ? 'is-on' : ''}
-                    onClick={() => { setSection('leave'); setOpenId(null) }}>Leave</button>
-            <button className={section === 'salary' ? 'is-on' : ''}
-                    onClick={() => { setSection('salary'); setOpenId(null) }}>Salary</button>
-            <button className={section === 'onboarding' ? 'is-on' : ''}
-                    onClick={() => { setSection('onboarding'); setOpenId(null) }}>Onboarding</button>
-            <button className={section === 'exit' ? 'is-on' : ''}
-                    onClick={() => { setSection('exit'); setOpenId(null) }}>Exit</button>
-          </div>
 
           <div className="wrap">
             {hr.error && <div className="auth-err" style={{ marginBottom: 14 }}>{hr.error}</div>}
@@ -645,6 +667,46 @@ export function HrPage({
               </>
             )}
 
+            {/* --------------------------------------------- applications */}
+            {!open && section === 'applications' && (
+              <>
+                <div className="page-head">
+                  <h1>Applications</h1>
+                  <div className="sub">
+                    Submitted from the public joining form. Approving one creates their login and emails
+                    a link to set a password — nothing exists on their record until then.
+                  </div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="New" value={pendingApps.length} sub="waiting on a decision" />
+                  <Kpi label="Approved" value={applications.rows.filter((a) => a.status === 'approved').length} sub="became employees" />
+                  <Kpi label="Rejected" value={applications.rows.filter((a) => a.status === 'rejected').length} sub="not taken forward" />
+                </div>
+
+                <div className="section">
+                  <div className="section-head"><h3>Every application</h3></div>
+                  {applications.rows.length === 0 ? (
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>
+                      Nobody has applied yet. Share the joining form's link when you have a role open.
+                    </p>
+                  ) : (
+                    <div className="ov-actions">
+                      {applications.rows.map((a) => (
+                        <button className="ov-row" key={a.id} onClick={() => setReviewingApp(a)}>
+                          <span className="ov-n">{initials(a.fullName)}</span>
+                          <span className="ov-l">{a.fullName} — {a.positionInterest || 'no position given'}</span>
+                          <span className="ov-cta">
+                            <Chip cls={APP_STATUS[a.status].cls}>{APP_STATUS[a.status].label}</Chip> {fmtDate(a.createdAt)} →
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
             {/* ---------------------------------------------- departments */}
             {!open && section === 'departments' && (
               <>
@@ -879,6 +941,8 @@ export function HrPage({
         </div>
       </div>
 
+      <BottomNav items={navItems} active={open ? 'directory' : section} />
+
       {tip.node}
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
 
@@ -900,6 +964,32 @@ export function HrPage({
 
       {uploadingFor && (
         <DocumentUploadModal onClose={() => setUploadingFor(null)} onUpload={(file, docType) => uploadDoc(uploadingFor, file, docType)} />
+      )}
+
+      {reviewingApp && (
+        <ApplicationReviewModal
+          app={reviewingApp}
+          departments={ws.departments}
+          shifts={att.shifts}
+          offices={att.offices}
+          documentUrl={applications.documentUrl}
+          onClose={() => setReviewingApp(null)}
+          onApprove={async (details) => {
+            const message = await applications.approve(reviewingApp.id, details)
+            if (!message) toast(reviewingApp.fullName + ' approved. An invite email was sent.')
+            return message
+          }}
+          onReject={async (note) => {
+            const message = await applications.reject(reviewingApp.id, note, ws.me?.id ?? '')
+            if (!message) toast('Application rejected.')
+            return message
+          }}
+          onResend={async () => {
+            const message = await applications.resend(reviewingApp.id)
+            if (!message) toast('Invite email resent.')
+            return message
+          }}
+        />
       )}
 
       {adding && (

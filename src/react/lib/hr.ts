@@ -316,3 +316,52 @@ export const todayISO = () => new Date().toISOString().slice(0, 10)
 
 /** Joined in the current calendar month — the directory's "new this month". */
 export const joinedThisMonth = (e: Employee) => (e.dateOfJoining ?? '').slice(0, 7) === todayISO().slice(0, 7)
+
+/* -------------------------------------------------------- Phase 8: joining */
+
+export type ApplicationStatus = 'pending' | 'approved' | 'rejected'
+
+/** One candidate's submission. Nothing about this person exists anywhere
+ *  else in the database until HR approves — see 0017. The five paths point
+ *  into the QUARANTINED 'job-applications' bucket, never 'employee-documents'
+ *  — moving them across is the Edge Function's job, on approval. */
+export interface JobApplication {
+  id: string
+  fullName: string
+  phone: string
+  email: string
+  positionInterest: string
+  noPreviousEmployment: boolean
+  photoPath: string
+  panPath: string
+  aadhaarPath: string
+  bankProofPath: string
+  /** Null only when noPreviousEmployment is true — the database enforces
+   *  that pairing, not this type. */
+  relievingLetterPath: string | null
+  status: ApplicationStatus
+  decidedBy: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  employeeId: string | null
+  inviteSentCount: number
+  inviteSentAt: string | null
+  createdAt: string
+}
+
+export const APP_STATUS: Record<ApplicationStatus, { label: string; cls: string }> = {
+  pending: { label: 'New', cls: 'chip--warn' },
+  approved: { label: 'Approved', cls: 'chip--good' },
+  rejected: { label: 'Rejected', cls: 'chip--bad' },
+}
+
+/** The five uploads the form collects, in the order they are asked for. Kept
+ *  as one list so the form and the submit function read the same shape
+ *  rather than five separate hand-written blocks. */
+export const APPLICATION_DOCS = [
+  { key: 'photo', label: 'Photo' },
+  { key: 'pan', label: 'PAN card' },
+  { key: 'aadhaar', label: 'Aadhaar card' },
+  { key: 'bank_proof', label: 'Bank proof (cancelled cheque or passbook)' },
+  { key: 'relieving_letter', label: 'Previous employer relieving letter', waivable: true },
+] as const

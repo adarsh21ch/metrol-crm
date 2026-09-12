@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Rail } from '@/components/Rail'
+import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
@@ -221,10 +222,6 @@ export function TeamPage({
               onOpenTeam={onBackToTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 
         <div className="workspace">
-          <div className="mobile-nav">
-            <button onClick={onOpenProjects}>Projects</button>
-            <button className="is-on">Team</button>
-          </div>
           <div className="wrap">
             {member
               ? <MemberDashboard ws={ws} member={member} onBack={onBackToTeam} />
@@ -232,6 +229,15 @@ export function TeamPage({
           </div>
         </div>
       </div>
+
+      <BottomNav
+        active="team"
+        items={[
+          { key: 'projects', label: 'Projects', icon: NAV_ICONS.projects, onClick: onOpenProjects },
+          { key: 'team', label: 'Team', icon: NAV_ICONS.team, onClick: onBackToTeam },
+          { key: 'hr', label: 'HR', icon: NAV_ICONS.hr, onClick: onOpenHr },
+        ]}
+      />
 
       {tip.node}
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}

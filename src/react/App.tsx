@@ -12,6 +12,7 @@ import { ProjectShell } from '@/screens/ProjectShell'
 import { TeamPage } from '@/screens/TeamPage'
 import { Member } from '@/screens/Member'
 import { HrPage } from '@/screens/HrPage'
+import { ApplyPage } from '@/screens/ApplyPage'
 import { HR_DEPARTMENT } from '@/lib/hr'
 
 /** Screen-based, like the prototype: everyone reaches this from one bookmark,
@@ -34,6 +35,11 @@ export default function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => sub.subscription.unsubscribe()
   }, [])
+
+  // The one screen a signed-out stranger can reach: checked before the
+  // session gate below, and before useWorkspace is ever called, so it never
+  // waits on — or is blocked by — a login that does not exist yet.
+  if (window.location.pathname === '/apply') return <ApplyPage />
 
   if (!ready) return <Booting />
   if (!session && !isDemo()) {

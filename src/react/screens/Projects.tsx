@@ -3,6 +3,7 @@ import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
 import { Rail } from '@/components/Rail'
+import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { usePanes } from '@/lib/usePanes'
 import { Avatar, Chip, IconBtn } from '@/components/bits'
 import { agoWords, count, initials, money, num } from '@/lib/format'
@@ -110,10 +111,6 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; 
               onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 
         <div className="workspace">
-          <div className="mobile-nav">
-            <button className="is-on">Projects</button>
-            <button onClick={onOpenTeam}>Team</button>
-          </div>
           <div className="wrap">
             <div className="page-head">
               <h1>Projects</h1>
@@ -186,6 +183,15 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; 
           </div>
         </div>
       </div>
+
+      <BottomNav
+        active="projects"
+        items={[
+          { key: 'projects', label: 'Projects', icon: NAV_ICONS.projects, onClick: () => {} },
+          { key: 'team', label: 'Team', icon: NAV_ICONS.team, onClick: onOpenTeam },
+          { key: 'hr', label: 'HR', icon: NAV_ICONS.hr, onClick: onOpenHr },
+        ]}
+      />
 
       {tip.node}
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}

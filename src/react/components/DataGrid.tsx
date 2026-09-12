@@ -10,6 +10,23 @@ export interface GridCol<T> {
 const MIN_W = 64
 const MAX_W = 720
 
+/** The one breakpoint in this app, matching prototype.css's 860px. A media
+ *  query cannot change markup, and on a phone this grid needs different
+ *  markup rather than smaller markup — see the card branch below. */
+const PHONE = '(max-width: 860px)'
+
+function useIsPhone() {
+  const [is, setIs] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(PHONE).matches)
+  useEffect(() => {
+    if (typeof matchMedia === 'undefined') return
+    const mq = matchMedia(PHONE)
+    const on = () => setIs(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return is
+}
+
 /**
  * The prototype's grid, ported rather than reimagined. Three things it learned
  * the hard way, all preserved:
@@ -62,6 +79,7 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   const tableRef = useRef<HTMLTableElement>(null)
   const guideRef = useRef<HTMLDivElement>(null)
   const [slack, setSlack] = useState(0)
+  const isPhone = useIsPhone()
 
   const total = widths.reduce((a, b) => a + b, 0)
 
@@ -149,6 +167,73 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   const offsets: number[] = []
   let run = 0
   for (let i = 0; i < widths.length - 1; i++) { run += widths[i]!; offsets.push(run - 5) }
+
+  /* ------------------------------------------------------------- phone
+     A 972px table in a 375px window is read by dragging it sideways, which
+     is the single thing that makes this app feel like a desktop site on a
+     phone. The same rows become cards instead: no horizontal scroll at all.
+     The desktop table below is untouched — the resizable columns are the
+     client's first requirement and nothing here changes them. */
+  if (isPhone) {
+    // A column with no heading is an actions cell (Approve / Edit / Mark
+    // paid). On a card those belong in a strip along the bottom, not in a
+    // label/value pair with a blank label.
+    const fields = cols.map((c, i) => ({ col: c, i })).filter(({ col }) => col.label.trim() !== '')
+    const actions = cols.map((c, i) => ({ col: c, i })).filter(({ col }) => col.label.trim() === '')
+    /* The heading of a card is the row's name, and the name column is always a
+       wide one — the narrow leader in front of it is a row number ("#", 52px),
+       which as a card heading reads as a card titled "1". So the title is the
+       first column with room for a name in it, and anything narrower sitting
+       in front of it becomes a small line above rather than being dropped. */
+    const titleAt = Math.max(0, fields.findIndex(({ col }) => col.width >= 100))
+    const lead = fields.slice(0, titleAt)
+    const title = fields[titleAt]
+    const detail = fields.slice(titleAt + 1)
+
+    return (
+      <div className="grid-shell">
+        <div className="grid-cards">
+          {rows.length === 0 && <div className="grid-cards-empty">{empty ?? 'Nothing here yet.'}</div>}
+          {rows.map((r, i) => {
+            const extra = rowClass?.(r)
+            const cls = ['grid-card', r.isNew ? 'is-new' : '', extra ?? '', onRowClick ? 'is-tap' : ''].filter(Boolean).join(' ')
+            return (
+              <div key={r.id} className={cls} onClick={onRowClick ? () => onRowClick(r) : undefined}>
+                {(lead.length > 0 || title) && (
+                  <div className="grid-card-head">
+                    {lead.length > 0 && (
+                      <div className="grid-card-lead">
+                        {lead.map(({ col }) => (
+                          <span key={col.key}>{col.label} {col.render(r, i)}</span>
+                        ))}
+                      </div>
+                    )}
+                    {title && <div className="grid-card-top">{title.col.render(r, i)}</div>}
+                  </div>
+                )}
+                {detail.length > 0 && (
+                  <div className="grid-card-fields">
+                    {detail.map(({ col }) => (
+                      <div className="grid-card-fld" key={col.key}>
+                        <span className="l">{col.label}</span>
+                        <span className="v">{col.render(r, i)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {actions.length > 0 && (
+                  <div className="grid-card-acts">
+                    {actions.map(({ col }) => <span key={col.key}>{col.render(r, i)}</span>)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {foot}
+      </div>
+    )
+  }
 
   return (
     <div className="grid-shell">

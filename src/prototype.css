@@ -987,7 +987,6 @@ table.hist .what{font-weight:500}
 .proto-dot{width:6px;height:6px;border-radius:50%;background:#3FC194}
 
 /* ------------------------------------------------------------ responsive */
-.mobile-nav{display:none}
 @media (max-width:1080px){
   .ov-grid{grid-template-columns:1fr}
   .kpis{grid-template-columns:repeat(3,1fr)}
@@ -1009,19 +1008,9 @@ table.hist .what{font-weight:500}
      the topbar more room than the project dropdown can spare, and the 38px
      compact row is already the right height for a small screen. */
   #density,#densityM{display:none}
-  .mobile-nav{
-    display:flex;gap:6px;overflow-x:auto;padding:9px 14px;
-    background:var(--surface);border-bottom:1px solid var(--line);
-    position:sticky;top:0;z-index:20;scrollbar-width:none;
-  }
-  .mobile-nav::-webkit-scrollbar{display:none}
-  .mobile-nav button{
-    flex:none;height:29px;padding:0 12px;border-radius:20px;
-    border:1px solid var(--line);background:var(--surface);
-    font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap;
-  }
-  .mobile-nav button.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on);font-weight:600}
-  .wrap{padding:16px 14px 70px;gap:26px}
+  /* Room for the tab bar, which is fixed over the bottom of the screen —
+     plus the home-indicator strip on a notched phone. */
+  .wrap{padding:16px 14px calc(80px + env(safe-area-inset-bottom));gap:26px}
   .kpis{grid-template-columns:repeat(2,1fr)}
   .kpi-value{font-size:22px}
   .money-grid{grid-template-columns:1fr 1fr}
@@ -1142,4 +1131,150 @@ table.hist .what{font-weight:500}
 .qr-poster{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:6px}
 .qr-canvas{
   width:190px;height:190px;background:#fff;padding:8px;border-radius:8px;border:1px solid var(--line);
+}
+
+/* ========================================================================
+   THE PHONE BUILD
+   ------------------------------------------------------------------------
+   Everything above was written for a desk. This block is what makes the same
+   screens behave like an app in a phone browser rather than a shrunken
+   website. Four problems it fixes, in order of how much they hurt:
+
+   1. Focusing any input zoomed the whole page in. iOS Safari does that to
+      every input whose text is under 16px — and this app's inputs were 14px
+      and 12.5px — so tapping the search box left the layout wider than the
+      screen and you had to pinch back out and drag sideways. It reads as a
+      broken layout; it is actually one number.
+   2. The sections lived in a chip strip that scrolled sideways, so half of
+      them were off the edge and undiscoverable. They are a bottom tab bar
+      now — visible without being asked, and under the thumb.
+   3. Tables were read by dragging a 972px grid through a 375px window.
+      DataGrid renders cards instead at this width; the desktop grid and its
+      resizable columns are untouched.
+   4. Tap targets, notch insets, the grey tap flash and the 300ms double-tap
+      delay — the small things whose absence is what "feels like a website"
+      actually means.
+   ======================================================================== */
+
+/* Every size: a tap should not flash a grey box, and the browser should not
+   hold every tap for 300ms waiting to see if it was a double-tap-to-zoom. */
+html{-webkit-text-size-adjust:100%}
+button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+
+.bnav{display:none}
+.bsheet-back{display:none}
+
+@media (max-width:860px){
+  /* ------------------------------------------------- 1. the zoom trap */
+  /* 16px is not a style choice here. Under it, the page zooms on focus. */
+  .input,input,select,textarea{font-size:16px}
+  /* Taller because a finger is not a mouse pointer. */
+  .input{height:44px}
+  .search .input{height:40px}
+  .btn{height:40px}
+  .btn--sm{height:34px;padding:0 12px;font-size:12.5px}
+  .btn--lg{height:46px}
+
+  /* ------------------------------------------------ 2. the tab bar */
+  .bnav{
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;
+    background:var(--surface);border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .bnav-btn{
+    flex:1 1 0;min-width:0;background:none;border:0;padding:6px 2px 7px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    min-height:52px;color:var(--ink-3);font-size:10.5px;font-weight:500;line-height:1.15;
+  }
+  .bnav-btn.is-on{color:var(--accent)}
+  .bnav-btn:active{background:var(--surface-2)}
+  .bnav-ico{position:relative;display:flex;align-items:center;justify-content:center;height:22px}
+  .bnav-lbl{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bnav-badge{
+    position:absolute;top:-5px;left:11px;min-width:16px;height:16px;padding:0 4px;
+    border-radius:9px;background:var(--accent);color:var(--accent-on);
+    font-size:10px;font-weight:700;line-height:16px;text-align:center;
+  }
+  .bnav-badge--dot{min-width:8px;width:8px;height:8px;padding:0;top:-1px;left:15px}
+
+  .bsheet-back{display:flex;position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.45);align-items:flex-end}
+  .bsheet{
+    width:100%;background:var(--surface);border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0;box-shadow:var(--shadow-lg);
+    padding:6px 10px calc(12px + env(safe-area-inset-bottom));
+    animation:bsheet-up .18s ease;
+  }
+  @keyframes bsheet-up{from{transform:translateY(16px);opacity:.5}to{transform:none;opacity:1}}
+  .bsheet-grip{width:38px;height:4px;border-radius:2px;background:var(--line-2);margin:4px auto 8px}
+  .bsheet-row{
+    display:flex;align-items:center;gap:13px;width:100%;height:50px;padding:0 12px;
+    border:0;background:none;border-radius:10px;color:var(--ink);
+    font-size:14.5px;font-weight:500;text-align:left;
+  }
+  .bsheet-row.is-on{background:var(--surface-3);color:var(--accent)}
+  .bsheet-ico{display:flex;color:var(--ink-3)}
+  .bsheet-row.is-on .bsheet-ico{color:var(--accent)}
+  .bsheet-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bsheet-count{
+    min-width:20px;padding:0 6px;height:20px;border-radius:10px;background:var(--accent);
+    color:var(--accent-on);font-size:11px;font-weight:700;line-height:20px;text-align:center;
+  }
+
+  /* The salesperson's tab strip is the same sideways-scrolling problem the
+     chip strip was; the tab bar has taken its job over. */
+  .tabs--nav{display:none}
+
+  /* ------------------------------------------------ 3. tables as cards */
+  .grid-cards{display:flex;flex-direction:column;gap:8px}
+  /* The shell's border and background belong to a table. Cards carry their
+     own, and a box around boxes reads as a mistake. */
+  .grid-shell{background:none;border:0;box-shadow:none;border-radius:0;overflow:visible}
+  .grid-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:12px 13px;display:flex;flex-direction:column;gap:11px;
+  }
+  .grid-card.is-tap:active{background:var(--surface-2)}
+  .grid-card-head{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .grid-card-lead{display:flex;gap:10px;font-size:10.5px;color:var(--ink-3);letter-spacing:.04em}
+  .grid-card-top{font-size:15px;font-weight:600;color:var(--ink);min-width:0}
+  .grid-card-top .td-flex{height:auto}
+  .grid-card-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+  .grid-card-fld{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .grid-card-fld .l{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+  .grid-card-fld .v{font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
+  .grid-card-acts{
+    display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line-2);
+  }
+  .grid-card-acts > span{display:contents}
+  .grid-cards-empty{
+    padding:24px 14px;text-align:center;color:var(--ink-3);
+    border:1px dashed var(--line);border-radius:10px;
+  }
+  .grid-foot{border:1px solid var(--line);border-radius:var(--r);margin-top:8px}
+  /* "Drag a column edge to resize" is desktop advice. */
+  .grid-hint{display:none}
+
+  /* ------------------------------------------------ 4. the small things */
+  /* The notch, the rounded corners and the home indicator. */
+  .topbar{
+    flex:0 0 auto;height:auto;min-height:var(--topbar-h);
+    padding-top:env(safe-area-inset-top);
+    padding-left:max(12px,env(safe-area-inset-left));
+    padding-right:max(12px,env(safe-area-inset-right));
+  }
+  /* A phone scroller should carry its own momentum and should not drag the
+     page behind it when it runs out. */
+  .workspace{-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+
+  /* Four KPI tiles at desktop proportions filled the whole first screen, so
+     the actual content started below the fold on every page. */
+  .wrap{gap:22px}
+  .kpis{gap:8px}
+  .kpi{padding:10px 11px 11px;gap:4px}
+  .kpi-value{font-size:20px}
+  .page-head h1{font-size:21px}
+
+  /* A modal on a phone is a sheet, not a floating box: full width, anchored
+     to the bottom, and never taller than the screen. */
+  .modal{max-height:88dvh}
 }

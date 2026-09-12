@@ -2,7 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- viewport-fit=cover lets the page paint behind the notch and the home
+     indicator; prototype.css then pads the topbar and the tab bar back out
+     with env(safe-area-inset-*). Zoom is deliberately NOT disabled — the
+     reason this app needed pinching was 14px inputs (iOS zooms the page on
+     focus under 16px), which is fixed in the CSS. Taking zoom away from
+     somebody who needs it is not the fix. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- Added to the home screen, it opens without browser chrome and the status
+     bar blends into the topbar rather than sitting on a white strip. -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Metrol">
+<meta name="theme-color" content="#0F0F0F" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 <title>Metrol CRM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

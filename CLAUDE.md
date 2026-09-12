@@ -2489,3 +2489,162 @@ still defaults to 18 if HR leaves it alone.
 **4. Email: `metrol.in` IS verified in Resend. Send from `hr@metrol.in`.** The
 key goes in as a **Supabase secret**, never into `.env` and never with a `VITE_`
 prefix — tell him the exact place to paste it and never ask for it in chat.
+
+---
+
+# Phase 8 built — 2026-09-12, in a fresh session off the handoff above
+
+Built exactly what the handoff specified, no more: the public form, the
+quarantine table and bucket, the Edge Function, and the HR review screen.
+`npm run typecheck` and `npm run build` both pass; the whole flow was walked
+in the browser under `?demo=1&as=hr` (Applications tab, review modal, approve
+form, and the public `/apply` form with the fresher checkbox actually hiding
+the relieving-letter upload). The Edge Function itself cannot be exercised
+from here — it needs a live deploy — so treat its logic as reviewed-but-not-
+fired-in-anger until the first real approval goes through.
+
+**Files:**
+- `supabase/migrations/0017_job_applications.sql` — the `job_applications`
+  table, a `quarantine_job_application()` trigger that overwrites
+  status/decided_by/employee_id/invite fields back to their defaults on any
+  client-originated insert (so anon cannot self-approve by just sending more
+  columns), RLS (anon: insert-only, no select; HR/owner: select + update, no
+  delete), and the private `job-applications` storage bucket.
+- `supabase/functions/approve-job-application/index.ts` — NOT deployed yet.
+  Paste-ready for Dashboard → Edge Functions → New function, name it exactly
+  `approve-job-application`. Needs one secret: `RESEND_API_KEY`.
+- `src/react/screens/ApplyPage.tsx` — the public form. Reached at `/apply`,
+  gated in `App.tsx` BEFORE the session check and before `useWorkspace` is
+  called, so it renders for a signed-out visitor with zero authenticated
+  queries.
+- `src/react/data/useJobApplications.ts` — `submit` (anon, uploads then
+  inserts), `reject` (a plain client-side update HR's own RLS already
+  allows), `approve`/`resend` (both call the Edge Function, since only it can
+  create a login).
+- `src/react/modals/ApplicationReviewModal.tsx` + a new "Applications" rail
+  section in `HrPage.tsx` (badge shows the pending count in the label, e.g.
+  "Applications (2)" — Rail.tsx was left alone rather than adding a badge
+  prop to a shared component for one caller).
+- `src/react/lib/hr.ts` — `JobApplication`, `APP_STATUS`, `APPLICATION_DOCS`.
+- `src/react/data/demo.ts` — three seeded applications (pending/approved/
+  rejected) so the Applications tab is walkable in `?demo=1` without a
+  database; nothing here touches the live project.
+
+**Design calls made without asking, because the brief already settled them:**
+- Approve and resend both round-trip through the Edge Function rather than
+  writing straight to the table, even though HR's RLS would technically allow
+  the table write — the Edge Function is the only thing that can create the
+  auth user, so centralizing both there (instead of splitting "create the row
+  changes here, create the login there") keeps one place responsible for "did
+  this application actually get decided."
+- The Edge Function deletes its own auth user if the `employees` insert fails
+  after the login was created — an orphan login with no employee behind it is
+  worse than a failed approval the reviewer can just retry.
+- Documents move (download from quarantine, upload to `employee-documents`,
+  delete from quarantine) rather than staying referenced in place — Adarsh's
+  own words were "must not land in the same bucket as a real employee's PAN
+  card," which means after approval too, not just before.
+- A failed email does not fail the approval. The account and employee record
+  are real either way; the function returns a `warning` string HR sees, and
+  "Resend" repeats only the email step. Silently succeeding while claiming
+  failure (or vice versa) is the failure mode a half-done approval invites.
+
+**What is NOT done, and is not code:**
+- **The Edge Function is not deployed.** Nothing in Phase 8 works end-to-end
+  until Adarsh pastes it into the Dashboard and adds the `RESEND_API_KEY`
+  secret. Handed to him as its own message, not buried here.
+- **Migration 0017 is not applied.** Same — handed to him as a `pbcopy`
+  command per this file's own rule above.
+- The fresher-checkbox decision from the ANSWERS section is now live in the
+  form; nothing further needed there.
+- Phase 9 (sign in by employee ID) still has not been started. It depends on
+  Phase 8 only in that Phase 8 creates the accounts it will resolve — the RPC
+  itself is independent and small, exactly as the handoff said.
+- No rate limit or CAPTCHA on the public form or its uploads — a public
+  insert-and-upload surface is inherently a spam target, and this build did
+  not add one. Worth a decision from Adarsh before the link is shared widely,
+  not before the first internal test.
+
+---
+
+# The phone build — 2026-09-12, same session as Phase 8
+
+Adarsh's brief, in his words: the app "is not optimized for the mobile screen",
+you have to "pinch down to fit in the screen", there is horizontal drift left
+and right, and the sections live in a strip you must scroll sideways to read —
+"not a good UI UX for the mobile users". He asked for a bottom navigation, and
+asked separately about an APK / add-to-home-screen (explicitly deferred: "APK
+later… but we need to fix this particular issue now").
+
+## What was actually wrong — measured, not guessed
+
+Every screen was checked at 375×812 with a script that walks the DOM and
+reports any element whose right edge passes the viewport without a scrolling
+ancestor. Result: **the page never scrolled horizontally on any screen.** The
+previous sessions had already contained that. So the felt problem was three
+other things:
+
+1. **The zoom trap, and this was the big one.** `body` is 14px, `input,select`
+   inherit it, and `.search .input` is 12.5px. iOS Safari zooms the entire page
+   in whenever a focused input's text is under **16px** — it is a rule, not a
+   preference. So tapping any search box or dropdown zoomed the layout wider
+   than the screen, and you then had to pinch back out and could drag sideways.
+   That is exactly the symptom he described, and it is one number.
+2. **The chip strip.** `.mobile-nav` was `overflow-x:auto`, so HR's eight
+   sections and the salesperson's nine were mostly off the edge, discoverable
+   only by dragging the bar.
+3. **Tables.** The HR directory grid is 972px wide inside a 375px window, read
+   by dragging it sideways — the other half of "moving left and right".
+
+## What was built
+
+- **`src/react/components/BottomNav.tsx`** — a fixed tab bar, five slots. Past
+  five, the fifth becomes "More" and opens a bottom sheet with the rest; HR
+  (8 sections) and the salesperson (up to 9) are why the overflow exists. Items
+  are shape-compatible with `RailItem`, so HrPage feeds one array to both the
+  desktop rail and the phone bar rather than maintaining two. `short` shortens a
+  label for a 75px tab ("Team tracking" → "Team"); `badge` moves a count out of
+  the words and onto the icon.
+- **`DataGrid` renders cards under 860px.** Same rows, no horizontal scroll:
+  first wide column is the heading, a narrow leading column (the 52px "#") sits
+  above it as a small line rather than becoming a card titled "1", labelled
+  columns become label/value pairs, and unlabelled columns (the action cells)
+  become a strip along the bottom. **The desktop table is untouched** — verified
+  after the change that at 1440px the table still renders with its six resize
+  strips, the rail is visible, inputs are still 14px and `.grid-shell` still has
+  its border. The resizable columns are the client's first requirement and
+  nothing here goes near them.
+- **`prototype.css`** — one commented block at the end, "THE PHONE BUILD":
+  16px inputs, 44px inputs / 40px buttons, safe-area insets on the topbar and
+  the tab bar, `-webkit-tap-highlight-color` and `touch-action:manipulation`
+  (the 300ms double-tap-zoom delay), `overscroll-behavior` on the scroller,
+  tighter KPI tiles because four desktop-sized ones filled the whole first
+  screen, and the card styles. `.mobile-nav`'s rules were deleted with its
+  markup.
+- **`index.html`** — `viewport-fit=cover` plus the iOS/Android standalone meta
+  tags, so adding it to the home screen already opens it without browser chrome.
+  **Zoom is deliberately not disabled.** `user-scalable=no` would have hidden
+  the symptom while taking pinch-zoom away from anybody who needs it; the 16px
+  rule fixes the cause.
+
+## Verified
+
+At 375×812, on HR, the salesperson, the owner's Projects, and a project's
+Leads: no page-level horizontal scroll, nothing overflowing without a scroller,
+zero inputs under 16px, tab bar present with 52px targets, tables replaced by
+cards, the More sheet opening with the four overflow sections, and a modal
+fitting the screen. At 1440px: bottom nav `display:none`, table and resize
+strips intact, rail visible. `typecheck` and `build` both pass.
+
+## Still open
+
+- **APK / installable app — not done, and deliberately.** The meta tags above
+  already make "Add to Home Screen" open fullscreen on both platforms. A real
+  installable PWA additionally needs a `manifest.webmanifest` and PNG icons
+  (192/512), and an APK on top of that needs a wrapper (TWA via Bubblewrap, or
+  Capacitor) plus a Play Console account. That is its own task with its own
+  decisions — Adarsh deferred it himself and it should stay deferred until the
+  app is finished.
+- The leads board (`.board-scroll`) still scrolls sideways on a phone. That one
+  is correct — it is a kanban board, and swiping between columns is how a board
+  is read. Left alone on purpose.

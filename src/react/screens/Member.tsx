@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
+import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { DensitySlider } from '@/components/DensitySlider'
 import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
@@ -385,7 +386,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </div>
             </div>
 
-            <div className="tabs">
+            <div className="tabs tabs--nav">
               <button className={sec === 'overview' ? 'is-on' : ''} onClick={() => setSec('overview')}>Overview</button>
               <button className={sec === 'attendance' ? 'is-on' : ''} onClick={() => setSec('attendance')}>
                 Attendance
@@ -737,6 +738,24 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           projectName={projectName(historyFor.projectId)}
           onClose={() => setHistoryFor(null)} />
       )}
+
+      {/* The same sections as the tab strip above, which is hidden at this
+          width: nine of them scrolled sideways and most were never seen. The
+          four an employee opens daily are tabs; the rest are behind More. */}
+      <BottomNav
+        active={sec}
+        items={[
+          { key: 'overview', label: 'Overview', icon: NAV_ICONS.overview, onClick: () => setSec('overview') },
+          { key: 'attendance', label: 'Attendance', icon: NAV_ICONS.attendance, onClick: () => setSec('attendance') },
+          { key: 'leads', label: 'My leads', short: 'Leads', badge: mine.length, icon: NAV_ICONS.leads, onClick: () => setSec('leads') },
+          { key: 'sales', label: 'My sales', short: 'Sales', badge: cv.length, icon: NAV_ICONS.sales, onClick: () => setSec('sales') },
+          ...(isLead ? [{ key: 'team', label: 'Manage team', short: 'Team', badge: teamRows.length, icon: NAV_ICONS.team, onClick: () => setSec('team') }] : []),
+          { key: 'leave', label: 'Leave', icon: NAV_ICONS.leave, badge: myLeave.filter((r) => r.status === 'pending').length, onClick: () => setSec('leave') },
+          { key: 'salary', label: 'Salary', icon: NAV_ICONS.salary, onClick: () => setSec('salary') },
+          { key: 'onboarding', label: 'Onboarding', icon: NAV_ICONS.onboarding, onClick: () => setSec('onboarding') },
+          ...(isLeaving ? [{ key: 'exit', label: 'Exit', icon: NAV_ICONS.exit, onClick: () => setSec('exit') }] : []),
+        ]}
+      />
 
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
 

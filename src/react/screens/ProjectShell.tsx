@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useHoverTip } from '@/components/HoverTip'
 import { Rail } from '@/components/Rail'
+import { BottomNav } from '@/components/BottomNav'
 import { DensitySlider } from '@/components/DensitySlider'
 import { Avatar, Chip, IconBtn } from '@/components/bits'
 import { usePanes } from '@/lib/usePanes'
@@ -33,6 +34,11 @@ const LABEL: Record<SecId, string> = {
   overview: 'Overview', leads: 'Leads', sales: 'Sales', team: 'Team tracking', dash: 'Sales dashboard',
 }
 const ORDER: SecId[] = ['overview', 'leads', 'sales', 'team', 'dash']
+/** "Team tracking" and "Sales dashboard" do not fit a 75px tab. The sidebar
+ *  keeps the full names; only the phone's tab bar uses these. */
+const SHORT: Record<SecId, string> = {
+  overview: 'Overview', leads: 'Leads', sales: 'Sales', team: 'Team', dash: 'Dashboard',
+}
 
 export function ProjectShell({
   ws, projectId, onBack, onOpenProject, onOpenTeam, onOpenHr, toast,
@@ -141,11 +147,6 @@ export function ProjectShell({
         </nav>
 
         <div className="workspace">
-          <div className="mobile-nav">
-            {ORDER.map((id) => (
-              <button key={id} className={sec === id ? 'is-on' : ''} onClick={() => setSec(id)}>{LABEL[id]}</button>
-            ))}
-          </div>
           <div className="wrap">
             {sec === 'overview' && <Overview leads={leads} conv={conv} events={ws.events} onGo={(s) => setSec(s)} />}
             {sec === 'leads' && (
@@ -159,6 +160,13 @@ export function ProjectShell({
           </div>
         </div>
       </div>
+
+      <BottomNav
+        active={sec}
+        items={ORDER.map((id) => ({
+          key: id, label: LABEL[id], short: SHORT[id], icon: ICONS[id], onClick: () => setSec(id),
+        }))}
+      />
 
       {tip.node}
 
