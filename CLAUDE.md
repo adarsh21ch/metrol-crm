@@ -2377,6 +2377,21 @@ after a successful deploy. Comparing the hash in `index.html` against the local
 NEW bundle's path directly and look for a 200 — a hash that only exists in the
 new build cannot be served unless that build deployed.
 
+**Correction, 2026-09-13: curl cannot verify this deploy at all.**
+company.metrol.in sits behind a **Vercel Security Checkpoint** (bot challenge).
+Every curl request — a real bundle path, an invented one, or `/` itself —
+returns `200 text/html`, 2,856 bytes, titled "Vercel Security Checkpoint". So
+both the status code AND the content-type are the challenge page's, never the
+app's, and the recipe above measures nothing. A browser passes the challenge
+and sees the real site; `curl` never will.
+
+Verify a deploy one of these ways instead:
+- the Vercel dashboard (or the Vercel MCP tools) — did the commit build green;
+- open the site in a real browser and check the Network tab's bundle name;
+- ask Adarsh to hard-reload the page, since he is signed in there anyway.
+
+Do not spend a ten-minute curl poll on it again.
+
 ---
 
 # HANDOFF → Phase 8 (joining form) and Phase 9 (sign in by employee ID)
