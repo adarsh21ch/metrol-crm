@@ -2648,3 +2648,103 @@ strips intact, rail visible. `typecheck` and `build` both pass.
 - The leads board (`.board-scroll`) still scrolls sideways on a phone. That one
   is correct — it is a kanban board, and swiping between columns is how a board
   is read. Left alone on purpose.
+
+---
+
+# HANDOFF → the HR shell rework (briefed 2026-09-13, ONE of four parts built)
+
+Adarsh reviewed the phone build and asked for four things. **Only part 3 is
+built.** The other three are specified below in enough detail to build without
+re-deriving anything from a voice note.
+
+His framing, which explains all four: the phone tabs are currently ordered by
+what the module happened to grow, not by what HR opens the app to do, and the
+card view spends vertical space he does not want spent.
+
+## Part 1 — reorder the HR tabs, and build the Dashboard that goes first
+
+His order, in his words, with his reasons:
+
+| # | Tab | Why he put it there |
+|---|---|---|
+| 1 | **Dashboard** | "First should be the dashboard… which is required. We can show them which on daily basis they want to see." Does not exist yet — HR currently opens on the directory. |
+| 2 | **Attendance** | "For India attendance, they will receive a leave if somebody have a leave today. So edit of decision notification and also we have one option to open the leave step, to see a leave." → who is in, who is on leave today, and a way through to Leave from here. |
+| 3 | **Departments** | "Departments should be in middle one because this one is the big one… every department have their work and all. So we go more deeper in that." Middle slot is deliberate — it is the one he intends to grow. |
+| 4 | **Employees** | He first said finance/salary, then corrected himself outright: *"no no… fourth one should be Team members — that is called employees — the employees list data department wise."* This is the existing Directory, renamed **Employees**, grouped by department. |
+| 5 | **More** | Everything left: Leave, Salary, Onboarding, Exit, Applications. |
+
+Implementation notes so the next session does not rediscover them:
+
+- `HrPage.tsx` already has `railItems` (desktop) and `navItems` (phone) built
+  from one array — reorder there, and set the default `section` to the new
+  `dashboard`. The `section` union and `NAV_SHORT` both need the new key.
+- **Salary/finance moves into More.** He swapped it out himself; do not
+  reinstate it as a tab because an earlier sentence in the same voice note
+  said "finance fourth".
+- The Dashboard's content is the one open question. Nothing was invented here.
+  What he actually said is "which on daily basis they want to see", and the
+  things this app already knows daily are: who is in / late / absent today,
+  leave requests waiting on a decision, applications waiting on a decision,
+  headcount, and anybody on notice. Build from what exists; do not invent a
+  metric this database cannot answer. Ask him if in doubt.
+
+## Part 2 — the employee profile page
+
+> "Create profile page. Every employee have a profile page — their name, their
+> employee ID, every data regarding it — then put all the other remaining
+> options in the profile tab."
+
+Today HR's employee record (`HrPage.tsx`, the `{open && …}` branch) is **one
+long scroll**: Employment, Contact, Emergency contact, Notes, Attendance,
+Leave, Salary, Offer & onboarding, Exit, stacked. On a phone that is a very
+long page, which is the same wasted-vertical-space complaint as part 3.
+
+Make it a profile: a header carrying avatar, name, **employee ID**, designation,
+department and status chip — then the sections as **tabs within the profile**
+rather than stacked. The data is already all there and every section already
+renders; this is a container change, not new content.
+
+**The same idea applies to the employee's own app** (`Member.tsx`), and is
+probably what "put all the other remaining options in the profile tab" means
+for them specifically: they currently carry up to nine tabs (Overview,
+Attendance, My leads, My sales, Manage team, Leave, Salary, Onboarding, Exit).
+Leave / Salary / Onboarding / Exit are all "about me" — they belong behind one
+**Profile** tab, which would take the bottom bar down to about four real tabs
+and remove the need for the More sheet on that screen entirely.
+
+## Part 3 — DONE: Cards or List, the reader's choice, on a phone
+
+> "We can show card view we have already, but one more view… that is list view,
+> like Excel sheet table format. In this way, in less space, correct information
+> shows in less space in a better format. So we have to make sure that
+> unnecessarily vertical space not be used or waste."
+
+Built. `DataGrid` shows a small right-aligned **Cards | List** segmented control
+on phones only; List is the real table, horizontally scrollable inside its own
+shell exactly as on desktop, which is what fits four times the rows on a screen.
+The choice is remembered **per table** (`metrol-gridview-<storageKey>` in
+`localStorage`), because the right answer differs per table — a six-row Sales
+list and a 122-row Leads list do not want the same view. Default stays Cards.
+
+`.grid-shell--list` restores the border/background the card view strips off, so
+in List view it reads as a table again rather than cards in a box.
+
+`typecheck` and `build` pass. **Not yet checked in a browser at 375px** — that
+is the first thing to do next session, along with confirming the toggle does not
+itself eat the vertical space it was added to save.
+
+## Part 4 — make the cards themselves denser
+
+Same sentence as part 3: vertical space "not be used or waste". The card is
+currently `padding:12px 13px`, `gap:11px`, a two-column field grid and an
+actions strip with its own border and padding. Nothing was tightened in this
+round. Worth doing after part 3 is looked at on a real phone, because the List
+option may already answer the complaint and a second change would then be
+solving a problem that no longer exists.
+
+## What is still true and unfinished from Phase 8
+
+Unchanged by this round, still waiting on Adarsh, not on code:
+`RESEND_API_KEY` is not set as a Supabase secret, so an approval creates the
+login and the employee record but the "set your password" email does not send —
+by design, it returns a warning and the Resend button repeats the email step.

@@ -1225,6 +1225,15 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   .tabs--nav{display:none}
 
   /* ------------------------------------------------ 3. tables as cards */
+  /* ...or as the table, reader's choice. Cards read one row well; the table
+     fits four times as many on a screen at the cost of a sideways drag. The
+     pick is remembered per table in DataGrid. */
+  .grid-view-pick{display:flex;justify-content:flex-end;margin-bottom:8px}
+  .grid-view-pick .seg button{height:26px;padding:0 12px;font-size:12px}
+  /* In list view the shell keeps its border — it is a table again, not cards. */
+  .grid-shell--list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:visible}
+  .grid-shell--list .grid-view-pick{padding:8px 8px 0;margin-bottom:6px}
+  .grid-shell--list .grid-scroll{border-top:1px solid var(--line)}
   .grid-cards{display:flex;flex-direction:column;gap:8px}
   /* The shell's border and background belong to a table. Cards carry their
      own, and a box around boxes reads as a mistake. */

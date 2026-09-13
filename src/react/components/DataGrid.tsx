@@ -27,6 +27,24 @@ function useIsPhone() {
   return is
 }
 
+/** Cards read well and cost vertical space; the table costs a sideways drag
+ *  and fits four times as many rows on a screen. Which one is right depends on
+ *  whether you are reading one person or scanning forty, so it is the reader's
+ *  choice, remembered per table — not ours. */
+type PhoneView = 'cards' | 'list'
+
+function usePhoneView(storageKey: string): [PhoneView, (v: PhoneView) => void] {
+  const key = 'metrol-gridview-' + storageKey
+  const [view, setView] = useState<PhoneView>(() => {
+    try { return localStorage.getItem(key) === 'list' ? 'list' : 'cards' } catch { return 'cards' }
+  })
+  const pick = (v: PhoneView) => {
+    setView(v)
+    try { localStorage.setItem(key, v) } catch { /* a view preference is not worth throwing over */ }
+  }
+  return [view, pick]
+}
+
 /**
  * The prototype's grid, ported rather than reimagined. Three things it learned
  * the hard way, all preserved:
@@ -80,6 +98,7 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   const guideRef = useRef<HTMLDivElement>(null)
   const [slack, setSlack] = useState(0)
   const isPhone = useIsPhone()
+  const [phoneView, setPhoneView] = usePhoneView(storageKey)
 
   const total = widths.reduce((a, b) => a + b, 0)
 
@@ -174,7 +193,19 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
      phone. The same rows become cards instead: no horizontal scroll at all.
      The desktop table below is untouched — the resizable columns are the
      client's first requirement and nothing here changes them. */
-  if (isPhone) {
+  /* Shown on a phone above either view. Deliberately small and right-aligned:
+     it is a preference, not an action, and a full-width control here would
+     spend the vertical space this whole change is meant to save. */
+  const viewToggle = isPhone ? (
+    <div className="grid-view-pick">
+      <div className="seg">
+        <button className={phoneView === 'cards' ? 'is-on' : ''} onClick={() => setPhoneView('cards')}>Cards</button>
+        <button className={phoneView === 'list' ? 'is-on' : ''} onClick={() => setPhoneView('list')}>List</button>
+      </div>
+    </div>
+  ) : null
+
+  if (isPhone && phoneView === 'cards') {
     // A column with no heading is an actions cell (Approve / Edit / Mark
     // paid). On a card those belong in a strip along the bottom, not in a
     // label/value pair with a blank label.
@@ -192,6 +223,7 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
 
     return (
       <div className="grid-shell">
+        {viewToggle}
         <div className="grid-cards">
           {rows.length === 0 && <div className="grid-cards-empty">{empty ?? 'Nothing here yet.'}</div>}
           {rows.map((r, i) => {
@@ -236,7 +268,8 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   }
 
   return (
-    <div className="grid-shell">
+    <div className={'grid-shell' + (isPhone ? ' grid-shell--list' : '')}>
+      {viewToggle}
       <div className="grid-scroll grid-scroll--page" ref={scrollRef}>
         <table className="grid" ref={tableRef} style={{ width: total + slack }}>
           <colgroup>
