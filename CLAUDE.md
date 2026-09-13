@@ -2861,3 +2861,67 @@ and nothing can sign in to see real rows.
   because the List option may already answer the complaint.
 - `RESEND_API_KEY` is still not set as a Supabase secret, so an approval still
   cannot email the "set your password" link.
+
+---
+
+# HR Phase 9 — sign in with an employee ID (2026-09-13)
+
+The last numbered phase. Small, exactly as the handoff predicted.
+
+Supabase Auth is keyed on email, so `6068` has to become an email before
+`signInWithPassword` is called, and the person doing that is not signed in yet.
+`email_for_employee_code(text)` (migration 0018) is a `security definer`
+function granted to `anon` that returns **one thing** — the work email — and
+returns nothing for a resigned employee, whose login is gone and whose address
+should not still be findable by ID. `employees` itself stays unreadable to anon,
+exactly as 0006 left it.
+
+**The throttle, and why it is global rather than per-IP.** A four-digit code is
+a 9,000-wide space, so anybody who can call this can walk it and collect every
+current employee's work email. Postgres cannot see the caller's IP through
+PostgREST, so a per-IP limit is not available. Instead `employee_code_lookups`
+counts calls company-wide and the function raises `rate_limited` past **30 in a
+minute** — a human signing in never reaches it, a script walking 9,000 codes
+hits it on the first second, and during an attack a real person is told to use
+their email address, which still works. The table has RLS on and **no policies
+at all**: only the definer function ever touches it.
+
+**`SignIn.tsx`** now takes either. Anything containing `@` is passed straight
+through and never calls the RPC, so ordinary email sign-in is byte-for-byte the
+request it always was. The input had to become `type="text"` — as `type="email"`
+the browser refused to submit `6068` before any of this code ran, which is the
+kind of thing that looks like a broken button rather than a validation rule.
+
+**Change password was already there** and was confirmed rather than rebuilt:
+`ProfileModal` has had it since the avatars round (`pfPw1`/`pfPw2`, matching
+check, `supabase.auth.updateUser`). The handoff said to check, not to build, and
+that was right.
+
+`supabase/tests/0018_rls_checks.sql` — twelve checks in one rolled-back
+transaction: the grant (checked first, because a missing grant makes every later
+call raise and print nothing), anon still locked out of `employees` and the
+throttle table, a real borrowed employee's code resolving to the right address,
+that same employee resigned inside the transaction resolving to null, unknown
+and empty codes, the 31st call in a minute refused by name, and recovery after
+the window. Borrows a real row and reports SKIPPED rather than faking a pass.
+
+`typecheck` and `build` pass. **0018 and its test file have not been run against
+the live database** — same as 0017.
+
+## The HR module is now feature-complete
+
+Phases 1–7 are live. Phase 8's code is built and waiting on three manual steps
+(0017, the Edge Function, `RESEND_API_KEY`). Phase 9 is built and waiting on
+0018. Nothing else in the original brief is unbuilt.
+
+What remains is not code:
+
+| | |
+|---|---|
+| migrations 0017 + 0018 | not run against the live database |
+| `approve-job-application` | not deployed to Supabase Edge Functions |
+| `RESEND_API_KEY` | not set as a Supabase secret |
+| office branches | **0** — attendance is inert until HR saves one from inside each office |
+| employees on record | **1** |
+| holidays | **0** |
+| shell rework part 4 | denser cards, still deliberately not done |

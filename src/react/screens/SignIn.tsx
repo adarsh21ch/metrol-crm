@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { isConfigured, supabase } from '@/lib/supabase'
 
+/**
+ * Phase 9: the field takes an email OR a four-digit employee ID.
+ *
+ * Supabase Auth is keyed on email, so an ID has to become one before
+ * signInWithPassword is called — `email_for_employee_code` (migration 0018)
+ * does that, and is the only thing a signed-out visitor can call. Anything
+ * with an "@" in it is passed straight through and never touches the RPC, so
+ * the ordinary email sign-in is exactly the request it always was.
+ */
 export function SignIn({ onDone, onCreateAccount }: { onDone: () => void; onCreateAccount?: () => void }) {
   const [email, setEmail] = useState('')
   const [pass, setPass] = useState('')
@@ -11,7 +20,26 @@ export function SignIn({ onDone, onCreateAccount }: { onDone: () => void; onCrea
     e.preventDefault()
     if (!isConfigured) return setErr('Supabase is not configured for this deployment.')
     setBusy(true); setErr(null)
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass })
+
+    const typed = email.trim()
+    let address = typed
+    if (!typed.includes('@')) {
+      const { data, error } = await supabase.rpc('email_for_employee_code', { p_code: typed })
+      if (error) {
+        setBusy(false)
+        // The throttle raises this by name; everything else is a real fault.
+        return setErr(error.message.includes('rate_limited')
+          ? 'Too many sign-in attempts right now. Use your email address instead.'
+          : error.message)
+      }
+      if (!data) {
+        setBusy(false)
+        return setErr(`No active employee has the ID ${typed}. Check it, or sign in with your email address.`)
+      }
+      address = data as string
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email: address, password: pass })
     setBusy(false)
     if (error) setErr(error.message)
     else onDone()
@@ -28,9 +56,12 @@ export function SignIn({ onDone, onCreateAccount }: { onDone: () => void; onCrea
           </div>
           <form className="auth-form" onSubmit={submit}>
             <div className="field">
-              <label htmlFor="authEmail">Email</label>
-              <input className="input" id="authEmail" type="email" autoComplete="username" required
-                     placeholder="you@metrol.in" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <label htmlFor="authEmail">Email or employee ID</label>
+              {/* type="text", not "email" — the browser would refuse to submit
+                  "6068" as an invalid email before this code ever ran. */}
+              <input className="input" id="authEmail" type="text" autoComplete="username" required
+                     autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                     placeholder="you@metrol.in or 6068" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="field">
               <label htmlFor="authPass">Password</label>
