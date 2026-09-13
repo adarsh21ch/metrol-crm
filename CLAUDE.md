@@ -2748,3 +2748,101 @@ Unchanged by this round, still waiting on Adarsh, not on code:
 `RESEND_API_KEY` is not set as a Supabase secret, so an approval creates the
 login and the employee record but the "set your password" email does not send —
 by design, it returns a warning and the Resend button repeats the email step.
+
+---
+
+# HR shell rework — parts 1 and 2 built (2026-09-13)
+
+Picking up the handoff above. Parts 1 and 2 are now built; part 4 (denser
+cards) is still deliberately not done, and part 3 still has not been looked at
+in a browser with real data.
+
+## Part 1 — the tabs are Adarsh's order, and Dashboard exists
+
+`railItems` in `HrPage.tsx` is now the single source of the order, and
+`navItems` is derived from it rather than re-listing the keys — the two orders
+had to be kept in sync by hand before, which is exactly the kind of thing that
+drifts. The order is his: **Dashboard, Attendance, Departments, Employees**,
+then Leave, Salary, Onboarding, Exit, Applications. On a phone that means the
+first four are tabs and everything after them is behind More, which is the
+split he described. Salary is not a tab — he swapped it out for Employees
+himself, and the note in the handoff was right to warn about the earlier
+sentence in the same voice note.
+
+**Directory is now Employees, and it is grouped by department** ("the employees
+list data department wise"): one small heading and one table per department,
+plus a "No department" group, in the departments' own `sortOrder`. Searching or
+filtering to a single department drops back to one flat table — at that point
+the grouping is answering a question nobody asked. The grouped tables share the
+`hr-directory-dept` column widths, separate from the flat table's
+`hr-directory`, because they are a column short: department is the heading
+there, so as a column it would be the same word on every row.
+
+**The Dashboard** answers "what is today", and every number on it is one this
+database already holds — nothing was invented, per the handoff's instruction:
+
+- four tiles, all about today: in office now, late today, not in yet, on leave
+  today. There was a fifth (joined this month) and it was cut — five tiles
+  leave an orphan on a phone's two-column grid, and headcount is already in the
+  line under the heading.
+- **Waiting on a decision** — pending leave requests and pending applications in
+  one card, because "what needs me" is one question even though the two queues
+  live on different pages. An application row opens the review modal straight
+  from here.
+- **Today** — who is on leave (with the date they are back) and who has not
+  punched in, each row opening that person's profile. Approved leave is taken
+  out of the not-in list: somebody on leave is not missing. Capped, with a way
+  through to Attendance.
+- **On the way out**, when anybody is on notice, and the "login with no employee
+  record" banner, which moved here from Employees — it is a thing that needs
+  doing, and this is now the page for those.
+
+**Attendance also gained the leave half of his sentence.** `HrAttendance` takes
+two new optional props (`leave`, `onOpenLeave`) and now shows an "On leave
+today" tile, a list of who is on leave that day, and a button through to Leave.
+The day's table marks those people **On leave** instead of "Not in", and the
+"No punch" count no longer includes them — an absence that is already accounted
+for is not a no-show.
+
+## Part 2 — the profile page
+
+HR's employee record was nine sections stacked into one scroll. It is now a
+profile: a header card (`.prof-head`) carrying the avatar, name, **employee ID
+in mono**, designation, department and status chip, with Edit / Mark as
+resigned on the right — and the sections behind **tabs inside the profile**:
+Overview (employment, contact, emergency, notes), Attendance, Leave, Salary,
+Onboarding, and Exit only once somebody is leaving. No section changed, only
+where it lives. `openEmployee(id)` replaces the bare `setOpenId(id)` at every
+call site so opening a second person never lands you on the first one's Salary
+tab.
+
+**The employee's own app got the same treatment** — the handoff was right that
+this is what "put all the other remaining options in the profile tab" means for
+them. `Member.tsx` had up to nine tabs; Leave, Salary, Onboarding and Exit are
+all "about me", so they are one **Profile** tab with those four as sub-tabs
+inside it (Exit only when they are actually leaving). The bottom bar is now
+Overview, Attendance, My leads, My sales, Profile — five, so **an ordinary
+employee never sees the More sheet again**. A team lead still overflows, and
+More holds Manage team and Profile for them; six destinations do not fit in
+five slots and nothing about that is new.
+
+The profile's sub-tab strip is `.tabs`, not `.tabs--nav` — unlike the section
+strip above it, this one is the only way around inside Profile, so it has to
+survive on a phone.
+
+## Checked
+
+`typecheck` and `build` pass. The new CSS (`.prof-head`, `.prof-meta`,
+`.prof-code`, `.prof-actions`, `.prof-tabs`) was rendered at 375px and 1280px
+against static markup and reads correctly in both — that check covers the
+layout, not the wiring, because there is still no `.env` in this environment
+and nothing can sign in to see real rows.
+
+## Still open
+
+- **Part 3** — the Cards/List toggle has still never been seen at 375px with a
+  real table under it.
+- **Part 4** — denser cards. Unchanged advice: look at part 3 on a phone first,
+  because the List option may already answer the complaint.
+- `RESEND_API_KEY` is still not set as a Supabase secret, so an approval still
+  cannot email the "set your password" link.

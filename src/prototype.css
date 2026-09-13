@@ -1055,6 +1055,27 @@ table.hist .what{font-weight:500}
 .hr-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
 .hr-head-btns{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
 .hr-soon{ display:flex; gap:8px; flex-wrap:wrap; }
+
+/* --------------------------------------------------- the employee profile */
+/* The header is the identity and it stays put: face, name, employee ID, where
+   they sit. Everything that used to be stacked under it is a tab now, so this
+   is the only part of the page that is always true. */
+.prof-head{
+  display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap;
+  padding:14px 15px; margin-bottom:14px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+}
+.prof-head .avatar{ width:52px; height:52px; flex:0 0 52px; font-size:17px; }
+.prof-id{ min-width:0; flex:1 1 220px; }
+.prof-id h1{ font-size:21px; line-height:1.2; }
+.prof-id .sub{ font-size:12px; color:var(--ink-3); margin-top:5px; }
+.prof-meta{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:5px; font-size:12.5px; color:var(--ink-2); }
+.prof-code{
+  font-family:var(--mono); font-size:12px; font-weight:600;
+  padding:1px 7px; border-radius:5px; background:var(--surface-3); color:var(--ink);
+}
+.prof-actions{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.prof-tabs{ margin-bottom:16px; }
 /* The directory's toolbar carries a search box the leads toolbars do not, and
    at 375px the plain .search rule let it collapse to an empty sliver. It gets
    a floor and permission to take the row to itself. */

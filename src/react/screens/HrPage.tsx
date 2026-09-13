@@ -64,6 +64,12 @@ const ONBOARD_ICON = (
     <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
   </svg>
 )
+const DASH_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
+    <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
+  </svg>
+)
 const ATT_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
@@ -82,6 +88,19 @@ const APPLY_ICON = (
     <path d="M9 15l2 2 4-4" />
   </svg>
 )
+
+/** The tabs inside one person's profile. Everything here already existed as a
+ *  section stacked on one very long page; this is the container, not new
+ *  content. Exit only appears once somebody is actually leaving. */
+type ProfileTab = 'overview' | 'attendance' | 'leave' | 'salary' | 'onboarding' | 'exit'
+const PROFILE_TABS: { key: ProfileTab; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'attendance', label: 'Attendance' },
+  { key: 'leave', label: 'Leave' },
+  { key: 'salary', label: 'Salary' },
+  { key: 'onboarding', label: 'Onboarding' },
+  { key: 'exit', label: 'Exit' },
+]
 
 /** One label / value pair on the employee page. */
 const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
@@ -115,7 +134,10 @@ export function HrPage({
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = useState<'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications'>('directory')
+  const [section, setSection] = useState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications'>('dashboard')
+  /* Which tab of somebody's profile is open. Reset by openEmployee below, so
+     opening a second person never lands you on the first one's Salary tab. */
+  const [profTab, setProfTab] = useState<ProfileTab>('overview')
   const [reviewingApp, setReviewingApp] = useState<JobApplication | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
@@ -143,6 +165,7 @@ export function HrPage({
   const [showLeavers, setShowLeavers] = useState(false)
 
   const open = openId ? hr.rows.find((e) => e.id === openId) ?? null : null
+  const openEmployee = (id: string) => { setOpenId(id); setProfTab('overview') }
   const employeeName = (id: string) => hr.rows.find((e) => e.id === id)?.fullName ?? 'Unknown'
 
   const shown = useMemo(() => {
@@ -163,39 +186,43 @@ export function HrPage({
 
   const pendingApps = applications.rows.filter((a) => a.status === 'pending')
 
+  /* The order is Adarsh's, and it is the order of the working day rather than
+     the order the module grew in: what is happening today (Dashboard), then
+     who is in (Attendance), then Departments — the one he intends to grow, so
+     it gets the middle slot — then the people themselves. Everything that is
+     a monthly or occasional job (Leave, Salary, Onboarding, Exit, and the
+     applications inbox) sits after them, which on a phone is behind More.
+     Salary is deliberately NOT a tab: he swapped it out for Employees. */
   const railItems: RailItem[] = [
-    { key: 'directory', label: 'Directory', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
-    {
-      key: 'applications', label: pendingApps.length ? `Applications (${pendingApps.length})` : 'Applications',
-      icon: APPLY_ICON, onClick: () => { setSection('applications'); setOpenId(null) },
-    },
-    { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
+    { key: 'dashboard', label: 'Dashboard', icon: DASH_ICON, onClick: () => { setSection('dashboard'); setOpenId(null) } },
     { key: 'attendance', label: 'Attendance', icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) } },
+    { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
+    { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
     { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
     { key: 'onboarding', label: 'Onboarding', icon: ONBOARD_ICON, onClick: () => { setSection('onboarding'); setOpenId(null) } },
     { key: 'exit', label: 'Exit', icon: EXIT_ICON, onClick: () => { setSection('exit'); setOpenId(null) } },
+    {
+      key: 'applications', label: pendingApps.length ? `Applications (${pendingApps.length})` : 'Applications',
+      icon: APPLY_ICON, onClick: () => { setSection('applications'); setOpenId(null) },
+    },
   ]
 
-  /* The phone's tab bar carries the same eight sections in a different order:
-     a sidebar can list them all, five tabs cannot, so the four HR touches
-     daily go on the bar and the rest live behind More. Labels are shortened
-     for a 75px tab, and Applications' count moves out of the words and onto
-     the icon where a tab bar puts it. */
+  /* The phone's tab bar carries the same nine sections in the same order — a
+     sidebar can list them all, five tabs cannot, so the first four become
+     tabs and the rest live behind More. Labels are shortened for a 75px tab,
+     and Applications' count moves out of the words and onto the icon where a
+     tab bar puts it. */
   const NAV_SHORT: Record<string, string> = {
-    directory: 'People', applications: 'Applied', attendance: 'Attendance', leave: 'Leave',
-    departments: 'Departments', salary: 'Salary', onboarding: 'Onboarding', exit: 'Exit',
+    dashboard: 'Dashboard', attendance: 'Attendance', departments: 'Departments', directory: 'Employees',
+    leave: 'Leave', salary: 'Salary', onboarding: 'Onboarding', exit: 'Exit', applications: 'Applied',
   }
-  const navItems: BottomNavItem[] = ['directory', 'applications', 'attendance', 'leave', 'departments', 'salary', 'onboarding', 'exit']
-    .map((key) => {
-      const it = railItems.find((r) => r.key === key)!
-      return {
-        ...it,
-        label: key === 'applications' ? 'Applications' : it.label,
-        short: NAV_SHORT[key],
-        badge: key === 'applications' ? pendingApps.length : undefined,
-      }
-    })
+  const navItems: BottomNavItem[] = railItems.map((it) => ({
+    ...it,
+    label: it.key === 'applications' ? 'Applications' : it.label,
+    short: NAV_SHORT[it.key],
+    badge: it.key === 'applications' ? pendingApps.length : undefined,
+  }))
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
   const exitRecordFor = (employeeId: string) => exitRecords.rows.find((r) => r.employeeId === employeeId) ?? null
@@ -216,6 +243,18 @@ export function HrPage({
     if (!message) toast('Document uploaded.')
     return message
   }
+
+  /* Everything the dashboard says about today. Nothing here is a new metric:
+     it is the attendance day HrAttendance already builds, the leave and
+     application queues that already exist, and headcount. If it cannot be
+     answered from this database it is not on this page. */
+  const tzToday = att.settings?.timezone ?? 'Asia/Kolkata'
+  const dashToday = officeToday(tzToday)
+  const activeStaff = hr.rows.filter((e) => e.status !== 'resigned')
+  const todayRows = att.rows.filter((r) => r.workDate === dashToday)
+  const punchedIds = new Set(todayRows.map((r) => r.employeeId))
+  const inOfficeNow = todayRows.filter((r) => r.status === 'in_progress').length
+  const lateToday = todayRows.filter((r) => (r.lateMinutes ?? 0) > 0).length
 
   const currentPeriodStr = currentPeriod()
   const pendingSalary = salary.rows.filter((r) => r.status === 'pending')
@@ -264,6 +303,12 @@ export function HrPage({
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
   })
   const onLeaveToday = leave.rows.filter((r) => r.status === 'approved' && r.startDate <= todayISO() && r.endDate >= todayISO())
+  const onLeaveTodayIds = new Set(onLeaveToday.map((r) => r.employeeId))
+  /* Not "absent" — absent is a judgement, and at 9:40am most of this list is
+     simply people who have not arrived yet. It is the list HR scans in the
+     morning, so approved leave is taken out of it: somebody on leave is not
+     missing. */
+  const notInYet = activeStaff.filter((e) => !punchedIds.has(e.id) && !onLeaveTodayIds.has(e.id))
 
   const leaveCols: GridCol<LeaveRequest>[] = [
     { key: 'who', label: 'Employee', width: 190, render: (r) => employeeName(r.employeeId) },
@@ -301,7 +346,7 @@ export function HrPage({
       render: (e) => (
         <div className="td-flex">
           <Avatar>{initials(e.fullName)}</Avatar>
-          <button className="name-btn" onClick={() => setOpenId(e.id)}>{e.fullName}</button>
+          <button className="name-btn" onClick={() => openEmployee(e.id)}>{e.fullName}</button>
         </div>
       ),
     },
@@ -312,6 +357,19 @@ export function HrPage({
     { key: 'joined', label: 'Joined', width: 124, render: (e) => fmtDate(e.dateOfJoining) },
     { key: 'status', label: 'Status', width: 116, render: (e) => <Chip cls={EMP_STATUS[e.status].cls}>{EMP_STATUS[e.status].label}</Chip> },
   ]
+
+  const deptCols: GridCol<Employee>[] = cols.filter((c) => c.key !== 'dept')
+
+  /* Adarsh asked for "the employees list data department wise", so department
+     is the arrangement rather than a column. Searching or filtering to one
+     department drops back to a single flat table — at that point the grouping
+     is answering a question nobody asked. */
+  const grouped = !q.trim() && !deptId
+  const deptGroups = [...ws.departments]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((d) => ({ id: d.id, name: d.name, rows: shown.filter((e) => e.departmentId === d.id) }))
+    .concat([{ id: '', name: 'No department', rows: shown.filter((e) => !e.departmentId) }])
+    .filter((g) => g.rows.length > 0)
 
   const saveNew = async (draft: EmployeeDraft) => {
     const message = await hr.create(draft)
@@ -376,18 +434,34 @@ export function HrPage({
             {/* ------------------------------------------------ one person */}
             {open && (
               <>
+                {/* The profile. It used to be every section stacked into one
+                    scroll, which on a phone was about nine screens long. The
+                    identity — face, name, employee ID, where they sit — is the
+                    header and never scrolls away from under you; everything
+                    else is a tab. No section changed, only where it lives. */}
                 <div className="page-head">
-                  <button className="btn btn--sm" onClick={() => setOpenId(null)}>← Directory</button>
-                  <h1 style={{ marginTop: 10 }}>{open.fullName}</h1>
-                  <div className="sub">
-                    {open.designation || 'No designation'} · {ws.departmentName(open.departmentId) ?? 'No department'}
-                    {' · '}{open.employeeCode} · {tenure(open.dateOfJoining)} with Metrol
-                  </div>
+                  <button className="btn btn--sm" onClick={() => setOpenId(null)}>← Employees</button>
                 </div>
 
-                <div className="hr-head">
-                  <Chip cls={EMP_STATUS[open.status].cls}>{EMP_STATUS[open.status].label}</Chip>
-                  <div className="hr-head-btns">
+                <div className="prof-head">
+                  <Avatar lg>{initials(open.fullName)}</Avatar>
+                  <div className="prof-id">
+                    <h1>{open.fullName}</h1>
+                    <div className="prof-meta">
+                      {/* The employee ID is the thing he asked for by name, and
+                          it is what somebody reads out on a call — mono, first,
+                          not buried in a run of dot-separated text. */}
+                      <span className="prof-code">{open.employeeCode || 'No ID'}</span>
+                      <span>
+                        {open.designation || 'No designation'} · {ws.departmentName(open.departmentId) ?? 'No department'}
+                      </span>
+                      <Chip cls={EMP_STATUS[open.status].cls}>{EMP_STATUS[open.status].label}</Chip>
+                    </div>
+                    <div className="sub">
+                      Joined {fmtDate(open.dateOfJoining)} · {tenure(open.dateOfJoining)} with Metrol
+                    </div>
+                  </div>
+                  <div className="prof-actions">
                     <button className="btn btn--sm" onClick={() => setEditing(open)}>Edit</button>
                     {open.status !== 'resigned' && (
                       <button className="btn btn--sm" onClick={() => {
@@ -400,6 +474,15 @@ export function HrPage({
                   </div>
                 </div>
 
+                <div className="tabs prof-tabs">
+                  {PROFILE_TABS.filter((t) => t.key !== 'exit' || open.status !== 'active').map((t) => (
+                    <button key={t.key} className={profTab === t.key ? 'is-on' : ''} onClick={() => setProfTab(t.key)}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {profTab === 'overview' && (<>
                 <div className="section">
                   <div className="section-head"><h3>Employment</h3></div>
                   <div className="hr-fields">
@@ -439,12 +522,14 @@ export function HrPage({
                     <p style={{ whiteSpace: 'pre-wrap' }}>{open.notes}</p>
                   </div>
                 )}
+                </>)}
 
                 {/* This person's attendance, on their own record — the month
                     they are having, then the days themselves. The company-wide
                     view is one day across everybody; this is one person across
                     days, which is the question you ask when you are standing on
                     somebody's record page. */}
+                {profTab === 'attendance' && (
                 <div className="section">
                   <div className="section-head">
                     <h3>Attendance</h3>
@@ -492,6 +577,9 @@ export function HrPage({
                   })()}
                 </div>
 
+                )}
+
+                {profTab === 'leave' && (
                 <div className="section">
                   <div className="section-head">
                     <h3>Leave</h3>
@@ -515,6 +603,9 @@ export function HrPage({
                   )}
                 </div>
 
+                )}
+
+                {profTab === 'salary' && (
                 <div className="section">
                   <div className="section-head">
                     <h3>Salary</h3>
@@ -531,6 +622,9 @@ export function HrPage({
                   )}
                 </div>
 
+                )}
+
+                {profTab === 'onboarding' && (
                 <div className="section">
                   <div className="section-head"><h3>Offer &amp; onboarding</h3></div>
                   <div className="hr-fields" style={{ marginBottom: 12 }}>
@@ -576,7 +670,9 @@ export function HrPage({
                   )}
                 </div>
 
-                {open.status !== 'active' && (
+                )}
+
+                {profTab === 'exit' && open.status !== 'active' && (
                   <div className="section">
                     <div className="section-head"><h3>Exit</h3></div>
                     <div className="hr-fields" style={{ marginBottom: 12 }}>
@@ -602,6 +698,148 @@ export function HrPage({
               </>
             )}
 
+            {/* ------------------------------------------------ dashboard */}
+            {/* The first thing HR sees. Adarsh asked for "what they want to
+                see on a daily basis", so it is the day: who is in, what is
+                waiting on a decision, and who is on the way out. Every number
+                here is one this database can already answer — nothing on this
+                page is invented, and nothing needs a new table. */}
+            {!open && section === 'dashboard' && (
+              <>
+                <div className="page-head">
+                  <h1>Dashboard</h1>
+                  <div className="sub">{fmtDate(dashToday)} · {count(activeStaff.length, 'person', 'people')} on the books</div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="In office now" value={inOfficeNow} sub={`punched in, of ${activeStaff.length}`} />
+                  <Kpi label="Late today" value={lateToday} sub="in after their shift start" />
+                  <Kpi label="Not in yet" value={notInYet.length} sub="no punch, not on leave" />
+                  <Kpi label="On leave today" value={onLeaveToday.length} sub="approved" />
+                </div>
+
+                {/* Everything that is stuck until somebody decides it. One
+                    card, because "what needs me" is one question even though
+                    the two queues live on different pages. */}
+                <div className="ov-card">
+                  <div className="ov-head">
+                    <h4>Waiting on a decision</h4>
+                    <span className="ov-cta">{pending.length + pendingApps.length}</span>
+                  </div>
+                  {pending.length + pendingApps.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>
+                      Nothing is waiting on you. No leave requests and no applications are pending.
+                    </p>
+                  ) : (
+                    <div className="ov-actions">
+                      {pending.slice(0, 5).map((r) => (
+                        <button className="ov-row" key={r.id} onClick={() => { setSection('leave'); setOpenId(null) }}>
+                          <span className="ov-n">{initials(employeeName(r.employeeId))}</span>
+                          <span className="ov-l">
+                            {employeeName(r.employeeId)} — {LEAVE_TYPE[r.leaveType].label.toLowerCase()},
+                            {' '}{count(r.daysCount, 'day')} from {fmtDate(r.startDate)}
+                          </span>
+                          <span className="ov-cta"><Chip cls={LEAVE_STATUS[r.status].cls}>Leave</Chip> decide →</span>
+                        </button>
+                      ))}
+                      {pendingApps.slice(0, 5).map((a) => (
+                        <button className="ov-row" key={a.id} onClick={() => setReviewingApp(a)}>
+                          <span className="ov-n">{initials(a.fullName)}</span>
+                          <span className="ov-l">{a.fullName} — {a.positionInterest || 'no position given'}</span>
+                          <span className="ov-cta"><Chip cls={APP_STATUS.pending.cls}>Applied</Chip> review →</span>
+                        </button>
+                      ))}
+                      {pending.length > 5 && (
+                        <button className="ov-row" onClick={() => { setSection('leave'); setOpenId(null) }}>
+                          <span className="ov-l">{pending.length - 5} more leave request(s)</span>
+                          <span className="ov-cta">Open Leave →</span>
+                        </button>
+                      )}
+                      {pendingApps.length > 5 && (
+                        <button className="ov-row" onClick={() => { setSection('applications'); setOpenId(null) }}>
+                          <span className="ov-l">{pendingApps.length - 5} more application(s)</span>
+                          <span className="ov-cta">Open Applications →</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="ov-card">
+                  <div className="ov-head">
+                    <h4>Today</h4>
+                    <button className="btn btn--sm" style={{ marginLeft: 'auto' }} onClick={() => { setSection('attendance'); setOpenId(null) }}>Open attendance →</button>
+                  </div>
+                  {activeStaff.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>Nobody is on the directory yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {onLeaveToday.map((r) => (
+                        <button className="ov-row" key={'l' + r.id} onClick={() => openEmployee(r.employeeId)}>
+                          <span className="ov-n">{initials(employeeName(r.employeeId))}</span>
+                          <span className="ov-l">{employeeName(r.employeeId)} — back {fmtDate(r.endDate)}</span>
+                          <span className="ov-cta"><Chip cls={LEAVE_TYPE[r.leaveType].cls}>On leave</Chip> →</span>
+                        </button>
+                      ))}
+                      {notInYet.slice(0, 8).map((e) => (
+                        <button className="ov-row" key={e.id} onClick={() => openEmployee(e.id)}>
+                          <span className="ov-n">{initials(e.fullName)}</span>
+                          <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
+                          <span className="ov-cta"><Chip cls="chip--none">Not in</Chip> →</span>
+                        </button>
+                      ))}
+                      {notInYet.length > 8 && (
+                        <button className="ov-row" onClick={() => { setSection('attendance'); setOpenId(null) }}>
+                          <span className="ov-l">{notInYet.length - 8} more not in yet</span>
+                          <span className="ov-cta">Open attendance →</span>
+                        </button>
+                      )}
+                      {onLeaveToday.length === 0 && notInYet.length === 0 && (
+                        <div className="ov-row" style={{ cursor: 'default' }}>
+                          <span className="ov-l">Everybody is in and nobody is on leave.</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {leaving.length > 0 && (
+                  <div className="ov-card">
+                    <div className="ov-head">
+                      <h4>On the way out</h4>
+                      <button className="btn btn--sm" style={{ marginLeft: 'auto' }} onClick={() => { setSection('exit'); setOpenId(null) }}>Open Exit →</button>
+                    </div>
+                    <div className="ov-actions">
+                      {leaving.slice(0, 5).map((e) => (
+                        <button className="ov-row" key={e.id} onClick={() => openEmployee(e.id)}>
+                          <span className="ov-n">{initials(e.fullName)}</span>
+                          <span className="ov-l">
+                            {e.fullName} — {e.lastWorkingDay ? 'last day ' + fmtDate(e.lastWorkingDay) : 'no last day set'}
+                          </span>
+                          <span className="ov-cta"><Chip cls={EMP_STATUS[e.status].cls}>{EMP_STATUS[e.status].label}</Chip> →</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {unrecorded.length > 0 && (
+                  <div className="banner">
+                    <div>
+                      <div className="t">{count(unrecorded.length, 'person', 'people')} with a login and no employee record</div>
+                      <div className="d">{unrecorded.map((m) => m.name).join(', ')}</div>
+                    </div>
+                    <button className="btn btn--sm" onClick={() => {
+                      const m = unrecorded[0]!
+                      setAdding({ profileId: m.id, fullName: m.name, workEmail: m.email ?? '', phone: m.phone ?? '', departmentId: m.departmentId })
+                    }}>
+                      Add {unrecorded[0]!.name.split(' ')[0]}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* ------------------------------------------------ directory */}
             {!open && section === 'directory' && (
               <>
@@ -619,24 +857,9 @@ export function HrPage({
                   <Kpi label="Joined this month" value={hr.rows.filter(joinedThisMonth).length} sub="new starters" />
                 </div>
 
-                {unrecorded.length > 0 && (
-                  <div className="banner">
-                    <div>
-                      <div className="t">{count(unrecorded.length, 'person', 'people')} with a login and no employee record</div>
-                      <div className="d">{unrecorded.map((m) => m.name).join(', ')}</div>
-                    </div>
-                    <button className="btn btn--sm" onClick={() => {
-                      const m = unrecorded[0]!
-                      setAdding({ profileId: m.id, fullName: m.name, workEmail: m.email ?? '', phone: m.phone ?? '', departmentId: m.departmentId })
-                    }}>
-                      Add {unrecorded[0]!.name.split(' ')[0]}
-                    </button>
-                  </div>
-                )}
-
                 <div className="section">
                   <div className="section-head">
-                    <h3>Directory</h3>
+                    <h3>{grouped ? 'By department' : 'Directory'}</h3>
                     <div className="section-tools">
                       <input className="input search" placeholder="Search name, code, phone…"
                              value={q} onChange={(e) => setQ(e.target.value)} />
@@ -655,10 +878,22 @@ export function HrPage({
                   {!hr.loading && hr.rows.length === 0 ? (
                     <div className="ov-card">
                       <div className="ov-head"><h4>Nobody is on the directory yet</h4></div>
-                      <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>
-                        Add the first employee, or start from someone who already has a login above.
+                      <p style={{ color: 'var(--ink-3)' }}>
+                        Add the first employee, or start from someone who already has a login on the Dashboard.
                       </p>
                     </div>
+                  ) : grouped ? (
+                    deptGroups.map((g) => (
+                      <div key={g.id || 'none'} style={{ marginBottom: 18 }}>
+                        <div className="section-head">
+                          <h3 style={{ fontSize: 14 }}>{g.name}</h3>
+                          <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                            {count(g.rows.length, 'person', 'people')}
+                          </div>
+                        </div>
+                        <DataGrid cols={deptCols} rows={g.rows} storageKey="hr-directory-dept" />
+                      </div>
+                    ))
                   ) : (
                     <DataGrid cols={cols} rows={shown} storageKey="hr-directory"
                               foot={<div className="grid-foot"><span>{count(shown.length, 'employee')}</span></div>} />
@@ -728,7 +963,7 @@ export function HrPage({
                         : (
                           <div className="ov-actions">
                             {mine.map((e) => (
-                              <button className="ov-row" key={e.id} onClick={() => { setOpenId(e.id); setSection('directory') }}>
+                              <button className="ov-row" key={e.id} onClick={() => { openEmployee(e.id); setSection('directory') }}>
                                 <span className="ov-n">{initials(e.fullName)}</span>
                                 <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
                                 <span className="ov-cta">{EMP_STATUS[e.status].label} →</span>
@@ -744,7 +979,8 @@ export function HrPage({
 
             {/* ---------------------------------------------- attendance */}
             {!open && section === 'attendance' && (
-              <HrAttendance att={att} employees={hr.rows} toast={toast} />
+              <HrAttendance att={att} employees={hr.rows} toast={toast} leave={leave.rows}
+                            onOpenLeave={() => { setSection('leave'); setOpenId(null) }} />
             )}
 
             {/* --------------------------------------------------- leave */}
@@ -884,7 +1120,7 @@ export function HrPage({
                       const tasks = tasksFor(e.id)
                       const done = tasks.filter((t) => t.done).length
                       return (
-                        <button className="ov-row" key={e.id} onClick={() => { setOpenId(e.id); setSection('directory') }}>
+                        <button className="ov-row" key={e.id} onClick={() => { openEmployee(e.id); setSection('directory') }}>
                           <span className="ov-n">{initials(e.fullName)}</span>
                           <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
                           <span className="ov-cta">{done}/{tasks.length} tasks · {count(docsFor(e.id).length, 'document')} →</span>
@@ -923,7 +1159,7 @@ export function HrPage({
                         const tasks = exitTasksFor(e.id)
                         const done = tasks.filter((t) => t.done).length
                         return (
-                          <button className="ov-row" key={e.id} onClick={() => { setOpenId(e.id); setSection('directory') }}>
+                          <button className="ov-row" key={e.id} onClick={() => { openEmployee(e.id); setSection('directory') }}>
                             <span className="ov-n">{initials(e.fullName)}</span>
                             <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
                             <span className="ov-cta">

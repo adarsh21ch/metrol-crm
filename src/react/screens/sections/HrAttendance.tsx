@@ -7,7 +7,7 @@ import { OfficeModal } from '@/modals/OfficeModal'
 import { count } from '@/lib/format'
 import { PUNCH_METHOD, statusChip, fmtDuration, fmtShift, fmtTime, officeToday, type AttendanceRow, type OfficeLocation } from '@/lib/attendance'
 import type { Attendance } from '@/data/useAttendance'
-import type { Employee } from '@/lib/hr'
+import { LEAVE_TYPE, fmtDate as fmtLeaveDate, type Employee, type LeaveRequest } from '@/lib/hr'
 
 /** One line of the day's table: an attendance row joined to the person it
  *  belongs to, plus the people with no row at all — who are the whole point of
@@ -28,11 +28,17 @@ interface DayRow {
  * is on their own record page, where the rest of their history already lives.
  */
 export function HrAttendance({
-  att, employees, toast,
+  att, employees, toast, leave = [], onOpenLeave,
 }: {
   att: Attendance
   employees: Employee[]
   toast: (m: string) => void
+  /* Every leave request in the company. Attendance without it lists somebody
+     on approved leave as "not in", which is the one absence nobody needs to
+     chase — Adarsh asked for who is in AND who is on leave on this screen. */
+  leave?: LeaveRequest[]
+  /** A way through to the Leave page, from the screen that raises the question. */
+  onOpenLeave?: () => void
 }) {
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
   const [date, setDate] = useState(() => officeToday(tz))
@@ -55,6 +61,13 @@ export function HrAttendance({
     [employees],
   )
 
+  const onLeave = useMemo(
+    () => leave.filter((r) => r.status === 'approved' && r.startDate <= date && r.endDate >= date),
+    [leave, date],
+  )
+  const onLeaveIds = useMemo(() => new Set(onLeave.map((r) => r.employeeId)), [onLeave])
+  const nameOf = (id: string) => employees.find((e) => e.id === id)?.fullName ?? 'Unknown'
+
   const dayRows: DayRow[] = useMemo(() => {
     const byEmp = new Map(att.rows.filter((r) => r.workDate === date).map((r) => [r.employeeId, r]))
     return staff
@@ -74,7 +87,7 @@ export function HrAttendance({
 
   const inOffice = dayRows.filter((r) => r.row?.status === 'in_progress').length
   const lateToday = dayRows.filter((r) => (r.row?.lateMinutes ?? 0) > 0).length
-  const noShow = dayRows.filter((r) => !r.row).length
+  const noShow = dayRows.filter((r) => !r.row && !onLeaveIds.has(r.employeeId)).length
   const closed = dayRows.filter((r) => r.row?.punchOutAt).length
 
   const cols: GridCol<DayRow>[] = [
@@ -105,7 +118,9 @@ export function HrAttendance({
       key: 'status', label: 'Status', width: 130,
       render: (r) => (r.row
         ? <Chip cls={statusChip(r.row.status).cls}>{statusChip(r.row.status).label}</Chip>
-        : <Chip cls="chip--none">Not in</Chip>),
+        : onLeaveIds.has(r.employeeId)
+          ? <Chip cls="chip--warn">On leave</Chip>
+          : <Chip cls="chip--none">Not in</Chip>),
     },
     {
       // The evidence column. It is the answer to "he says he was here" — and
@@ -209,8 +224,35 @@ export function HrAttendance({
         <Kpi accent label="In the office" value={inOffice} sub={date === officeToday(tz) ? 'punched in, not out yet' : 'still open on this day'} />
         <Kpi label="Day closed" value={closed} sub="punched out" />
         <Kpi label="Late" value={lateToday} sub={`past the ${settings?.graceMinutes ?? 7} minute relaxation`} />
-        <Kpi label="No punch" value={noShow} sub="nothing recorded for this day" />
+        <Kpi label="On leave" value={onLeave.length} sub="approved for this day" />
+        <Kpi label="No punch" value={noShow} sub="nothing recorded, not on leave" />
       </div>
+
+      {onLeave.length > 0 && (
+        <div className="section">
+          <div className="section-head">
+            <h3>On leave {date === officeToday(tz) ? 'today' : 'this day'}</h3>
+            {onOpenLeave && (
+              <div className="section-tools">
+                <button className="btn btn--sm" onClick={onOpenLeave}>Open Leave →</button>
+              </div>
+            )}
+          </div>
+          <div className="ov-actions">
+            {onLeave.map((r) => (
+              <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                <span className="ov-l">
+                  <strong>{nameOf(r.employeeId)}</strong>
+                  <span style={{ color: 'var(--ink-3)' }}>
+                    {'  ·  '}{LEAVE_TYPE[r.leaveType].label}{'  ·  '}back {fmtLeaveDate(r.endDate)}
+                  </span>
+                </span>
+                <Chip cls={LEAVE_TYPE[r.leaveType].cls}>{r.daysCount === 1 ? '1 day' : r.daysCount + ' days'}</Chip>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {att.error && <div className="auth-err" style={{ marginBottom: 14 }}>{att.error}</div>}
 

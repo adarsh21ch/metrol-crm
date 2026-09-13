@@ -35,18 +35,27 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'attendance' | 'leads' | 'sales' | 'team' | 'leave' | 'salary' | 'onboarding' | 'exit'
+type MemberSec = 'overview' | 'attendance' | 'leads' | 'sales' | 'team' | 'profile'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
   attendance: { title: 'Attendance', sub: 'Punch in when you reach the office, punch out when you leave' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
   sales: { title: 'My sales', sub: '' },
   team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
-  leave: { title: 'Leave', sub: 'Request time off and see your balance' },
-  salary: { title: 'Salary', sub: 'Your payslip history' },
-  onboarding: { title: 'Onboarding', sub: 'Your offer, checklist and documents on file' },
-  exit: { title: 'Exit', sub: 'What still needs handing back before your last day' },
+  profile: { title: 'Profile', sub: 'Your leave, salary, onboarding and documents' },
 }
+
+/* Leave, Salary, Onboarding and Exit were four of the nine tabs on this
+   screen, and all four are the same subject: me. They are one tab now, with
+   these inside it — which is what takes the phone's tab bar down to five and
+   removes the More sheet for everybody who is not a team lead. */
+type MeTab = 'leave' | 'salary' | 'onboarding' | 'exit'
+const ME_TABS: { key: MeTab; label: string }[] = [
+  { key: 'leave', label: 'Leave' },
+  { key: 'salary', label: 'Salary' },
+  { key: 'onboarding', label: 'Onboarding' },
+  { key: 'exit', label: 'Exit' },
+]
 
 /** One label / value pair — same small component HrPage uses for an
  *  employee's own fields, kept local here rather than shared for one screen
@@ -98,6 +107,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [meTab, setMeTab] = useState<MeTab>('leave')
   // Board (the card view) is the default open — it's the one built for a
   // phone-in-hand, work-the-queue flow. Whichever view someone actually picks
   // is remembered per-browser via pickView below, so a salesperson who prefers
@@ -174,7 +184,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     () => (myEmployee ? myExitTasks.rows.filter((t) => t.employeeId === myEmployee.id).sort((a, b) => a.sortOrder - b.sortOrder) : []),
     [myExitTasks.rows, myEmployee],
   )
-  const shownSec: MemberSec = (sec === 'team' && !isLead) || (sec === 'exit' && !isLeaving) ? 'overview' : sec
+  const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
+  const shownMeTab: MeTab = meTab === 'exit' && !isLeaving ? 'leave' : meTab
 
   const teamRows = useMemo<TeamRow[]>(() => {
     if (!isLead || !me?.departmentId) return []
@@ -363,7 +374,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               <div className="sub">
                 {sec === 'sales' ? `${count(cv.length, 'deal')} closed · ${money(sum(cv))} total`
                   : sec === 'leads' ? `${count(mine.length, 'lead')} across ${count(projects, 'project')}`
-                    : HEAD[sec].sub}
+                    : sec === 'profile' && myEmployee
+                      ? `${myEmployee.employeeCode || 'No ID'} · ${myEmployee.designation || 'No designation'}`
+                      : HEAD[sec].sub}
               </div>
               <div className="section-tools">
                 {sec === 'leads' && (
@@ -402,17 +415,28 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   Manage team <span className="count">{teamRows.length}</span>
                 </button>
               )}
-              <button className={sec === 'leave' ? 'is-on' : ''} onClick={() => setSec('leave')}>
-                Leave {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
+              <button className={sec === 'profile' ? 'is-on' : ''} onClick={() => setSec('profile')}>
+                Profile {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
               </button>
-              <button className={sec === 'salary' ? 'is-on' : ''} onClick={() => setSec('salary')}>Salary</button>
-              <button className={sec === 'onboarding' ? 'is-on' : ''} onClick={() => setSec('onboarding')}>Onboarding</button>
-              {isLeaving && (
-                <button className={sec === 'exit' ? 'is-on' : ''} onClick={() => setSec('exit')}>Exit</button>
-              )}
             </div>
 
-            {shownSec === 'exit' && myEmployee && (
+            {/* The profile's own tabs. Not .tabs--nav: this strip is the way
+                around inside Profile, so unlike the section strip above it has
+                to survive on a phone. */}
+            {shownSec === 'profile' && (
+              <div className="tabs prof-tabs">
+                {ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => (
+                  <button key={t.key} className={shownMeTab === t.key ? 'is-on' : ''} onClick={() => setMeTab(t.key)}>
+                    {t.label}
+                    {t.key === 'leave' && myLeave.some((r) => r.status === 'pending') && (
+                      <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {shownSec === 'profile' && shownMeTab === 'exit' && myEmployee && (
               <>
                 <div className="hr-fields" style={{ marginBottom: 14 }}>
                   <Fld l="Status" v={EMP_STATUS[myEmployee.status].label} />
@@ -431,7 +455,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {shownSec === 'onboarding' && (
+            {shownSec === 'profile' && shownMeTab === 'onboarding' && (
               <>
                 {!myEmployee ? (
                   <div className="ov-card">
@@ -469,7 +493,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {shownSec === 'salary' && (
+            {shownSec === 'profile' && shownMeTab === 'salary' && (
               <>
                 {!myEmployee || mySalary.length === 0 ? (
                   <div className="ov-card">
@@ -559,7 +583,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {shownSec === 'leave' && (
+            {shownSec === 'profile' && shownMeTab === 'leave' && (
               <>
                 {!myEmployee ? (
                   <div className="ov-card">
@@ -750,10 +774,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           { key: 'leads', label: 'My leads', short: 'Leads', badge: mine.length, icon: NAV_ICONS.leads, onClick: () => setSec('leads') },
           { key: 'sales', label: 'My sales', short: 'Sales', badge: cv.length, icon: NAV_ICONS.sales, onClick: () => setSec('sales') },
           ...(isLead ? [{ key: 'team', label: 'Manage team', short: 'Team', badge: teamRows.length, icon: NAV_ICONS.team, onClick: () => setSec('team') }] : []),
-          { key: 'leave', label: 'Leave', icon: NAV_ICONS.leave, badge: myLeave.filter((r) => r.status === 'pending').length, onClick: () => setSec('leave') },
-          { key: 'salary', label: 'Salary', icon: NAV_ICONS.salary, onClick: () => setSec('salary') },
-          { key: 'onboarding', label: 'Onboarding', icon: NAV_ICONS.onboarding, onClick: () => setSec('onboarding') },
-          ...(isLeaving ? [{ key: 'exit', label: 'Exit', icon: NAV_ICONS.exit, onClick: () => setSec('exit') }] : []),
+          { key: 'profile', label: 'Profile', icon: NAV_ICONS.profile, badge: myLeave.filter((r) => r.status === 'pending').length, onClick: () => setSec('profile') },
         ]}
       />
 
