@@ -59,6 +59,13 @@ create table if not exists public.job_applications (
   created_at             timestamptz not null default now()
 );
 
+-- Dropped first so the whole file stays safe to re-run. `create table if not
+-- exists` skips silently on a second run, but a bare `add constraint` does
+-- not — it raises 42710 and rolls back everything after it, which is exactly
+-- how a half-applied 0017 happened the first time.
+alter table public.job_applications
+  drop constraint if exists job_applications_relieving_letter_check;
+
 alter table public.job_applications
   add constraint job_applications_relieving_letter_check
   check (no_previous_employment or relieving_letter_path is not null);
