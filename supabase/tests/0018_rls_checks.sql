@@ -31,10 +31,27 @@ begin
     case when has_function_privilege('anon', 'public.email_for_employee_code(text)', 'execute')
          then 'PASS' else 'FAIL — every later check will raise' end);
 
-  insert into results (check_name, result) values (
-    '03 anon cannot read employees directly',
-    case when not has_table_privilege('anon', 'public.employees', 'select')
-         then 'PASS' else 'FAIL — the whole point of the RPC is gone' end);
+  -- Ask the question as anon, and count the rows. The earlier version of this
+  -- check asked has_table_privilege() instead, which is TRUE for every table in
+  -- a Supabase project by default and so reported a leak that did not exist —
+  -- RLS, not the grant, is what returns nothing to an unauthenticated caller.
+  begin
+    execute 'set local role anon';
+    perform set_config('request.jwt.claims', null, true);
+    execute 'select count(*) from public.employees' into i;
+    execute 'reset role';
+    insert into results (check_name, result) values (
+      '03 anon reads zero employee rows',
+      case when i = 0 then 'PASS' else 'FAIL — anon read ' || i || ' rows' end);
+  exception when insufficient_privilege then
+    execute 'reset role';
+    insert into results (check_name, result) values (
+      '03 anon reads zero employee rows', 'PASS — refused at the grant, before RLS');
+  when others then
+    execute 'reset role';
+    insert into results (check_name, result) values (
+      '03 anon reads zero employee rows', 'FAIL — ' || sqlerrm);
+  end;
 
   insert into results (check_name, result) values (
     '04 anon cannot read the throttle table',
