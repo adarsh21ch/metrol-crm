@@ -2925,3 +2925,48 @@ What remains is not code:
 | employees on record | **1** |
 | holidays | **0** |
 | shell rework part 4 | denser cards, still deliberately not done |
+
+## PROVEN on the live database — 2026-09-14
+
+0017, 0018, 0019 and `0018_rls_checks.sql` all ran against the Metrol Media
+project. **12 of 12 PASS, zero SKIPPED** — the borrowed-employee guard found
+somebody (6068 → teamnevorai@gmail.com), so every check actually executed.
+
+Established by measurement: a real code resolves to the right address, a
+resigned code resolves to null, unknown and empty codes resolve to null, the
+31st lookup in a minute is refused by name and it recovers after the window,
+and anon reads zero employee rows. 0017's own proof: RLS on, 4 policies, **0**
+delete policies, the `job-applications` bucket created, 3 storage policies, the
+quarantine trigger installed.
+
+**Two bugs in my own SQL, both found by Adarsh running it:**
+
+1. **0017 was not safe to re-run.** A bare `add constraint` raises 42710 the
+   second time and rolls back everything after it, so a partly-applied 0017
+   could never be completed by re-running the file — which is exactly the state
+   it was in. It drops the constraint first now, like every policy in it
+   already did. **Every future migration: guard every statement, not most of
+   them.**
+2. **0018's anon check measured the wrong thing and reported a leak that did
+   not exist.** `has_table_privilege('anon', <any table>, 'select')` is TRUE in
+   every Supabase project — the grant is handed out by default, and **RLS is
+   what returns nothing** to an unauthenticated caller. The check now does
+   `set local role anon` and counts rows. 0019 revokes the grant as well, so
+   there are two locks; the SECURITY DEFINER resolver is unaffected by it and
+   `authenticated` is untouched.
+
+**Do not write another `has_table_privilege` check and call it a security
+proof.** Ask the question as the role and count what comes back.
+
+## What is left, and none of it is code
+
+| | |
+|---|---|
+| `approve-job-application` | not deployed to Supabase Edge Functions |
+| `RESEND_API_KEY` | not set as a Supabase secret |
+| office branches | **0** — attendance is inert until HR saves one from inside each office |
+| employees on record | **1** |
+| holidays | **0** |
+| shell rework part 4 | denser cards, deliberately not done |
+
+Every migration 0006–0019 is installed. The HR module is feature-complete.
