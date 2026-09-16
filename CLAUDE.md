@@ -3520,9 +3520,36 @@ asserting itself: the day somebody adds a delete policy to `employees`, the
 owner-only Edge Function stops being the only way in and nobody would otherwise
 notice.
 
-## Still Adarsh's, unchanged
+## Measured on the live database — 2026-09-16, 21 of 21 rows
 
-`RESEND_API_KEY` secret · office branches (0) · employee records · festival
+`WHATS-INSTALLED.sql` was run. Every migration row reads 1, and **both
+must-stay-zero invariants read 0** — `employees` has no DELETE policy (the
+owner-only Edge Function is still the only door) and 0014's old office columns
+are still gone. 0017, 0020 and 0021 all present.
+
+**Two numbers this file has been carrying as blockers have moved, and the old
+text was about to mislead the next session:**
+
+- **Office branches: 1, not 0.** Every earlier section here says attendance is
+  *inert* because `punch_in()` returns `no_office`. **That is no longer true.**
+  Somebody stood in an office and saved it. Punching in works now — the whole
+  attendance module went live without a line of code, exactly as designed.
+- **Employees on record: 2, not 1.** Holidays 7, matching the seed.
+
+Do not repeat the "attendance is inert / only one employee" line from the
+sections above without re-running the query. That is the same stale-claim
+failure this file already caught itself in once, on 2026-09-12, when several
+sections insisted migrations 0009–0012 had never run and measurement proved
+they all had.
+
+## Still Adarsh's
+
+`RESEND_API_KEY` secret · employee records (2, HR entering the rest) · festival
 holiday dates. And the open question from two rounds ago: of the twenty-four
 remaining paper fields, which belong on the permanent employee record? Bank
 block and Aadhaar are the likely yes; nothing goes on a guess.
+
+**The Delete buttons themselves are still only proven in demo mode.** The
+database and both functions are measured facts; the two buttons wired to them
+have never been clicked against a real row. That is the one thing left to
+confirm, and it takes two clicks.
