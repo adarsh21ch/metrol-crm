@@ -3934,12 +3934,42 @@ to press a button that cannot work.
   `innerWidth` — no horizontal overflow.
 - `npm run typecheck` and `npm run build` clean.
 
+## The geofence, re-proven on the live database — 2026-09-16
+
+**31 of 31 PASS, zero FAIL, zero SKIPPED**, run by Adarsh the same day this
+round shipped. Zero SKIPPED is the part that matters: every borrowed-person
+guard found somebody, so every check actually executed rather than being waved
+through.
+
+What is established by measurement, after this round's code changes were live:
+a member cannot insert or edit an attendance row, create an office location,
+move a branch or widen its radius, loosen the punch settings, or rotate a
+branch code — seven refusals at the database. `punch_in()` 3 km away → too_far
+(3002 m against a 50 m fence); a 2 km accuracy fix → weak_fix; inside 22.2 m →
+recorded with branch, coordinates, distance and a server timestamp; a second
+punch-in → already_in; `punch_out()` closed and graded it. `punch_by_qr()` 3 km
+away → refused; a rotated-away code while standing at that very branch →
+refused; `allow_any_branch = false` → wrong_branch **and no row written by the
+refusal**; `allow_any_branch = true` → the VISITED branch recorded, not the
+assigned one; a second scan inside 2 minutes → too_soon **and the day left
+open**. All four grading rules correct. An HR correction logged to
+`attendance_edits` and re-graded rather than left as typed. A member read 0
+other people's days. Clean up: PASS — no test branches or rows left behind.
+
+**A correction to my own note, made the moment Adarsh ran it:** the line above
+this section originally said the file "has still never been run". That was
+wrong, and it was wrong the same way this file has caught itself once before —
+by reading the "It has NOT been run yet" line in the Phase 6b/6c section and
+not reconciling it against **PROVEN on the live database — 2026-09-12**, twenty
+sections further down, which already recorded 31 of 31. **Read forward to the
+newest measured claim before repeating an older one.** The result today is a
+re-proof after this round's changes, not a first run.
+
 ## Open, deliberately
 
-- **`supabase/tests/0013_rls_checks.sql` has still never been run.** Twenty-six
-  checks, written 2026-09-12, and until they are pasted into the SQL editor the
-  geofence is verified by reading policies, not by exercising them. This is the
-  single biggest gap in the module and it is one paste.
 - No migration is needed for anything in this round.
 - Monthly attendance export still does not exist. Nobody has asked.
 - Week offs and holidays still have no effect on a day with no rows.
+- The QR **camera** has still never been exercised — not here (the pane blocks
+  capture) and not yet on a real phone. The button punch is proven end to end
+  on the live database; the scan path is proven everywhere except the lens.
