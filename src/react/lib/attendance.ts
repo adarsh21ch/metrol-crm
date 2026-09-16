@@ -270,13 +270,16 @@ export function metersBetween(lat1: number, lng1: number, lat2: number, lng2: nu
  * Sundays marked H, automatically.
  */
 export type DayKind =
-  | 'present' | 'late' | 'half_day' | 'in_progress'
+  | 'present' | 'late' | 'half_day' | 'in_progress' | 'no_punch_out'
   | 'leave' | 'holiday' | 'week_off' | 'absent' | 'future'
 
 export interface CalendarDay {
   date: string
   kind: DayKind
-  /** One short phrase for the Remark column and the square's tooltip. */
+  /** Only what the day's LABEL does not already say — "6 min late", a
+   *  holiday's name — or empty. It used to repeat the label ("Late · 6 min
+   *  late" beside a chip reading Late), which on a phone cost the table the
+   *  width it needed to fit without scrolling sideways. */
   remark: string
   /** The real row, when one exists — the table still shows real punch times. */
   row: AttendanceRow | null
@@ -287,6 +290,10 @@ export const DAY_KIND: Record<DayKind, { label: string; cls: string }> = {
   late:        { label: 'Late',         cls: 'cal--late' },
   half_day:    { label: 'Half day',     cls: 'cal--half' },
   in_progress: { label: 'In office',    cls: 'cal--open' },
+  // Came in, never closed the day. Not absent — they were here — but not a
+  // graded day either, so it stays the neutral open-day square until HR
+  // settles it. The table's chip carries the red that asks for that.
+  no_punch_out: { label: 'No punch out', cls: 'cal--open' },
   leave:       { label: 'Leave',        cls: 'cal--leave' },
   holiday:     { label: 'Holiday',      cls: 'cal--holiday' },
   week_off:    { label: 'Weekly off',   cls: 'cal--holiday' },
@@ -351,33 +358,37 @@ export function buildCalendar(opts: {
     const row = rowByDate.get(d) ?? null
 
     if (row) {
+      // Every status 0013 allows, named. The old fall-through sent HR's own
+      // "On leave", "Holiday" and "Week off" corrections — and a day somebody
+      // punched in and never closed — to a red Absent square, telling the
+      // employee the opposite of what HR had recorded.
       const kind: DayKind =
         row.status === 'present' ? (row.lateMinutes > 0 ? 'late' : 'present')
         : row.status === 'late' ? 'late'
         : row.status === 'half_day' ? 'half_day'
         : row.status === 'in_progress' ? 'in_progress'
+        : row.status === 'missing_punch_out' ? 'no_punch_out'
+        : row.status === 'on_leave' ? 'leave'
+        : row.status === 'holiday' ? 'holiday'
+        : row.status === 'week_off' ? 'week_off'
         : 'absent'
-      const extra = row.lateMinutes > 0 ? `${row.lateMinutes} min late` : ''
-      out.push({
-        date: d, kind, row,
-        remark: extra ? `${DAY_KIND[kind].label} · ${extra}` : DAY_KIND[kind].label,
-      })
+      out.push({ date: d, kind, row, remark: row.lateMinutes > 0 ? `${row.lateMinutes} min late` : '' })
       continue
     }
 
     const onLeave = approved.find((l) => d >= l.startDate && d <= l.endDate)
-    if (onLeave) { out.push({ date: d, kind: 'leave', row: null, remark: 'Leave' }); continue }
+    if (onLeave) { out.push({ date: d, kind: 'leave', row: null, remark: '' }); continue }
 
     const holiday = holidayByDate.get(d)
     if (holiday) { out.push({ date: d, kind: 'holiday', row: null, remark: holiday }); continue }
 
     if (weekOffs.includes(weekdayOf(d))) {
-      out.push({ date: d, kind: 'week_off', row: null, remark: 'Weekly off' })
+      out.push({ date: d, kind: 'week_off', row: null, remark: '' })
       continue
     }
 
     if (d > today) { out.push({ date: d, kind: 'future', row: null, remark: '' }); continue }
-    out.push({ date: d, kind: 'absent', row: null, remark: 'Absent' })
+    out.push({ date: d, kind: 'absent', row: null, remark: '' })
   }
   return out
 }
@@ -394,7 +405,7 @@ export function calendarTotals(days: CalendarDay[]): CalendarTotals {
   for (const d of days) {
     if (d.row) t.workedMinutes += d.row.workedMinutes || 0
     switch (d.kind) {
-      case 'present': case 'in_progress': t.present++; break
+      case 'present': case 'in_progress': case 'no_punch_out': t.present++; break
       // A late day is still a day worked — it counts in BOTH, because "how
       // many days was I here" and "how many times was I late" are different
       // questions and answering them with one number serves neither.

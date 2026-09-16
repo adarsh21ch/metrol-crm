@@ -57,6 +57,21 @@ const ME_TABS: { key: MeTab; label: string }[] = [
   { key: 'exit', label: 'Exit' },
 ]
 
+/* The attendance table's cells. The year and the am/pm sit in their own spans
+   so the phone stylesheet can drop what a narrow screen cannot afford, rather
+   than a second formatter that the desktop and the phone could disagree on. */
+const DateCell = ({ iso }: { iso: string }) => {
+  const full = fmtDate(iso)
+  const cut = full.lastIndexOf(' ')
+  return <td className="num">{full.slice(0, cut)}<span className="yr">{full.slice(cut)}</span></td>
+}
+const TimeCell = ({ iso, tz }: { iso: string | null; tz: string }) => {
+  if (!iso) return <td className="num"><span className="muted">—</span></td>
+  const t = fmtTime(iso, tz)
+  const m = /^(\d{1,2}:\d{2})\s*(.+)$/.exec(t)
+  return <td className="num">{m ? <>{m[1]}<span className="ampm"> {m[2]}</span></> : t}</td>
+}
+
 /** One label / value pair — same small component HrPage uses for an
  *  employee's own fields, kept local here rather than shared for one screen
  *  each so far. */
@@ -625,7 +640,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             ))}
                             {calendar.map((d) => (
                               <div className={'cal-cell ' + DAY_KIND[d.kind].cls} key={d.date}
-                                   title={`${fmtDate(d.date)} — ${d.remark || 'Nothing recorded'}`}>
+                                   title={`${fmtDate(d.date)} — ${[DAY_KIND[d.kind].label || 'Nothing recorded', d.remark].filter(Boolean).join(' · ')}`}>
                                 <span className="d">{Number(d.date.slice(8, 10))}</span>
                                 {(d.kind === 'holiday' || d.kind === 'week_off') && <span className="m">H</span>}
                                 {d.kind === 'leave' && <span className="m">L</span>}
@@ -636,7 +651,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           <div className="cal-key">
                             <span><i style={{ background: 'var(--good-soft)', borderColor: 'var(--good-line)' }} />Present</span>
                             <span><i style={{ background: 'var(--warn-soft)', borderColor: 'var(--warn-line)' }} />Late / half day</span>
-                            <span><i style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent-line)' }} />Leave</span>
+                            <span><i style={{ background: 'var(--info-soft)', borderColor: 'var(--info-line)' }} />Leave</span>
                             <span><i style={{ background: 'var(--bad-soft)', borderColor: 'var(--bad-line)' }} />Absent</span>
                             <span><i style={{ background: 'var(--surface-2)', borderColor: 'var(--line)' }} />H — holiday or weekly off</span>
                           </div>
@@ -651,27 +666,36 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                       <div className="att-table-wrap">
                         <table className="att-table">
                           <thead>
+                            {/* Two spellings of three headers: the whole words
+                                on a laptop, In / Out / Hours on a phone, where
+                                "WORK DURATION" alone was wider than the hours
+                                written under it. */}
                             <tr>
-                              <th>Date</th><th>Punch in</th><th>Punch out</th>
-                              <th>Work duration</th><th>Remark</th>
+                              <th>Date</th>
+                              <th><span className="lbl-long">Punch in</span><span className="lbl-short">In</span></th>
+                              <th><span className="lbl-long">Punch out</span><span className="lbl-short">Out</span></th>
+                              <th><span className="lbl-long">Work duration</span><span className="lbl-short">Hours</span></th>
+                              <th>Remark</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {calendar.filter((d) => d.kind !== 'future').slice().reverse().map((d) => (
-                              <tr key={d.date}>
-                                <td className="num">{fmtDate(d.date)}</td>
-                                <td className="num">{d.row ? fmtTime(d.row.punchInAt, tz) : <span className="muted">—</span>}</td>
-                                <td className="num">{d.row ? fmtTime(d.row.punchOutAt, tz) : <span className="muted">—</span>}</td>
-                                <td className="num">{d.row ? fmtDuration(d.row.workedMinutes) : <span className="muted">—</span>}</td>
-                                <td>
-                                  <Chip cls={d.row ? statusChip(d.row.status).cls : 'chip--mute'}>{DAY_KIND[d.kind].label}</Chip>
-                                  {d.remark && d.remark !== DAY_KIND[d.kind].label && (
-                                    <span className="muted">{'  '}{d.remark}</span>
-                                  )}
-                                  {d.row?.source === 'hr' && <span className="muted">{'  ·  corrected by HR'}</span>}
-                                </td>
-                              </tr>
-                            ))}
+                            {calendar.filter((d) => d.kind !== 'future').slice().reverse().map((d) => {
+                              const note = [d.remark, d.row?.source === 'hr' ? 'corrected by HR' : ''].filter(Boolean).join(' · ')
+                              return (
+                                <tr key={d.date}>
+                                  <DateCell iso={d.date} />
+                                  <TimeCell iso={d.row?.punchInAt ?? null} tz={tz} />
+                                  <TimeCell iso={d.row?.punchOutAt ?? null} tz={tz} />
+                                  <td className="num">{d.row?.workedMinutes ? fmtDuration(d.row.workedMinutes) : <span className="muted">—</span>}</td>
+                                  <td className="rmk">
+                                    <Chip cls={d.row ? statusChip(d.row.status).cls : d.kind === 'absent' ? 'chip--bad' : 'chip--mute'}>
+                                      {DAY_KIND[d.kind].label}
+                                    </Chip>
+                                    {note && <span className="att-note">{note}</span>}
+                                  </td>
+                                </tr>
+                              )
+                            })}
                             {calendar.filter((d) => d.kind !== 'future').length === 0 && (
                               <tr><td colSpan={5} className="muted" style={{ padding: 16 }}>
                                 Nothing in this range. Pick different dates, or punch in to start today.

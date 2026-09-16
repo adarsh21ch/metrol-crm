@@ -4277,3 +4277,58 @@ branch was read end to end and is correct, and it is proven live (31/31). Two
 candidates remain and they need one answer from him to tell apart: the
 deliberate **2-minute double-scan guard** (`too_soon`), or a scan that never
 decoded. Asking beats shipping a fix for the wrong one.
+
+---
+
+# Round 1, finished — the phone table, and two things the month got wrong (2026-09-16)
+
+`21d8f7d` shipped the CSS to hide the year on a phone and said so in its own
+message: **the `.yr` / `.ampm` spans it targets were never put in the JSX**, so
+the year still showed. Adarsh's ask was "hide what is obvious — the year", and
+"no sideways scroll on a phone". Done now, and measured rather than claimed:
+
+## The claim "all five columns fit" was false until this round
+
+Measured at 375px before any change: **the table was 469px in a 345px box.**
+Hiding the year alone would never have fixed it. Where the width actually went:
+
+- **"WORK DURATION" was the widest thing in its column** — the header, not the
+  hours under it. Phones now read `In · Out · Hours`; a laptop keeps the full
+  words. Two spans per header (`.lbl-long` / `.lbl-short`), one table.
+- **The remark repeated its own chip**: a chip reading *Late* followed by
+  "Late · 6 min late". `buildCalendar()`'s `remark` now carries ONLY what the
+  label does not already say ("6 min late", a holiday's name) or nothing; the
+  grid tooltip composes label + remark itself.
+- **Remark is the one column allowed to wrap** on a phone, so a holiday name or
+  "corrected by HR" drops under its chip instead of setting the width of every
+  row in the month.
+- **am/pm is hidden on phones too.** Tried keeping it: it fit 360px only until
+  a chip as long as "No punch out" appeared, which pushed it 13px over.
+
+With the worst real rows injected (No punch out, a holiday + HR note, a late
+note): **412 / 390 / 375 / 360 px all fit exactly, zero sideways scroll.**
+320px overflows by 12px *inside the table's own box* (the page does not
+scroll) — the documented last resort, on a screen size nobody at Metrol has.
+
+## Two faults in Round 1 itself, found while in there
+
+1. **HR's own corrections rendered as a red Absent.** `buildCalendar()` mapped
+   five row statuses and sent everything else to `absent` — so a day HR marked
+   *On leave*, *Holiday* or *Week off* told the employee the opposite, and a
+   day somebody punched in and never closed (`missing_punch_out`) called a
+   person who was in the office absent. All nine statuses in 0013 are now
+   named; `no_punch_out` is a new `DayKind` (neutral open-day square, counted
+   as present — they were here — with the red "No punch out" chip in the table
+   asking HR to settle it). Proved by importing the module and feeding it all
+   five cases: leave / holiday / no_punch_out / late[6 min late] / absent,
+   and a PENDING leave still correctly absent.
+2. **Leave was not blue.** The brief said blue; the build used the brand
+   yellow, which sits one shade from late's amber in BOTH themes (`#2A2410`
+   vs `#332812` in dark). The legend swatches were indistinguishable. New
+   `--info` / `--info-soft` / `--info-line` tokens in all three theme blocks,
+   used only by `.cal--leave` and its legend swatch.
+
+`typecheck` and `build` clean (the >500 kB chunk warning is pre-existing).
+
+**Noted, not changed:** the *Worked* tile wraps "105h / 50m" onto two lines at
+360px. Pre-existing, cosmetic, left for a polish pass.

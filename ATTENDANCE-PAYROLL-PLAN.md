@@ -32,30 +32,33 @@ Checked against the live schema, not assumed:
 
 ---
 
-## Round 1 — the employee's own dashboard  ← THIS ROUND
+## Round 1 — the employee's own dashboard  ✓ DONE (05b2830, 21d8f7d, and the phone-table finish)
 
 What an employee sees about themselves, on a phone, in one screen.
 
-- [ ] Profile header: **passport photo** (from `employee-documents`), full name,
+- [x] Profile header: **passport photo** (from `employee-documents`), full name,
       employee ID, department, designation
-- [ ] **Attendance table**, Excel-shaped: Date · Punch in · Punch out · Work
+- [x] **Attendance table**, Excel-shaped: Date · Punch in · Punch out · Work
       duration · Remark
-- [ ] **Date-range filter** — "from where to where", his words. Default this
+- [x] **Date-range filter** — "from where to where", his words. Default this
       month, quick ranges beside it
-- [ ] **Calendar grid of coloured squares** — the month at a glance:
+- [x] **Calendar grid of coloured squares** — the month at a glance:
       green = present · amber = late · red = absent · blue = leave ·
       grey `H` = holiday or week-off
-- [ ] Month summary stats including **late count** (L1…Ln), present days,
-      leave taken
-- [ ] Holidays and Sundays render as H automatically — they already exist in
+- [x] Month summary stats including **late count**, present days, leave
+      taken. *The per-day L1…Ln numbering is NOT shown yet — it only means
+      something once Round 2's ladder exists (L5 → half day), so it lands
+      with Round 2.*
+- [x] Holidays and Sundays render as H automatically — they already exist in
       the DB, they just have to be joined into the row list
 
-## Round 2 — the rules engine (migration)
+## Round 2 — the rules engine (migration)  ← NEXT
 
 Nothing visible; everything after this depends on it.
 
 - [ ] **Late-coming ladder**: L1–L4 tolerated, the **5th late in a month
-      becomes a half day** automatically
+      becomes a half day** automatically. Each late day shows its number
+      (L1, L2…) on the employee's own table and grid
 - [ ] A half day **costs 0.5 paid leave** (2.0 → 1.5)
 - [ ] **Paid leave accrual: 2 per month**, per employee
 - [ ] **Carry-forward vs encashment** — the employee's choice:
