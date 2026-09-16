@@ -24,6 +24,17 @@ export function QrScanner({ onClose, onCode }: { onClose: () => void; onCode: (c
   const [err, setErr] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
+  /* The camera is opened ONCE, and the callback is read through a ref.
+     This effect used to depend on [onCode] — and every caller passes an inline
+     arrow, so `onCode` is a new function on every render of the parent. The
+     cleanup therefore stopped the camera track and the effect reopened it on
+     every parent render: on the punch screen, whose clock re-renders every 30
+     seconds while somebody is punched in, scanning to punch OUT meant the
+     camera cutting out and restarting mid-aim. A ref keeps the latest callback
+     without the effect ever having a reason to re-run. */
+  const codeRef = useRef(onCode)
+  useEffect(() => { codeRef.current = onCode }, [onCode])
+
   useEffect(() => {
     let cancelled = false
 
@@ -69,7 +80,7 @@ export function QrScanner({ onClose, onCode }: { onClose: () => void; onCode: (c
           const found = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })
           if (found?.data) {
             doneRef.current = true
-            onCode(found.data.trim())
+            codeRef.current(found.data.trim())
             return
           }
         }
@@ -83,7 +94,7 @@ export function QrScanner({ onClose, onCode }: { onClose: () => void; onCode: (c
       if (frameRef.current) cancelAnimationFrame(frameRef.current)
       streamRef.current?.getTracks().forEach((t) => t.stop())
     }
-  }, [onCode])
+  }, [])
 
   return (
     <Modal title="Scan the office code" sub="Point the camera at the poster on the attendance desk" onClose={onClose}

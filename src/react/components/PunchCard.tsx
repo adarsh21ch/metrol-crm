@@ -59,6 +59,7 @@ export function PunchCard({
   const dayOffice = att.offices.find((o) => o.id === row?.officeId) ?? null
   const noOffice = att.offices.filter((o) => o.isActive).length === 0
 
+  const anyBranch = att.settings?.allowAnyBranch !== false
   const required = att.settings?.requiredMinutes ?? 540
   const shortBy = Math.max(0, required - elapsed)
 
@@ -161,7 +162,12 @@ export function PunchCard({
         <p className="punch-note">
           {myOffice
             ? <>You have to be within {myOffice.radiusMeters} m of {myOffice.name} — your location is checked whichever way you punch.</>
-            : <>HR has not put you at a branch yet. You can still punch at any office, and the day will record which one.</>}
+            : anyBranch
+              ? <>HR has not put you at a branch yet. You can still punch at any office, and the day will record which one.</>
+              // Saying "you can punch anywhere" to somebody the database will
+              // refuse is worse than saying nothing: they stand at the door
+              // pressing a button that cannot work.
+              : <>HR has not put you at a branch yet, and this company only accepts a punch at your own branch. Ask HR to assign you before you try.</>}
         </p>
       )}
 

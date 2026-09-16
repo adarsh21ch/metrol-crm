@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoAttendance, demoAttendanceSettings, demoEmployees, demoHolidays, demoOffices, demoShifts, isDemo } from '@/data/demo'
-import { officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type Holiday, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
+import { officeDate, officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type Holiday, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
 
 type Row = Record<string, unknown>
 
@@ -167,6 +167,27 @@ export function useAttendance(enabled = true) {
 
   useEffect(() => { void load() }, [load])
 
+  /** After a punch, re-read ONLY the day the punch touched.
+   *
+   *  `load()` is five queries and up to 2000 attendance rows, and it used to
+   *  run inside the punch — so somebody standing at the door with their thumb
+   *  on the button waited for the company's whole attendance history before
+   *  the screen moved. None of it was needed: a punch changes exactly one row,
+   *  on exactly one date.
+   *
+   *  The reason the full reload was there in the first place is kept: the row
+   *  is READ BACK rather than guessed, so the database stays the only thing
+   *  that decides a status. RLS still decides what comes back — a member gets
+   *  their own row and nothing else. If the narrow read fails for any reason
+   *  it falls back to the full one rather than leaving the screen stale. */
+  const refreshDay = useCallback(async (date: string) => {
+    const { data, error: err } = await supabase.from('attendance').select('*').eq('work_date', date)
+    if (err) { await load(); return }
+    const fresh = (data ?? []).map((r) => toRow(r as Row))
+    setRows((p) => [...fresh, ...p.filter((r) => r.workDate !== date)]
+      .sort((a, b) => b.workDate.localeCompare(a.workDate)))
+  }, [load])
+
   /* ------------------------------------------------------------ the punches */
 
   const punch = useCallback(async (
@@ -211,18 +232,24 @@ export function useAttendance(enabled = true) {
     const d = (data ?? {}) as Record<string, unknown>
     // The row that just changed is fetched back rather than patched in from
     // the response: the database decided the status, and guessing it here is
-    // how two truths start to exist.
-    await load()
+    // how two truths start to exist. Only that DAY is re-read, though — see
+    // refreshDay. The date comes from the timestamp the database stamped, not
+    // from this device's clock, so a punch either side of midnight still lands
+    // on the day the database filed it under.
+    const tz = settings?.timezone ?? 'Asia/Kolkata'
+    const stale = d.reason === 'already_in' || d.reason === 'already_out' || d.reason === 'not_in'
+    if (d.ok === true || stale) await refreshDay(officeDate(str(d.at) || new Date(), tz))
     return {
       ok: d.ok === true,
       reason: d.reason as string | undefined,
       message: str(d.message) || (d.ok === true ? 'Done.' : 'Could not record that.'),
       distance: d.distance == null ? undefined : Number(d.distance),
+      office: d.office as string | undefined,
       status: d.status as string | undefined,
       lateMinutes: d.late_minutes == null ? undefined : Number(d.late_minutes),
       workedMinutes: d.worked_minutes == null ? undefined : Number(d.worked_minutes),
     }
-  }, [rows, load])
+  }, [rows, offices, shifts, settings, refreshDay])
 
   const punchIn = useCallback((fix: { lat: number; lng: number; accuracy: number }, empId?: string) => punch('in', fix, empId), [punch])
   const punchOut = useCallback((fix: { lat: number; lng: number; accuracy: number }, empId?: string) => punch('out', fix, empId), [punch])
@@ -246,12 +273,21 @@ export function useAttendance(enabled = true) {
       if (res.ok) return { ...res, office: branch.name, message: res.message.replace('the office', branch.name) }
       return res
     }
+    // punch_by_qr takes a uuid. A camera pointed at ANY other printed square —
+    // a UPI code taped to the same desk, a courier label — would otherwise send
+    // Postgres something it cannot cast, and the person at the door would read
+    // 'invalid input syntax for type uuid' instead of being told the code is
+    // not ours. Checked here so the answer is a sentence, not a cast error.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+      return { ok: false, reason: 'bad_code', message: 'That is not a Metrol attendance code. Scan the poster at the office door.' }
+    }
     const { data, error: err } = await supabase.rpc('punch_by_qr', {
       p_token: token, p_lat: fix.lat, p_lng: fix.lng, p_accuracy: Math.round(fix.accuracy),
     })
     if (err) return { ok: false, reason: 'error', message: err.message }
     const d = (data ?? {}) as Record<string, unknown>
-    await load()
+    const tz = settings?.timezone ?? 'Asia/Kolkata'
+    if (d.ok === true || d.reason === 'already_out') await refreshDay(officeDate(str(d.at) || new Date(), tz))
     return {
       ok: d.ok === true,
       reason: d.reason as string | undefined,
@@ -261,7 +297,7 @@ export function useAttendance(enabled = true) {
       status: d.status as string | undefined,
       action: d.action as string | undefined,
     }
-  }, [offices, rows, punch, load])
+  }, [offices, rows, punch, settings, refreshDay])
 
   /* ------------------------------------------------------------- branches */
 
@@ -364,6 +400,12 @@ export function useAttendance(enabled = true) {
       punch_out_at: draft.punchOutAt,
       shift_start: draft.shiftStart,
       edit_reason: draft.editReason.trim(),
+      // A day a person is entitled to see as "HR entry" rather than as their
+      // own punch. The demo path has always set this; the live one did not, so
+      // a corrected day on the real database still claimed to have come from
+      // the geofence. The trigger does not set it either — it re-grades and
+      // logs the edit, and says nothing about where the row came from.
+      source: 'hr',
     }
     if (draft.status) patch.status = draft.status
     const { data, error: err } = await supabase.from('attendance').update(patch).eq('id', id).select('*').single()
@@ -394,6 +436,10 @@ export function useAttendance(enabled = true) {
       shift_start: draft.shiftStart,
       status: draft.status ?? 'present',
       source: 'hr',
+      // Both columns default to 'button', so a day nobody ever punched used to
+      // show as a button press in HR's own How column.
+      punch_in_method: 'hr',
+      punch_out_method: 'hr',
       edit_reason: draft.editReason.trim(),
     }).select('*').single()
     if (err) return err.message

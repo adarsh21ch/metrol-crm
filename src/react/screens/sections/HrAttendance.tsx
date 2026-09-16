@@ -5,6 +5,7 @@ import { AttendanceSettingsModal } from '@/modals/AttendanceSettingsModal'
 import { AttendanceEditModal } from '@/modals/AttendanceEditModal'
 import { OfficeModal } from '@/modals/OfficeModal'
 import { count } from '@/lib/format'
+import { downloadPoster } from '@/lib/qrPoster'
 import { PUNCH_METHOD, statusChip, fmtDuration, fmtShift, fmtTime, officeToday, type AttendanceRow, type OfficeLocation } from '@/lib/attendance'
 import type { Attendance } from '@/data/useAttendance'
 import { LEAVE_TYPE, fmtDate as fmtLeaveDate, type Employee, type LeaveRequest } from '@/lib/hr'
@@ -49,6 +50,7 @@ export function HrAttendance({
   const [editingOffice, setEditingOffice] = useState<OfficeLocation | null>(null)
   const [addingOffice, setAddingOffice] = useState(false)
   const [showBranches, setShowBranches] = useState(false)
+  const [saving, setSaving] = useState<string | null>(null)   // branch id whose poster is being written
   const officeName = (id: string | null) => att.offices.find((o) => o.id === id)?.name ?? '—'
 
   // Days somebody walked out of without punching out would otherwise sit at
@@ -154,6 +156,24 @@ export function HrAttendance({
     },
   ]
 
+  /** The printed poster for one branch, saved straight from the list. The same
+   *  drawing function the Edit screen previews and prints, so the file HR mails
+   *  to the other office is the sheet on this office's wall. */
+  async function saveCode(o: OfficeLocation) {
+    setSaving(o.id)
+    try {
+      await downloadPoster({
+        token: o.qrToken, officeName: o.name, address: o.address,
+        radiusMeters: o.radiusMeters, issuedAt: o.qrRotatedAt ?? undefined,
+      })
+      toast(`Poster for ${o.name} saved. Print it and tape it up at that branch.`)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not make the poster.')
+    } finally {
+      setSaving(null)
+    }
+  }
+
   /** A person who never punched at all, being written in from the register.
    *  It opens as an empty day rather than guessing times — HR fills them in
    *  next, and the row says 'HR entry' for ever after. */
@@ -218,7 +238,16 @@ export function HrAttendance({
                     {!o.isActive ? '  ·  closed' : ''}
                   </span>
                 </span>
-                <button className="btn btn--sm" onClick={() => setEditingOffice(o)}>Edit &amp; print code</button>
+                <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {/* Downloading the code is the thing HR does most often and it
+                      was two clicks deep inside the edit modal. It is a button on
+                      the branch itself now: the sheet that comes out names this
+                      branch, its address and its allowed distance. */}
+                  <button className="btn btn--sm" disabled={saving === o.id} onClick={() => void saveCode(o)}>
+                    {saving === o.id ? 'Saving…' : 'Download QR'}
+                  </button>
+                  <button className="btn btn--sm" onClick={() => setEditingOffice(o)}>Edit branch</button>
+                </span>
               </div>
             ))}
           </div>

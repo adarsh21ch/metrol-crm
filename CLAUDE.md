@@ -3798,3 +3798,148 @@ If delete still drags on the FIRST click of a session and is quick afterwards,
 that is Edge Function cold start, not this code — the fix for that is dropping
 the npm SDK from `delete-employee` for plain `fetch`, which is deliberately
 left as its own round (see above).
+
+---
+
+# The QR poster becomes a file, and three attendance faults (2026-09-16)
+
+Adarsh, after the performance round: check whether it is actually faster, then
+go over attendance properly — punch in, punch out, and **being able to download
+a branch's QR code with the branch name and address printed on it** so it can go
+to a printer and onto a wall.
+
+## First, the performance round — what is verified and what is NOT
+
+Read every change from that round back against the working tree. All four are
+in place and cannot regress on their own:
+
+| Fix | State |
+|---|---|
+| `finalize_open_attendance()` on every render | fixed — `HrAttendance.tsx` depends on `[att.finalizeOpen]`, a `useCallback` with an empty dep list, so it cannot re-fire |
+| `CompanyAdminModal` refetching the invite code | fixed — `[ws.getInviteCode]` |
+| Tab switches refetching | fixed — a `fetched` ref in all eight gated hooks; `reload()` is `load(true)` |
+| `delete-employee` eight serial round trips | three waves, 403 still before 404 |
+
+**Still not measured against the live database, and that has not changed: there
+is no `.env` on this machine, so the dev server cannot reach Supabase and every
+number demo mode produces is a number about demo mode.** The claims rest on the
+code. What Adarsh can do in thirty seconds is in the report he was given: HR →
+Attendance → F12 → Network → type in the search box. Before that round every
+keystroke fired a `finalize_open_attendance` POST. It should now fire none.
+
+One hazard of the same class survives and is deliberately left: `App.tsx`'s
+error effect keys on `[ws.error, ws.loading, toast, ws]`. It re-runs on every
+render, but its first line returns unless there is an unshown error, so it costs
+a comparison and no network. Noted so nobody "fixes" it by adding work inside.
+
+## 1. A punch waited for the company's entire attendance history
+
+`punchIn` / `punchOut` / `punchByQr` each called `load()` when the RPC came
+back — five queries, one of them up to **2000 attendance rows** — while
+somebody stood at the door with their thumb on the button. The button does not
+release until it resolves, so that read IS the wait, on office wifi or on
+whatever signal there is in the lift lobby.
+
+None of it was needed. A punch changes exactly one row on exactly one date.
+`refreshDay(date)` re-reads that day only, and the reason the full reload
+existed is kept intact — the row is READ BACK, never patched in from the RPC
+response, so the database stays the only thing that decides a status.
+
+The date comes from the timestamp **the database stamped** (`at` in the
+response), not from the device clock, so a punch either side of midnight still
+lands on the day the database filed it under. A failed narrow read falls back to
+the full one rather than leaving the screen stale, and a refusal that means our
+copy is stale (`already_in`, `already_out`, `not_in`) re-reads too — those are
+exactly the cases where the screen is wrong and needs correcting.
+
+## 2. The scanner restarted the camera every 30 seconds
+
+`QrScanner`'s effect depended on `[onCode]`, and every caller passes an inline
+arrow — so `onCode` was a new function on every render of the parent. The
+cleanup stops the camera track and the effect reopens it, so **every parent
+render tore the camera down and started it again.**
+
+On the punch screen this is not theoretical: the "you have been in for 3h 12m"
+line runs a 30-second interval while somebody is punched in, so scanning to
+punch OUT meant the camera cutting out mid-aim, once a minute, for as long as
+they held the phone up. The callback is read through a ref now and the effect
+has an empty dep list.
+
+**The camera itself still cannot be exercised here** — the preview pane blocks
+capture, and the scanner correctly falls back to "Camera permission is blocked"
+(tested). First scan on a real phone is still the thing to watch.
+
+## 3. Three things the database was told that were not true
+
+- **A scan of any other printed square returned a Postgres error.**
+  `punch_by_qr(p_token uuid, …)`. A camera pointed at the UPI code taped to the
+  same desk sent a string Postgres cannot cast, so the person at the door read
+  `invalid input syntax for type uuid` instead of being told the code is not
+  ours. The token is shape-checked in the client now and answered with a
+  sentence. No migration — this is entirely client-side.
+- **An HR correction still claimed to have come from the geofence.** The live
+  `correct()` patch never set `source`, and `attendance_regrade()` does not set
+  it either — it re-grades and logs the edit and says nothing about origin. So
+  on the real database a day HR typed was indistinguishable from a day somebody
+  punched, while demo mode showed it correctly as "HR entry". `source: 'hr'` is
+  in the patch now. **Days corrected before today are still marked 'self' — that
+  is history and it is not being rewritten.**
+- **A day HR added from scratch said it came from the button.**
+  `punch_in_method` / `punch_out_method` default to `'button'` (0015) and
+  `addDay` did not set them. Both are `'hr'` now.
+
+## 4. The QR poster is a file you can print, not just a print dialog
+
+What existed: a 190px square on screen and a Print button that built a separate
+HTML page. No download at all, and the sheet that printed was assembled in a
+second place from the one on screen.
+
+`src/react/lib/qrPoster.ts` draws **one** poster — A4 at 150 dpi, 1240 × 1754 —
+and Preview, Download and Print all use it, so the file mailed to the other
+branch is the sheet on this branch's wall. On it: the branch name, its address,
+the code at 760px (about 13 cm on A4), "Scan to punch in / Scan again when you
+leave", the route through the app, **the branch's own allowed distance in
+metres**, the line saying a photo of it will not work from home, and a foot
+stamp of the code's first 8 characters and the date it was issued — which is
+how HR tells two generations of poster apart after rotating one.
+
+- **Download QR is a button on the branch row itself**, not two clicks deep in
+  the edit modal. It was the thing HR does most often.
+- The preview in the modal is now **the sheet**, not a bare square — a preview
+  that omits the name is how two branches end up with posters nobody can tell
+  apart. It keeps paper-white in dark mode, because that is what prints.
+- **PNG, not PDF.** Every phone, printer and WhatsApp takes a PNG; a PDF means
+  a library in the bundle for one sheet of paper.
+- The square still encodes **only the token**. The name and address are ink for
+  the human being, never inside the code.
+
+## 5. One sentence that was false to the person reading it
+
+The punch card told anybody without a branch "You can still punch at any
+office". That is only true while `allow_any_branch` is on. With it off they are
+refused, so the card now says to ask HR to assign them instead of sending them
+to press a button that cannot work.
+
+## Verified in Chromium, `?demo=1`
+
+- Member: punch in → "In office", `0h 00m`, In stamped, month count 12 → 13 days
+  → Punch out → confirm modal states how short the day is → recorded, graded
+  **Absent** (correct for a one-minute day), "Today is closed", and the day
+  appears in Recent days. Zero console errors across the whole flow.
+- Member: Scan office code opens and degrades to the permission sentence.
+- HR: Branches → **Download QR** on both branches, no errors; Edit branch →
+  the poster preview renders and measures **1240 × 1754** with the right branch
+  name, address, 50 m distance and issue date.
+- Mobile 375px: the branches rows stack, both buttons fit, `scrollWidth` equals
+  `innerWidth` — no horizontal overflow.
+- `npm run typecheck` and `npm run build` clean.
+
+## Open, deliberately
+
+- **`supabase/tests/0013_rls_checks.sql` has still never been run.** Twenty-six
+  checks, written 2026-09-12, and until they are pasted into the SQL editor the
+  geofence is verified by reading policies, not by exercising them. This is the
+  single biggest gap in the module and it is one paste.
+- No migration is needed for anything in this round.
+- Monthly attendance export still does not exist. Nobody has asked.
+- Week offs and holidays still have no effect on a day with no rows.

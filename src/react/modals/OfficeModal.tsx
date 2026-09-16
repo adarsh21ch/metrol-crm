@@ -109,10 +109,18 @@ export function OfficeModal({
       {office && (
         <div className="field">
           <label>Attendance code</label>
-          <QrPoster token={office.qrToken} officeName={office.name} address={office.address} />
+          <QrPoster
+            token={office.qrToken}
+            officeName={office.name}
+            address={office.address}
+            radiusMeters={office.radiusMeters}
+            issuedAt={office.qrRotatedAt}
+          />
           <p className="punch-note">
-            Print it and tape it to the attendance desk. Staff scan it to punch in and scan it again on the way out.
-            A photo of it is useless away from the building — scanning still checks where the phone is.
+            Download it or print it, then tape it to the attendance desk. The sheet carries this branch's name,
+            address and allowed distance, so two branches cannot end up with posters nobody can tell apart.
+            Staff scan it to punch in and scan it again on the way out. A photo of it is useless away from the
+            building — scanning still checks where the phone is.
           </p>
           {onRotate && (
             <button className="btn btn--sm" disabled={rotating} onClick={async () => {

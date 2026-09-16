@@ -166,6 +166,18 @@ export function officeToday(tz = 'Asia/Kolkata'): string {
   }
 }
 
+/** Which working DAY an instant belongs to, in the office's timezone. Used to
+ *  aim the re-read after a punch at exactly the row the punch changed. */
+export function officeDate(when: Date | string, tz = 'Asia/Kolkata'): string {
+  const d = typeof when === 'string' ? new Date(when) : when
+  if (Number.isNaN(d.getTime())) return officeToday(tz)
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+  } catch {
+    return d.toISOString().slice(0, 10)
+  }
+}
+
 export const monthOf = (isoDate: string) => (isoDate || '').slice(0, 7)
 
 /** What a month of somebody's attendance adds up to. "Late 3" on screen is
