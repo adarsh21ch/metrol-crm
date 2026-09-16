@@ -4044,3 +4044,70 @@ asking HR which one the office should standardise on. **Wait for that answer.**
 If it comes back as one method, the change is hiding the other button on the
 punch card — not deleting `punch_by_qr` or the button path, because the other
 branch may want the other one.
+
+---
+
+# Adarsh hit the real bug the moment he tested Resend (2026-09-16)
+
+He clicked "Send invite email" on his own test application, right after adding
+`RESEND_API_KEY`. The button showed a red banner: **"Edge Function returned a
+non-2xx status code."**
+
+## That is not what went wrong. That is `supabase.functions.invoke()` hiding
+## what went wrong.
+
+`approve-job-application` and `delete-employee` both `return json({ error:
+'…the real, specific reason…' }, someStatusCode)` on every failure — that was
+the whole point of writing them that way. But when the HTTP status is not
+2xx, the client SDK throws a `FunctionsHttpError` whose **own** `.message` is
+the literal string every screenshot from this bug will show: "Edge Function
+returned a non-2xx status code". It does not read the response body for you.
+The real JSON — `{ error: "RESEND_API_KEY is not set…" }` or whatever it
+actually was — sits on `err.context`, a `Response` object, unread, on
+**all three** of this app's Edge Function calls: `approve()`, `resend()` in
+`useJobApplications.ts`, and `remove()` in `useEmployees.ts`. Every one did
+`return err.message` (or folded it into the same `message = err ? err.message
+: …` optimistic-write pattern the performance round introduced) and showed
+Adarsh the SDK's wrapper text instead of our own sentence.
+
+**This is the second time this app has hidden its own error behind a generic
+one** — the first was `void supabase.auth.signOut()` silently swallowing a
+result altogether. That one discarded an error; this one had the error in
+hand and displayed the wrong string on top of it. Same family of bug, same
+fix: stop trusting the library's own surface-level message and go get the
+one this app actually wrote.
+
+## The fix
+
+`functionErrorMessage()` in `lib/supabase.ts` — the same file that already
+carries `signOut()`'s "make the failure loud" fix — reads `err.context.json()`
+and returns its `.error` string when there is one, falling back to
+`err.message` for a genuine network failure (`FunctionsFetchError`, no
+`.context` at all) or a body that was not JSON. All three call sites now
+`await functionErrorMessage(err)` instead of reading `err.message` directly.
+
+**Tested against three shapes with a throwaway Node script** (not a browser —
+this is a pure function over a `Response`, nothing DOM-shaped): a real
+`FunctionsHttpError`-style object with a JSON body resolves to the body's
+`.error` string; a plain network `Error` with no `.context` falls back to its
+own `.message`; a `.context` whose body is not valid JSON also falls back
+rather than throwing. All three behaved correctly. `typecheck` and `build`
+clean.
+
+## What this does NOT tell us yet
+
+**The actual reason Resend failed is still unknown** — this round fixes the
+messenger, not the message. The likely candidates, in order: `RESEND_API_KEY`
+was mistyped or saved under the wrong name; the function was deployed before
+the secret was added and needs a redeploy for the new environment to attach;
+or Resend has not verified `hr@metrol.in` as a sending domain, which the code
+has assumed since Phase 8 and nobody has confirmed. **Once this file is
+redeployed, the SAME button will show the real sentence.** Do not guess
+further until that text is in hand.
+
+## Redeploy needed
+
+Client-only change — no migration, and the Edge Functions' own source did not
+change, only how the browser reads their response. But the site itself has to
+ship the new bundle before the real error becomes visible, so this still
+needs the normal `git push` → Vercel path, already done.

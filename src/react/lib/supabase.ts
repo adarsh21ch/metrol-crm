@@ -49,3 +49,34 @@ export async function signOut(): Promise<void> {
   } catch { /* private mode can throw on access; the reload is the real fallback */ }
   location.reload()
 }
+
+/**
+ * The second time this app has hidden its own error behind a generic one.
+ *
+ * `supabase.functions.invoke()` on a non-2xx response gives back a
+ * `FunctionsHttpError` whose OWN `.message` is the literal string "Edge
+ * Function returned a non-2xx status code" — not what the function actually
+ * said. Every one of our three calls (`approve-job-application` for approve
+ * AND resend, `delete-employee`) returns a real, specific reason as JSON in
+ * that same response — "RESEND_API_KEY is not set", "Only the owner or HR can
+ * do this.", whatever it is — and every call site here did `return
+ * err.message`, so Adarsh saw the SDK's wrapper text on screen instead of the
+ * sentence we actually wrote for him.
+ *
+ * The real body is still there, on `err.context` — a `Response` the SDK
+ * attaches but never reads for you. This reads it. If the body was not JSON,
+ * or was already consumed, or `err` is not that shape at all (a genuine
+ * network failure, `FunctionsFetchError`), it falls back to `err.message`
+ * rather than showing nothing.
+ */
+export async function functionErrorMessage(err: unknown): Promise<string> {
+  const context = (err as { context?: Response } | null)?.context
+  if (context && typeof context.json === 'function') {
+    try {
+      const body: unknown = await context.json()
+      const msg = (body as { error?: unknown } | null)?.error
+      if (typeof msg === 'string' && msg) return msg
+    } catch { /* not JSON, or the stream was already read — fall through */ }
+  }
+  return err instanceof Error ? err.message : 'Something went wrong.'
+}

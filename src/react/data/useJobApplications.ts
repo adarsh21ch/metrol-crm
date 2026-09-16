@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { demoJobApplications, isDemo } from '@/data/demo'
 import type { JobApplication } from '@/lib/hr'
 
@@ -382,7 +382,9 @@ export function useJobApplications(enabled = true) {
     const { data, error: err } = await supabase.functions.invoke('approve-job-application', {
       body: { applicationId: id, ...details },
     })
-    const message = err ? err.message : data?.error ? String(data.error) : null
+    // err.message here is the SDK's own generic "non-2xx status code" text,
+    // not what the function said — see functionErrorMessage's own comment.
+    const message = err ? await functionErrorMessage(err) : data?.error ? String(data.error) : null
     if (message) { setRows(before); return message }
 
     // Only the employee id was genuinely unknown until now; patch that in.
@@ -396,7 +398,7 @@ export function useJobApplications(enabled = true) {
     const { data, error: err } = await supabase.functions.invoke('approve-job-application', {
       body: { applicationId: id, resend: true },
     })
-    if (err) return err.message
+    if (err) return await functionErrorMessage(err)
     if (data?.error) return String(data.error)
     setRows((p) => p.map((a) => (a.id === id ? { ...a, inviteSentCount: a.inviteSentCount + 1 } : a)))
     return null

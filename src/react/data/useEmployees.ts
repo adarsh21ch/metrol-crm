@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { demoEmployees, isDemo } from '@/data/demo'
 import type { Employee } from '@/lib/hr'
 
@@ -187,7 +187,9 @@ export function useEmployees(enabled = true) {
     setRows((p) => { before = p; return p.filter((e) => e.id !== id) })
 
     const { data, error: err } = await supabase.functions.invoke('delete-employee', { body: { employeeId: id } })
-    const message = err ? err.message : data?.error ? String(data.error) : null
+    // err.message here is the SDK's own generic "non-2xx status code" text,
+    // not what the function said — see functionErrorMessage's own comment.
+    const message = err ? await functionErrorMessage(err) : data?.error ? String(data.error) : null
     if (message) { setRows(before); return message }
 
     if (data?.warning) console.warn('[delete-employee]', data.warning)
