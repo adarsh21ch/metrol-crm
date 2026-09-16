@@ -73,32 +73,34 @@ export function ApplyPage() {
   return (
     <div className="screen is-active">
       <div className="auth">
-        <div className="auth-card">
+        <div className="apply-card">
           <div className="auth-head">
             <div className="monogram" style={{ marginBottom: 6 }}>M</div>
             <h2>Join Metrol Media</h2>
             <p>Fill in your details and attach the documents below. HR reviews every application.</p>
           </div>
           <form className="auth-form" onSubmit={submit}>
-            <div className="field">
-              <label htmlFor="apName">Full name</label>
-              <input className="input" id="apName" required autoComplete="name"
-                     value={fullName} onChange={(e) => setFullName(e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="apPhone">Phone number</label>
-              <input className="input" id="apPhone" type="tel" required autoComplete="tel" placeholder="+91 …"
-                     value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="apEmail">Email</label>
-              <input className="input" id="apEmail" type="email" required autoComplete="email"
-                     value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="apRole">Position you're interested in</label>
-              <input className="input" id="apRole" placeholder="e.g. Video Editor, Sales"
-                     value={positionInterest} onChange={(e) => setPositionInterest(e.target.value)} />
+            <div className="field-grid">
+              <div className="field">
+                <label htmlFor="apName">Full name</label>
+                <input className="input" id="apName" required autoComplete="name"
+                       value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="apPhone">Phone number</label>
+                <input className="input" id="apPhone" type="tel" required autoComplete="tel" placeholder="+91 …"
+                       value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="apEmail">Email</label>
+                <input className="input" id="apEmail" type="email" required autoComplete="email"
+                       value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="apRole">Position you're interested in</label>
+                <input className="input" id="apRole" placeholder="e.g. Video Editor, Sales"
+                       value={positionInterest} onChange={(e) => setPositionInterest(e.target.value)} />
+              </div>
             </div>
 
             <div className="field">
@@ -109,17 +111,19 @@ export function ApplyPage() {
               </label>
             </div>
 
-            {APPLICATION_DOCS.map((d) => {
-              if (d.key === 'relieving_letter' && noPrevious) return null
-              return (
-                <div className="field" key={d.key}>
-                  <label htmlFor={`apf-${d.key}`}>{d.label}</label>
-                  <input className="input" id={`apf-${d.key}`} type="file"
-                         accept="image/*,.pdf"
-                         onChange={(e) => setFile(d.key, e.target.files?.[0] ?? null)} />
-                </div>
-              )
-            })}
+            <div className="field-grid">
+              {APPLICATION_DOCS.map((d) => {
+                if (d.key === 'relieving_letter' && noPrevious) return null
+                return (
+                  <div className="field" key={d.key}>
+                    <label htmlFor={`apf-${d.key}`}>{d.label}</label>
+                    <input className="input" id={`apf-${d.key}`} type="file"
+                           accept="image/*,.pdf"
+                           onChange={(e) => setFile(d.key, e.target.files?.[0] ?? null)} />
+                  </div>
+                )
+              })}
+            </div>
 
             {err && <p className="auth-err">{err}</p>}
             <button className="btn btn--primary btn--block btn--lg" type="submit" disabled={busy}>

@@ -283,6 +283,23 @@ input,select{font:inherit;color:inherit}
 .auth-alt-label{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
 .auth-alt-row{display:flex;gap:8px}
 
+/* --------------------------------------------------------- the apply form */
+/* The joining form has far more fields than a login card was ever meant to
+   hold, so it gets its own container instead of the 384px .auth-card — that
+   width is right for two or three fields and was never meant for ten-plus,
+   and stretching it there was why the page read as a narrow strip lost in
+   the middle of a wide desktop screen. */
+.apply-card{
+  width:min(680px,100%);background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;box-shadow:var(--shadow-md);padding:32px 36px;
+  display:flex;flex-direction:column;gap:20px;
+}
+/* Short fields pair up rather than each claiming a full-width row on their
+   own — auto-fit/minmax, so it is two columns on a desktop-width card and
+   folds to one with no separate breakpoint to maintain, the same pattern
+   .hr-fields already uses for the same reason. */
+.field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 18px}
+
 /* ------------------------------------------------------------- app shell */
 .topbar{
   height:var(--topbar-h);flex:0 0 var(--topbar-h);

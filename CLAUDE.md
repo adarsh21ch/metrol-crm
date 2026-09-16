@@ -3059,3 +3059,41 @@ column at phone width; clicking Sales opens Employees pre-filtered to Sales
 (5 of 6 shown, dropdown reads Sales); an empty department's card reads
 "Nobody yet" in the footer and "0 · People" in the stat, matching the list
 view's own empty wording. `typecheck` and `build` clean.
+
+---
+
+# The apply form's width, and a question waiting on photos (2026-09-16)
+
+Adarsh, looking at `/apply` on a wide desktop browser: a narrow strip lost in
+the middle of the screen, and he asked why the site doesn't use the desktop's
+own width the way the rest of it does.
+
+**The cause:** `ApplyPage.tsx` reused `.auth-card` — the exact box SignIn and
+SignUp use, `width:min(384px,100%)`. That is the right width for a two- or
+three-field login form; it was never meant to hold ten-plus fields and five
+file pickers, and stretching a long form into it is what produced the
+strip-in-the-middle look. **This was never true of the rest of the site** —
+the phone build round already gave every other screen the split he is asking
+for (a table on desktop, cards on a phone; the rail on desktop, a tab bar on
+a phone) — `/apply` is the one page that inherited a login template instead
+of getting its own container, because it was built off SignIn's shape rather
+than designed for its own content.
+
+**Fixed with a new `.apply-card`** (`width:min(680px,100%)`, same visual
+treatment otherwise) and a `.field-grid` — full name/phone/email/position pair
+up two-to-a-row, and the five document pickers do the same, both via
+`auto-fit, minmax(220px,1fr)` rather than a breakpoint, so the same markup
+folds to one column on a phone with no separate mobile rule to maintain
+(matches `.hr-fields`' existing pattern). Verified at 1400px (two columns,
+card centred with real margins either side, not swallowed by them) and at
+375px (one column, full-width touch-sized fields, nothing overflowing).
+`typecheck` and `build` clean.
+
+## Open — waiting on the real joining form
+
+Adarsh's physical/company joining form asks for more than this page collects
+today. **He is sending photos of it next**, and decided the fields belong on
+this form itself — the candidate fills them before submitting, not HR at
+approval — so nothing was guessed here. Add exactly what the photos show,
+once they arrive; do not invent fields from memory of what a joining form
+"usually" asks.
