@@ -3973,3 +3973,74 @@ re-proof after this round's changes, not a first run.
 - The QR **camera** has still never been exercised — not here (the pane blocks
   capture) and not yet on a real phone. The button punch is proven end to end
   on the live database; the scan path is proven everywhere except the lens.
+
+---
+
+# Two permission prompts, one of them after the scan (2026-09-16)
+
+Adarsh, having got a real punch working: signing in asks for one permission,
+and then **after scanning it asks again** — he wants it asked once and then
+never again.
+
+## What was actually happening, and it is not one permission asked twice
+
+Punching needs **location**. Scanning the poster needs **location AND the
+camera**. Two separate browser permissions; nothing in any app can merge them.
+
+But the ORDER was genuinely wrong. `scanned()` called `getFix()` *after* the
+code was decoded, so the sequence was: tap Scan → camera prompt → aim → decode
+→ **then** a location prompt, at the exact moment the person believes they have
+finished. That is the second prompt he is describing, and it is ours.
+
+`openScanner()` now starts the location fix **at the same moment** it opens the
+camera. Both dialogs arrive together at the start, and the scan itself finishes
+with nothing left to ask. The warm fix is reused only while it is **under 90
+seconds old** — somebody who left the app open may have walked, and a stale
+coordinate is the one thing this module must never file as evidence. Past that
+it takes a fresh one.
+
+## "Allow camera & location (once)"
+
+A line on the punch card runs both requests in one deliberate moment the person
+chose, rather than letting them arrive one at a time mid-task. It reports what
+is still blocked and prints **the exact taps for the phone in their hand** —
+generic "check your browser settings" is what makes somebody give up at the
+door. It remembers having been run (`metrol-crm-perm-setup`, per browser) and
+stops offering itself.
+
+## What the browser will not let us promise, and the card says so
+
+- **Android Chrome** remembers "Allow" for an https site permanently. "Allow
+  this time" is the one that comes back tomorrow — the line says which to pick.
+- **iPhone Safari asks again on a new page load** unless it is set per-site
+  ("aA" → Website Settings) or in iOS Settings → Safari → Camera / Location.
+  That is Apple's rule. **Do not tell Adarsh the app can stop it** — tell him
+  the two taps that do.
+- **Add to Home Screen** gives the app its own permission state and generally
+  ends the repeat asking on both platforms. The meta tags for it have been in
+  `index.html` since the phone build.
+
+`permState()` reads the Permissions API where it exists. **Safari does not
+implement the `camera` name and throws**, so every path returns `'unknown'`
+rather than assuming denied — an unknown permission reported to somebody as a
+blocked one is a worse lie than saying nothing. `askCamera()` opens the stream
+only long enough for the browser to ask and then stops the tracks: holding it
+would leave the camera light on while nobody is scanning, which staff notice
+and distrust.
+
+## Verified
+
+`typecheck` and `build` clean. `?demo=1&as=member`: punch in records, the
+scanner still opens, and the setup line is correctly **absent** in demo — it is
+gated on `!isDemo()`, because a demo has no real permissions to arrange.
+**The setup line itself has therefore only been seen on the live site, not
+here.** Watch it on the first real phone.
+
+## Adarsh's open question — do NOT build a toggle yet
+
+His words: between the button and the QR, "one should be the continue… I can
+ask HR which they thought would be best". Both still exist and both work. He is
+asking HR which one the office should standardise on. **Wait for that answer.**
+If it comes back as one method, the change is hiding the other button on the
+punch card — not deleting `punch_by_qr` or the button path, because the other
+branch may want the other one.
