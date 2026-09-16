@@ -3637,9 +3637,15 @@ horizontal scroll. Member at 1440px: topbar block still visible (no rail) and
 its density slider intact. HR at 1440px now sees **Edit · Mark as resigned ·
 Delete** on an employee. `typecheck`, `build` and `deno check` clean.
 
-## ADARSH: ONE THING TO REDEPLOY
+## Redeployed — 2026-09-16
 
-**`delete-employee` changed — paste it into Supabase → Edge Functions again.**
-Until you do, the Delete button will appear for HR and the server will still
-refuse with "Only the owner can delete an employee record." The frontend goes
-out on its own via Vercel.
+Adarsh pasted the updated `delete-employee` into Edge Functions the same day.
+Both gates are now in step: HR sees the button and the server accepts HR.
+
+**Nothing is owed.** Every phase (1-9), the shell rework, the approve/delete
+round and this one are built, proven and deployed. The remaining items are all
+data or a secret, never code: `RESEND_API_KEY` (approvals work without it, just
+no email), employee records HR still has to enter, and the festival holiday
+dates. Attendance is live — one office branch is saved, so the old "attendance
+is inert" line in the sections above is stale; see the measured table dated
+2026-09-16.
