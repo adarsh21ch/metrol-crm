@@ -7,6 +7,19 @@ type Row = Record<string, unknown>
 
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v))
 
+/** A storage key Supabase will actually accept. It rejects spaces and colons,
+ *  and the single most likely file anybody attaches from a Mac is called
+ *  "Screenshot 2026-09-16 at 11.58.23 AM.png" — every one of which is
+ *  illegal. The extension is kept because it is what decides how the file
+ *  opens for HR later. */
+const safeName = (name: string) => {
+  const dot = name.lastIndexOf('.')
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) : ''
+  const base = (dot > 0 ? name.slice(0, dot) : name)
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'file'
+  return ext ? `${base}.${ext}` : base
+}
+
 const toApp = (r: Row): JobApplication => ({
   id: str(r.id),
   fullName: str(r.full_name),
@@ -194,7 +207,7 @@ export function useJobApplications(enabled = true) {
     const paths: Record<string, string | null> = {}
     for (const [key, file] of uploads) {
       if (!file) { paths[key] = null; continue }
-      const path = `${id}/${key}-${stamp}-${file.name}`
+      const path = `${id}/${key}-${stamp}-${safeName(file.name)}`
       const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file)
       if (upErr) return `Could not upload ${key.replace('_', ' ')}: ${upErr.message}`
       paths[key] = path

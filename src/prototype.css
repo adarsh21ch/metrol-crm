@@ -149,9 +149,24 @@ input,select{font:inherit;color:inherit}
 .input{
   height:38px;padding:0 12px;border-radius:var(--r);
   border:1px solid var(--line);background:var(--surface);width:100%;
+  /* Declared, not inherited. A <textarea> and a <select> take the browser's
+     own default colour rather than the page's, which on the dark theme is
+     black text on a near-black field — invisible, and only on those two
+     elements, which is why it survived every test that used an <input>. */
+  color:var(--ink);
   transition:border-color .14s ease, box-shadow .14s ease;
 }
 .input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+/* A textarea wearing .input used to inherit the browser's own default — which
+   is monospace, a size smaller, and pinned to the top of the box by
+   .input's `padding:0`. It is the same control as an input and should read
+   like one. */
+textarea.input{
+  height:auto;min-height:78px;padding:9px 12px;line-height:1.5;resize:vertical;
+  font:inherit;font-size:14px;
+}
+/* The asterisk on a required field's label. */
+.req{color:var(--bad);font-weight:700;margin-left:2px}
 
 .seg{display:inline-flex;background:var(--surface-3);border-radius:var(--r);padding:2px;gap:2px}
 .seg button{

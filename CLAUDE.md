@@ -3217,3 +3217,41 @@ restore.
 
 Applied to **SignUp** too, which had the same `placeholder="+91 …"` invitation
 to type it by hand.
+
+## Three faults on the live form, and one of them was app-wide (2026-09-16)
+
+Adarsh filled the real form on company.metrol.in and hit all three.
+
+**1. The upload actually failed.** `Could not upload photo: Invalid key:
+…/photo-1789540289794-Screenshot 2026-09-16 at 11.58.23 AM.png` — Supabase
+storage rejects spaces and colons in an object key, and the single most likely
+file anybody attaches from a Mac is called exactly that. `safeName()` in
+`useJobApplications.ts` now lowercases, replaces every unsafe run with a
+hyphen, caps the length and keeps the extension (the extension decides how the
+file opens for HR later). Checked against the failing name and four others:
+`"Screenshot 2026-09-16 at 11.58.23 AM.png"` → `screenshot-2026-09-16-at-11-58-23-am.png`,
+a Devanagari name → `card.pdf`, `"...."` → `file`.
+
+**2. `.input` never declared a colour — and this was not only the apply form.**
+An `<input>` inherits the page's colour; a **`<textarea>` and a `<select>` take
+the browser's own default instead**, which is black. On the dark theme that is
+black text on a near-black field. Every textarea in this app has had it —
+leave reason, decision notes, exit reason, the holiday name — and it survived
+every round because the screens were checked in light mode, where black is
+right. `.input` now sets `color:var(--ink)` explicitly. Measured after:
+textarea, select and input all report `14px rgb(242,242,242)`.
+
+**Do not rely on an element inheriting anything the class does not say.**
+
+**3. No textarea rule existed at all**, so a textarea wearing `.input` took a
+monospace default a size smaller, and `.input`'s `padding:0` pinned the text to
+the top edge of the box — which is what Adarsh saw as "font too small and shows
+upward, not in middle". `textarea.input` now sets `height:auto`,
+`min-height:78px`, real vertical padding, `line-height:1.5` and `font:inherit`.
+
+**Also added: `*` on every required field**, with a line under the heading
+saying what it means. The marks come from one `<Req />` component and match
+exactly what `blocking()` enforces, so the asterisk and the rule cannot drift.
+Required: first name, last name, gender, DOB, contact number, email, present
+address, pincode, and every document (the relieving letter drops off the list
+when "fresher" is ticked).

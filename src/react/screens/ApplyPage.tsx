@@ -73,6 +73,11 @@ const EMPTY: Draft = {
  *  form. A draft only counts once it differs from the blank one. */
 const isBlank = (draft: Draft) => JSON.stringify(draft) === JSON.stringify(EMPTY)
 
+/** The asterisk beside a label. Required means "this step will not let you
+ *  past without it" — the same list `blocking()` enforces, so the mark and
+ *  the rule cannot drift apart. */
+const Req = () => <span className="req" aria-hidden="true">*</span>
+
 const STEPS = [
   'Personal details',
   'Contact & address',
@@ -252,7 +257,10 @@ export function ApplyPage() {
           <div className="auth-head">
             <div className="monogram" style={{ marginBottom: 6 }}>M</div>
             <h2>Join Metrol Media</h2>
-            <p>Your answers save on this device as you type — you can close this and come back.</p>
+            <p>
+              Your answers save on this device as you type — you can close this and come back.
+              Fields marked <span className="req">*</span> are required.
+            </p>
           </div>
 
           <div className="wiz-head">
@@ -277,12 +285,12 @@ export function ApplyPage() {
             {step === 0 && (
               <div className="field-grid">
                 <div className="field">
-                  <label htmlFor="apFirst">First name</label>
+                  <label htmlFor="apFirst">First name<Req /></label>
                   <input className="input" id="apFirst" autoComplete="given-name"
                          value={d.firstName} onChange={(e) => set('firstName', e.target.value)} />
                 </div>
                 <div className="field">
-                  <label htmlFor="apLast">Last name</label>
+                  <label htmlFor="apLast">Last name<Req /></label>
                   <input className="input" id="apLast" autoComplete="family-name"
                          value={d.lastName} onChange={(e) => set('lastName', e.target.value)} />
                 </div>
@@ -292,7 +300,7 @@ export function ApplyPage() {
                          value={d.fatherOrHusband} onChange={(e) => set('fatherOrHusband', e.target.value)} />
                 </div>
                 <div className="field">
-                  <label htmlFor="apGender">Gender</label>
+                  <label htmlFor="apGender">Gender<Req /></label>
                   <select className="input" id="apGender" value={d.gender}
                           onChange={(e) => set('gender', e.target.value)}>
                     <option value="">Select…</option>
@@ -302,7 +310,7 @@ export function ApplyPage() {
                   </select>
                 </div>
                 <div className="field">
-                  <label htmlFor="apDob">Date of birth</label>
+                  <label htmlFor="apDob">Date of birth<Req /></label>
                   <input className="input" id="apDob" type="date"
                          value={d.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
                 </div>
@@ -344,7 +352,7 @@ export function ApplyPage() {
               <>
                 <div className="field-grid">
                   <div className="field">
-                    <label htmlFor="apPhone">Contact number</label>
+                    <label htmlFor="apPhone">Contact number<Req /></label>
                     <div className="phone-wrap">
                       <span className="phone-cc">+91</span>
                       <input className="input" id="apPhone" type="tel" inputMode="numeric"
@@ -353,7 +361,7 @@ export function ApplyPage() {
                     </div>
                   </div>
                   <div className="field">
-                    <label htmlFor="apEmail">Email</label>
+                    <label htmlFor="apEmail">Email<Req /></label>
                     <input className="input" id="apEmail" type="email" autoComplete="email"
                            value={d.email} onChange={(e) => set('email', e.target.value)} />
                   </div>
@@ -363,13 +371,13 @@ export function ApplyPage() {
                            value={d.aadhaarNumber} onChange={(e) => set('aadhaarNumber', e.target.value)} />
                   </div>
                   <div className="field">
-                    <label htmlFor="apPin">Pincode</label>
+                    <label htmlFor="apPin">Pincode<Req /></label>
                     <input className="input" id="apPin" inputMode="numeric"
                            value={d.pincode} onChange={(e) => set('pincode', e.target.value)} />
                   </div>
                 </div>
                 <div className="field">
-                  <label htmlFor="apPresent">Present address</label>
+                  <label htmlFor="apPresent">Present address<Req /></label>
                   <textarea className="input" id="apPresent" rows={3}
                             value={d.presentAddress} onChange={(e) => set('presentAddress', e.target.value)} />
                 </div>
@@ -623,7 +631,7 @@ export function ApplyPage() {
                     if (doc.key === 'relieving_letter' && d.noPreviousEmployment) return null
                     return (
                       <div className="field" key={doc.key}>
-                        <label htmlFor={`apf-${doc.key}`}>{doc.label}</label>
+                        <label htmlFor={`apf-${doc.key}`}>{doc.label}<Req /></label>
                         <input className="input" id={`apf-${doc.key}`} type="file"
                                accept="image/*,.pdf"
                                onChange={(e) => setFile(doc.key, e.target.files?.[0] ?? null)} />
