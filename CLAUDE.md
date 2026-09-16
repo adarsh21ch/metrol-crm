@@ -2998,3 +2998,33 @@ too, so the reason travels with the file.
 **What Adarsh/HR do:** run the script once (paste-and-run, upsert-safe), then
 add the festival dates themselves via the Holidays screen as each one is
 confirmed for the year.
+
+---
+
+# Two more done, by Adarsh directly — 2026-09-16
+
+**Holidays seeded.** `seed_national_holidays.sql` ran clean — 7 rows on the
+table (Gandhi Jayanti, Christmas ×2, New Year's Day, Republic Day,
+Independence Day ×2, forward-looking from today). Confirmed by screenshot of
+the query result.
+
+**`approve-job-application` deployed to Supabase Edge Functions.** Confirmed
+by screenshot: "Successfully updated edge function", live at
+`https://nsgvcfesyihffspofxiq.supabase.co/functions/v1/approve-job-application`.
+Phase 8 (the joining form) is now fully wired end to end EXCEPT the email
+step, which needs `RESEND_API_KEY` — Adarsh is adding that himself, in his
+own time, not blocking anything else.
+
+## What is actually left now
+
+| | Whose task |
+|---|---|
+| `RESEND_API_KEY` secret | Adarsh, whenever — approvals work either way, just no email until then |
+| Office branches (0 set) | Adarsh, physically, from inside each office |
+| Employee records (1 on file) | HR, data entry |
+| Festival holiday dates (Diwali, Holi, Eid, etc.) | HR, from Holidays screen, per date confirmed |
+| Denser cards on phone | Optional polish, not asked for again — skip unless requested |
+
+No code is owed. Every phase (1–9) plus the shell rework (parts 1–3) is built,
+proven against the live database, and now deployed. Part 4 (denser cards) is
+the only deliberately-skipped item, and it was never re-requested.
