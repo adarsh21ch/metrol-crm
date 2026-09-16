@@ -124,13 +124,12 @@ export function HrPage({
 }: { ws: Workspace; toast: (m: string) => void; onBackToProjects?: () => void }) {
   const panes = usePanes()
   const tip = useHoverTip()
+  /* Four hooks here, five further down. These four are what the page needs
+     before it can draw anything at all: the directory, the dashboard's
+     "waiting on you" list and its attendance strip all read them on the very
+     first screen, so there is nothing to gain by deferring them. */
   const hr = useEmployees()
   const leave = useLeaveRequests()
-  const salary = useSalaryRecords()
-  const onboarding = useOnboardingTasks()
-  const docs = useEmployeeDocuments()
-  const exitTasks = useExitTasks()
-  const exitRecords = useExitRecords()
   const att = useAttendance()
   const applications = useJobApplications()
 
@@ -143,6 +142,7 @@ export function HrPage({
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [resigning, setResigning] = useState<Employee | null>(null)
+  const [deletingEmp, setDeletingEmp] = useState(false)
   const [lastDay, setLastDay] = useState(todayISO())
   const [resignDate, setResignDate] = useState(todayISO())
   const [noticeDays, setNoticeDays] = useState('')
@@ -186,6 +186,34 @@ export function HrPage({
   const open = openId ? hr.rows.find((e) => e.id === openId) ?? null : null
   const openEmployee = (id: string) => { setOpenId(id); setProfTab('overview') }
   const employeeName = (id: string) => hr.rows.find((e) => e.id === id)?.fullName ?? 'Unknown'
+
+  /* The other five, gated — and declared down here rather than with the rest
+     because the gate is `section` and `profTab`, which are state declared
+     above this line.
+
+     Opening HR fired nine `select *` queries at once, five of them for
+     sections most visits never open: payroll, onboarding, documents, exit
+     checklists and exit records. They now load when somebody goes to the part
+     of the page that reads them, which leaves four queries between signing in
+     and seeing the directory.
+
+     Each condition names TWO places, not one, because each of these tables is
+     read in two: its own top-level section AND the matching tab of an
+     employee's profile. Gate on only the profile and Payroll draws an empty
+     table; gate on only the section and a payslip tab does. `docs` pairs with
+     `onboarding` rather than having a page of its own — Onboarding is where
+     documents are counted and listed.
+
+     Switching away and back re-runs the query. That is the existing `enabled`
+     contract in this folder (Member.tsx has used it for exit tasks all
+     along), it is one small select, and coming back to a section showing
+     current rows is the behaviour you want anyway. */
+  const inProfile = (tab: ProfileTab) => !!open && profTab === tab
+  const salary = useSalaryRecords(section === 'salary' || inProfile('salary'))
+  const onboarding = useOnboardingTasks(section === 'onboarding' || inProfile('onboarding'))
+  const docs = useEmployeeDocuments(section === 'onboarding' || inProfile('onboarding'))
+  const exitTasks = useExitTasks(section === 'exit' || inProfile('exit'))
+  const exitRecords = useExitRecords(inProfile('exit'))
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -396,6 +424,16 @@ export function HrPage({
     return message
   }
 
+  const deleteEmployee = async (emp: Employee) => {
+    if (!window.confirm(`Permanently delete ${emp.fullName}? This removes their login, their documents, and every leave, salary, attendance and onboarding record. This cannot be undone.`)) return
+    setDeletingEmp(true)
+    const message = await hr.remove(emp.id)
+    setDeletingEmp(false)
+    if (message) { toast(message); return }  // failed — stay on the profile, error is on screen
+    toast(emp.fullName + ' deleted.')
+    setOpenId(null)
+  }
+
   const saveEdit = async (draft: EmployeeDraft) => {
     if (!editing) return 'Nothing is open for editing.'
     const message = await hr.update(editing.id, draft)
@@ -488,6 +526,18 @@ export function HrPage({
                         setResigning(open)
                       }}>
                         Mark as resigned
+                      </button>
+                    )}
+                    {/* Owner-only, and deliberately apart from "Mark as
+                        resigned" — that is how a REAL employee leaves and
+                        keeps their history; this is for a record that should
+                        never have existed (a test application approved while
+                        proving the joining form worked). Two clicks, the
+                        second one naming who is about to be erased, because
+                        there is no undo past this button. */}
+                    {ws.me?.role === 'owner' && (
+                      <button className="btn btn--sm btn--danger" disabled={deletingEmp} onClick={() => void deleteEmployee(open)}>
+                        {deletingEmp ? 'Deleting…' : 'Delete'}
                       </button>
                     )}
                   </div>
@@ -1271,7 +1321,15 @@ export function HrPage({
           onClose={() => setReviewingApp(null)}
           onApprove={async (details) => {
             const message = await applications.approve(reviewingApp.id, details)
-            if (!message) toast(reviewingApp.fullName + ' approved. An invite email was sent.')
+            // Worded for what we actually know now: the Edge Function sends
+            // the invite email AFTER it responds (see its own comments), so
+            // "was sent" would be a claim this call cannot back up. The
+            // employee row is real by the time this resolves either way.
+            if (!message) toast(reviewingApp.fullName + ' approved — creating their login.')
+            // Not awaited: the Employees list should pick up the new hire,
+            // but nobody clicking Approve should wait on the directory's own
+            // reload to see the button stop saying "Approving…".
+            if (!message) void hr.reload()
             return message
           }}
           onReject={async (note) => {
@@ -1282,6 +1340,11 @@ export function HrPage({
           onResend={async () => {
             const message = await applications.resend(reviewingApp.id)
             if (!message) toast('Invite email resent.')
+            return message
+          }}
+          onDelete={async () => {
+            const message = await applications.remove(reviewingApp)
+            if (!message) toast(reviewingApp.fullName + '’s application deleted.')
             return message
           }}
         />

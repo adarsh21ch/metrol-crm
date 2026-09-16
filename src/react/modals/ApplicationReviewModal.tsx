@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Chip } from '@/components/bits'
+import { money } from '@/lib/format'
 import { EMPLOYMENT, fmtDate, todayISO, type EmploymentType, type JobApplication } from '@/lib/hr'
 import { fmtShift, type OfficeLocation, type Shift } from '@/lib/attendance'
 import type { ApprovalDetails } from '@/data/useJobApplications'
@@ -30,7 +31,7 @@ const DOCS: { key: keyof Pick<JobApplication, 'photoPath' | 'panPath' | 'aadhaar
  * branch, shift, joining date, salary, leave entitlement.
  */
 export function ApplicationReviewModal({
-  app, departments, shifts, offices, documentUrl, onClose, onApprove, onReject, onResend,
+  app, departments, shifts, offices, documentUrl, onClose, onApprove, onReject, onResend, onDelete,
 }: {
   app: JobApplication
   departments: Department[]
@@ -41,8 +42,16 @@ export function ApplicationReviewModal({
   onApprove: (details: ApprovalDetails) => Promise<string | null>
   onReject: (note: string) => Promise<string | null>
   onResend: () => Promise<string | null>
+  onDelete: () => Promise<string | null>
 }) {
-  const [mode, setMode] = useState<'view' | 'approve' | 'reject'>('view')
+  // 'approve-details' then 'approve-confirm' were one screen until Adarsh
+  // pointed out why that read as broken: clicking "Approve…" dropped a form
+  // in BELOW everything already on screen, so confirming it meant scrolling
+  // down to find a second, differently-worded button — which looked like the
+  // click hadn't registered the first time. Two named steps with their own
+  // Continue / Back fixes that: you always know which of the two things you
+  // are doing, and the footer's one button always matches it.
+  const [mode, setMode] = useState<'view' | 'approve-details' | 'approve-confirm' | 'reject'>('view')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -64,13 +73,27 @@ export function ApplicationReviewModal({
     else setErr('Could not open that file.')
   }
 
-  const submitApprove = async () => {
+  const continueApprove = () => {
     if (!designation.trim() || !dateOfJoining) { setErr('Designation and date of joining are required.'); return }
+    setErr(null)
+    setMode('approve-confirm')
+  }
+
+  const submitApprove = async () => {
     setBusy(true); setErr(null)
     const message = await onApprove({
       departmentId, designation: designation.trim(), employmentType, officeId, shiftId, dateOfJoining,
       grossAmount: Number(gross) || 0, netAmount: Number(net) || 0, annualLeaveDays,
     })
+    setBusy(false)
+    if (message) { setErr(message); return }
+    onClose()
+  }
+
+  const submitDelete = async () => {
+    if (!window.confirm(`Delete ${app.fullName}'s application? This removes it and its documents for good.`)) return
+    setBusy(true); setErr(null)
+    const message = await onDelete()
     setBusy(false)
     if (message) { setErr(message); return }
     onClose()
@@ -101,11 +124,35 @@ export function ApplicationReviewModal({
       foot={
         <>
           {err && <span className="auth-err" style={{ marginRight: 'auto' }}>{err}</span>}
-          <button className="btn btn--sm" onClick={onClose}>Close</button>
+          {/* Delete lives here, not beside Reject — it is a different KIND of
+              action (remove the record, not decide on it) and stays available
+              at any status, which is exactly what cleaning up a test entry
+              needs regardless of whether it was ever actioned. Kept out of
+              the way on the far left, .btn--danger's red the only thing that
+              marks it as different from Close next to it. */}
+          {mode === 'view' && (
+            <>
+              <button className="btn btn--sm btn--danger" disabled={busy} onClick={() => void submitDelete()}>
+                {busy ? 'Deleting…' : 'Delete application'}
+              </button>
+              {/* .modal-foot is justify-content:flex-end — every button is
+                  already hard right, so it takes an auto margin HERE to push
+                  Delete away from the others. Without it the destructive
+                  button sits touching Close, which is the one neighbour it
+                  must never have. The spacer renders only in this mode: an
+                  empty span still earns the foot's 8px gap, and a stray 8px
+                  before Close on the approve screens is a change nobody
+                  asked for. */}
+              <span style={{ marginLeft: 'auto' }} />
+            </>
+          )}
+          <button className="btn btn--sm" onClick={mode === 'approve-confirm' ? () => setMode('approve-details') : onClose} disabled={busy}>
+            {mode === 'approve-confirm' ? 'Back' : 'Close'}
+          </button>
           {mode === 'view' && app.status === 'pending' && (
             <>
               <button className="btn btn--sm" onClick={() => setMode('reject')}>Reject</button>
-              <button className="btn btn--sm btn--primary" onClick={() => setMode('approve')}>Approve…</button>
+              <button className="btn btn--sm btn--primary" onClick={() => setMode('approve-details')}>Approve…</button>
             </>
           )}
           {mode === 'view' && app.status === 'approved' && (
@@ -118,7 +165,10 @@ export function ApplicationReviewModal({
               {busy ? 'Rejecting…' : 'Confirm reject'}
             </button>
           )}
-          {mode === 'approve' && (
+          {mode === 'approve-details' && (
+            <button className="btn btn--sm btn--primary" onClick={continueApprove}>Continue →</button>
+          )}
+          {mode === 'approve-confirm' && (
             <button className="btn btn--sm btn--primary" disabled={busy} onClick={() => void submitApprove()}>
               {busy ? 'Approving…' : 'Approve and create login'}
             </button>
@@ -127,6 +177,10 @@ export function ApplicationReviewModal({
       }
     >
       <div className="auth-form">
+        {/* The whole candidate dump steps ASIDE during both approve steps —
+            it is what buried the form below a page of scrolling before.
+            Nothing here disappears: Back returns to it exactly as it was. */}
+        {mode !== 'approve-details' && mode !== 'approve-confirm' && (<>
         {/* Everything the applicant filled in, in the order the paper form
             asks for it — HR is usually reading this next to the physical
             file, so matching that order is what makes it checkable. Empty
@@ -260,6 +314,7 @@ export function ApplicationReviewModal({
             </div>
           </div>
         )}
+        </>)}
 
         {mode === 'reject' && (
           <div className="field">
@@ -268,8 +323,9 @@ export function ApplicationReviewModal({
           </div>
         )}
 
-        {mode === 'approve' && (
+        {mode === 'approve-details' && (
           <>
+            <div className="rev-sec">Step 1 of 2 — Role details</div>
             <div className="field">
               <label htmlFor="arDept">Department</label>
               <select className="input" id="arDept" value={departmentId ?? ''} onChange={(e) => setDepartmentId(e.target.value || null)}>
@@ -317,6 +373,33 @@ export function ApplicationReviewModal({
               <label htmlFor="arLeave">Annual leave days</label>
               <input className="input" id="arLeave" type="number" min={0} step={0.5} value={annualLeaveDays}
                      onChange={(e) => setAnnualLeaveDays(Number(e.target.value) || 0)} />
+            </div>
+          </>
+        )}
+
+        {mode === 'approve-confirm' && (
+          <>
+            <div className="rev-sec">Step 2 of 2 — Confirm &amp; approve</div>
+            {/* A recap, not the form again — the point of a second step is
+                that it asks something DIFFERENT ("is this right?"), not the
+                same question with the same fields still sitting there. */}
+            <div className="hr-fields">
+              <Fld l="Name" v={app.fullName} />
+              <Fld l="Department" v={departments.find((d) => d.id === departmentId)?.name} />
+              <Fld l="Designation" v={designation} />
+              <Fld l="Employment type" v={EMPLOYMENT[employmentType]} />
+              <Fld l="Date of joining" v={fmtDate(dateOfJoining)} />
+              <Fld l="Branch" v={offices.find((o) => o.id === officeId)?.name} />
+              <Fld l="Shift" v={shifts.find((s) => s.id === shiftId) ? `${shifts.find((s) => s.id === shiftId)!.name} — ${fmtShift(shifts.find((s) => s.id === shiftId)!.startsAt)}` : undefined} />
+              {/* money(), not the raw input string — this line is the last
+                  look anybody gets at a salary before it becomes a real
+                  payroll figure, and ₹32000 is measurably harder to check at
+                  a glance than ₹32,000. The same formatter the payslip grid
+                  and every KPI already use, so the number reads identically
+                  here and on the record it creates. */}
+              <Fld l="Gross salary" v={gross ? `${money(Number(gross))}/month` : undefined} />
+              <Fld l="Net salary" v={net ? `${money(Number(net))}/month` : undefined} />
+              <Fld l="Annual leave days" v={annualLeaveDays} />
             </div>
             <p style={{ color: 'var(--ink-3)', fontSize: 12 }}>
               This creates their login and sends them an email to set a password, using the address they applied with.

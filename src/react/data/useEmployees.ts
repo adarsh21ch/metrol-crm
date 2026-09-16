@@ -79,9 +79,15 @@ const toRow = (p: Partial<EmployeeDraft>): Row => {
  * never loads this: their app has no reason to ask the question, and the
  * policies in 0006 would hand back one row if it did.
  *
- * Nothing here deletes. The table has no delete policy and DELETE is revoked,
- * so a "remove" button could not work even if somebody added one — leaving is
- * a status change, and the record stays.
+ * The table itself still has no delete policy and DELETE is still revoked at
+ * Postgres for the client — that has not changed, and `update` above is still
+ * how a REAL employee leaves (a status change, record stays). `remove` below
+ * is a second, deliberately harder door: it goes through the owner-only
+ * `delete-employee` Edge Function (service role, bypasses the table grant
+ * entirely) rather than asking for one on this table, which is what let a
+ * genuine mistake — Adarsh's own test applications approving into real
+ * employee rows — get cleaned up without reopening delete to anyone who
+ * merely has HR access.
  */
 export function useEmployees(enabled = true) {
   const [rows, setRows] = useState<Employee[]>([])
@@ -145,7 +151,28 @@ export function useEmployees(enabled = true) {
     return null
   }, [])
 
-  return { rows, loading, error, reload: load, create, update, clearError: () => setError(null) }
+  /** Owner-only, and irreversible — see the Edge Function's own header for
+   *  exactly what it deletes and why each piece is safe to cascade.
+   *
+   *  Kept to the same `string | null` shape as every other mutation here —
+   *  null means it worked, a string is something to show — rather than a
+   *  richer result the caller would have to branch on. The one wrinkle is
+   *  the Edge Function's own `warning`: the row and the login are two
+   *  different systems, and the row can be gone while the login clean-up
+   *  failed. That is logged, not returned, so it can never be mistaken for
+   *  "the delete failed" by a caller that only checks truthiness — which is
+   *  exactly how every existing call site here already reads this return. */
+  const remove = useCallback(async (id: string): Promise<string | null> => {
+    if (isDemo()) { setRows((p) => p.filter((e) => e.id !== id)); return null }
+    const { data, error: err } = await supabase.functions.invoke('delete-employee', { body: { employeeId: id } })
+    if (err) return err.message
+    if (data?.error) return String(data.error)
+    setRows((p) => p.filter((e) => e.id !== id))
+    if (data?.warning) console.warn('[delete-employee]', data.warning)
+    return null
+  }, [])
+
+  return { rows, loading, error, reload: load, create, update, remove, clearError: () => setError(null) }
 }
 
 export type Employees = ReturnType<typeof useEmployees>

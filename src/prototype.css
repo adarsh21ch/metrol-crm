@@ -140,6 +140,11 @@ input,select{font:inherit;color:inherit}
 .btn--primary:hover{background:var(--pri-hover);border-color:var(--pri-hover)}
 .btn--ghost{background:transparent;border-color:transparent;color:var(--ink-2)}
 .btn--ghost:hover{background:var(--surface-3);border-color:transparent;color:var(--ink)}
+/* The app's first genuinely irreversible button (delete an employee, delete
+   an application) — .auth-err's own red tokens, so it reads as the same
+   "this is serious" red the app already uses rather than a new one. */
+.btn--danger{background:var(--bad-soft);border-color:var(--bad-line);color:var(--bad)}
+.btn--danger:hover{background:var(--bad);border-color:var(--bad);color:var(--pri-on)}
 .btn--sm{height:28px;padding:0 10px;font-size:12px}
 .btn--lg{height:42px;padding:0 20px;font-size:14px}
 .btn--block{width:100%}
@@ -1013,7 +1018,14 @@ table.grid tbody tr.row-link{cursor:pointer}
 .modal-head h3{font-size:15.5px}
 .modal-head p{font-size:12.5px;color:var(--ink-3)}
 .modal-body{padding:14px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
-.modal-foot{padding:13px 18px;border-top:1px solid var(--line-2);display:flex;gap:8px;justify-content:flex-end;background:var(--surface-2)}
+/* Wraps because the foot can now carry four buttons, not three: adding
+   "Delete application" to the review modal took the row past 375px and
+   the leftmost button was CLIPPED off the edge — not scrolled to, not
+   shrunk, simply cut in half and unreadable. Wrapping costs nothing on a
+   foot that fits (nothing wraps until it has to) and on a phone it drops
+   the danger button onto its own line, which is where it belongs anyway.
+   `gap` already supplies the row gap. */
+.modal-foot{padding:13px 18px;border-top:1px solid var(--line-2);display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;background:var(--surface-2)}
 .modal--wide{width:min(760px,100%)}
 .drop{
   border:1.5px dashed var(--line);border-radius:var(--r);background:var(--surface-2);

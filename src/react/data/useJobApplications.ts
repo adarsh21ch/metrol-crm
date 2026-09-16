@@ -348,7 +348,14 @@ export function useJobApplications(enabled = true) {
   }, [])
 
   /** Everything that actually creates the login and the employee record runs
-   *  server-side — this just invokes it and refreshes the row it changed. */
+   *  server-side — this just invokes it and patches the one row it changed.
+   *
+   *  This used to `await load()` — a full re-select of every application —
+   *  stacked directly on top of an Edge Function call that, before the same
+   *  round's other fix, was already the slowest single thing in this app.
+   *  The function's own response already says which row changed and to
+   *  what (`employeeId`, `ok`); there is nothing a second network round trip
+   *  would tell us that the first one didn't. */
   const approve = useCallback(async (id: string, details: ApprovalDetails): Promise<string | null> => {
     if (isDemo()) return 'This is a demo. Approving here cannot actually create a login.'
     const { data, error: err } = await supabase.functions.invoke('approve-job-application', {
@@ -356,9 +363,11 @@ export function useJobApplications(enabled = true) {
     })
     if (err) return err.message
     if (data?.error) return String(data.error)
-    await load()
+    setRows((p) => p.map((a) => (a.id === id
+      ? { ...a, status: 'approved', employeeId: (data?.employeeId as string | undefined) ?? a.employeeId, decidedAt: new Date().toISOString() }
+      : a)))
     return null
-  }, [load])
+  }, [])
 
   const resend = useCallback(async (id: string): Promise<string | null> => {
     if (isDemo()) return 'This is a demo. No email is actually sent here.'
@@ -367,9 +376,27 @@ export function useJobApplications(enabled = true) {
     })
     if (err) return err.message
     if (data?.error) return String(data.error)
-    await load()
+    setRows((p) => p.map((a) => (a.id === id ? { ...a, inviteSentCount: a.inviteSentCount + 1 } : a)))
     return null
-  }, [load])
+  }, [])
+
+  /** Deletes a test or duplicate application outright — its own documents
+   *  first (same bucket, same HR/owner delete policy 0017 already granted),
+   *  then the row (0021). Deliberately allowed at ANY status: a rejected
+   *  test entry is exactly as much clutter as a pending one, and an already-
+   *  approved one is still just the APPLICATION — the employee it produced,
+   *  if any, is a separate record with its own, harder, owner-only delete
+   *  (delete-employee). Removing this row never touches that one; 0017's
+   *  `employee_id ... on delete set null` only fires the other direction. */
+  const remove = useCallback(async (app: JobApplication): Promise<string | null> => {
+    if (isDemo()) { setRows((p) => p.filter((a) => a.id !== app.id)); return null }
+    const paths = [app.photoPath, app.panPath, app.aadhaarPath, app.bankProofPath, app.relievingLetterPath].filter((p): p is string => !!p)
+    if (paths.length > 0) await supabase.storage.from(BUCKET).remove(paths)
+    const { error: err } = await supabase.from('job_applications').delete().eq('id', app.id)
+    if (err) return err.message
+    setRows((p) => p.filter((a) => a.id !== app.id))
+    return null
+  }, [])
 
   const documentUrl = useCallback(async (path: string | null): Promise<string | null> => {
     if (!path || isDemo()) return null
@@ -377,7 +404,7 @@ export function useJobApplications(enabled = true) {
     return data?.signedUrl ?? null
   }, [])
 
-  return { rows, loading, error, reload: load, submit, reject, approve, resend, documentUrl, clearError: () => setError(null) }
+  return { rows, loading, error, reload: load, submit, reject, approve, resend, remove, documentUrl, clearError: () => setError(null) }
 }
 
 export type JobApplications = ReturnType<typeof useJobApplications>

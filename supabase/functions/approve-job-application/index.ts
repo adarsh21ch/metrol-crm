@@ -177,37 +177,61 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  // 4. move the documents out of quarantine.
-  for (const { pathCol, docType } of DOC_MAP) {
+  // 4. move the documents out of quarantine — the FIVE FILES TOGETHER, not one
+  // after another. This used to be a plain `for` loop: download, upload,
+  // insert, remove, four awaited round-trips per document, all five documents
+  // serialised. That was the single biggest reason Approve felt frozen —
+  // measured, not guessed, the same class of bug as the Submit-side slowness
+  // fixed earlier the same day. Each file's own four steps must still run in
+  // order (you cannot upload a download that has not finished), but the five
+  // FILES have never depended on each other, so they now run concurrently.
+  await Promise.all(DOC_MAP.map(async ({ pathCol, docType }) => {
     const srcPath = app[pathCol] as string | null
-    if (!srcPath) continue
+    if (!srcPath) return
     const { data: file, error: dlErr } = await admin.storage.from(QUARANTINE_BUCKET).download(srcPath)
-    if (dlErr || !file) continue
+    if (dlErr || !file) return
     const fileName = srcPath.split('/').pop() ?? docType
     const destPath = `${employee.id}/${fileName}`
     const { error: upErr } = await admin.storage.from(DOCS_BUCKET).upload(destPath, file, { upsert: true })
-    if (upErr) continue
+    if (upErr) return
     await admin.from('employee_documents').insert({
       employee_id: employee.id, doc_type: docType, file_name: fileName, file_path: destPath, uploaded_by: callerId,
     })
     await admin.storage.from(QUARANTINE_BUCKET).remove([srcPath])
-  }
+  }))
 
-  // 5. the email.
-  const sent = await sendInviteEmail({ email: app.email, fullName: app.full_name, employeeCode: employee.employee_code, supabaseUrl: SUPABASE_URL, admin, resendKey: RESEND_API_KEY })
-
-  // 6. mark it decided, regardless of whether the email succeeded — the
-  // account and employee record are real either way, and a resend can always
-  // repeat step 5 on its own. Say so honestly rather than pretending it failed.
+  // 5. mark it decided NOW, before the email. HR is waiting on THIS response —
+  // the login and the employee record already exist, which is the part HR
+  // actually needs back. The email is between us and Resend, an external
+  // service on the other side of the internet that HR has no way to make
+  // faster; making them wait on it was never buying anything.
   await admin.from('job_applications').update({
     status: 'approved', decided_by: callerId, decided_at: new Date().toISOString(),
-    employee_id: employee.id, invite_sent_count: sent.error ? 0 : 1,
-    invite_sent_at: sent.error ? null : new Date().toISOString(),
+    employee_id: employee.id,
   }).eq('id', applicationId)
 
-  if (sent.error) {
-    return json({ ok: true, employeeId: employee.id, warning: `Employee created, but the email did not send: ${sent.error}. Use "Resend" once this is fixed.` })
-  }
+  // 6. the email, sent AFTER the response goes back rather than before it —
+  // `EdgeRuntime.waitUntil` keeps the function alive to finish this even
+  // though the HTTP response has already returned. If Resend is slow, or
+  // down, HR still sees "approved" the moment the real work is done; the
+  // invite_sent_count/at columns update quietly once the send actually
+  // finishes, and "Resend invite email" on this application already exists
+  // for a bounced or a genuinely failed first attempt.
+  const emailTask = (async () => {
+    const sent = await sendInviteEmail({ email: app.email, fullName: app.full_name, employeeCode: employee.employee_code, supabaseUrl: SUPABASE_URL, admin, resendKey: RESEND_API_KEY })
+    await admin.from('job_applications').update({
+      invite_sent_count: sent.error ? 0 : 1,
+      invite_sent_at: sent.error ? null : new Date().toISOString(),
+    }).eq('id', applicationId)
+  })()
+  // @ts-ignore — EdgeRuntime is a Deno Deploy / Supabase Edge Functions
+  // global, not a type `npm:@supabase/supabase-js` or Deno's own lib knows
+  // about. Where it is not present (local `supabase functions serve`,
+  // older runtimes) the task above still runs — it was already started —
+  // this only controls whether the platform is told to keep the isolate
+  // alive for it, so nothing breaks either way, and nothing is awaited here.
+  if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(emailTask)
+
   return json({ ok: true, employeeId: employee.id })
 })
 

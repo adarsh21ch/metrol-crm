@@ -27,13 +27,20 @@ export interface ExitDraft {
  * The HR-only exit record. There is no self-service caller for this hook
  * anywhere in the app — 0012 gives an employee no select policy on this
  * table at all, so it is only ever imported into HrPage.
+ *
+ * `enabled` is the same opt-out every other hook in this folder already
+ * takes, added late because this one had no caller that wanted it: HrPage
+ * read these rows on mount whether or not anybody would ever look at an exit
+ * record. `create` below is deliberately NOT gated — resigning somebody
+ * writes an exit record from a screen that never needed to read one.
  */
-export function useExitRecords() {
+export function useExitRecords(enabled = true) {
   const [rows, setRows] = useState<ExitRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!enabled) { setLoading(false); return }
     if (isDemo()) {
       setRows([])
       setLoading(false)
@@ -50,7 +57,7 @@ export function useExitRecords() {
     }
     setRows((data ?? []).map((r) => toRecord(r as Row)))
     setLoading(false)
-  }, [])
+  }, [enabled])
 
   useEffect(() => { void load() }, [load])
 

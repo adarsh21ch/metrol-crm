@@ -3382,3 +3382,127 @@ this up from `main` on its own.
 Adarsh's own test application (ADARSH, socialwiire@gmail.com) is a real row on
 `job_applications`. It is the first end-to-end proof the pipeline works, and
 it is also the obvious thing to approve or reject when testing HR's side.
+
+---
+
+# Approve stopped feeling frozen, and two records became deletable (2026-09-16)
+
+Three separate complaints, one round. Adarsh had approved his own test
+applications to prove the pipeline worked — which left real employees and real
+logins in a directory of six people, with nothing anywhere in the app able to
+remove them.
+
+## 1. Approve was slow for the same reason Submit was
+
+Same shape as the Submit fix earlier the same day, one layer down.
+
+**The five documents moved out of quarantine one after another.** Each one is
+download → upload → insert → remove, four awaited round-trips, and a plain
+`for` loop serialised all five. The four steps of ONE file genuinely depend on
+each other; the five files never did. `Promise.all` over `DOC_MAP` now.
+
+**The invite email was inside the response.** HR pressed Approve and waited on
+Resend — an external service on the other side of the internet — before seeing
+anything. The application is marked decided FIRST, then the email runs under
+`EdgeRuntime.waitUntil` after the response has already gone back.
+`invite_sent_count` / `invite_sent_at` fill in quietly when the send lands, and
+"Resend invite email" was already there for a genuine failure.
+
+Because the email now outlives the response, the toast no longer claims it was
+sent: **"approved — creating their login."** The employee row is real by then;
+the email is not yet a fact.
+
+**`approve()` and `resend()` re-selected every application** after the Edge
+Function returned — a second network round trip stacked on the slowest call in
+the app, to learn something the first response had already told us. Both patch
+the one row they changed instead.
+
+## 2. Approve read as a broken button
+
+Clicking "Approve…" dropped the role form in BELOW the whole candidate dump,
+so confirming meant scrolling down to hunt for a second, differently-worded
+button. It looked exactly like the first click had not registered.
+
+Two named steps now: **Step 1 of 2 — Role details** (the form, with the
+candidate dump stepped aside, Close / Continue →) and **Step 2 of 2 — Confirm
+& approve** (a recap, Back / Approve and create login). Back returns to step 1
+with everything still typed. The required-field error fires on Continue, so it
+appears on the screen that holds the fields.
+
+Step 2 is a **recap, not the form again** — a second step earns its place by
+asking a different question. Salary goes through `money()` there: ₹32,000 is
+measurably easier to check than ₹32000, and it is the last look anybody gets
+before that number becomes payroll.
+
+## 3. Two different deletes, deliberately two different doors
+
+**An application** (`useJobApplications.remove` + migration `0021`) is
+low-stakes: no login, no payroll row, nothing points at it. HR or owner, from
+the client, at any status. Its documents go first, then the row.
+
+**An employee** (`useEmployees.remove` + the `delete-employee` Edge Function)
+is not. DELETE stays revoked on `employees` and the table still has no delete
+policy — `update` to `resigned` is still how a real person leaves, record
+intact. This is a **second, harder door**: owner only (not HR), service role,
+a `window.confirm` that names who is about to be erased. It removes the
+`auth.users` login and the storage files by hand — neither is a row Postgres
+can cascade — and lets the `on delete cascade` from 0009–0013 take leave,
+salary, attendance, onboarding, exit and documents with the row.
+
+Deleting an application never touches the employee it produced, and the
+reverse is also true. They are separate records with separate doors.
+
+## 4. Nine queries on open became four
+
+HrPage fired nine `select *`s the moment it mounted, five of them for sections
+most visits never reach. Salary, onboarding, documents, exit tasks and exit
+records are now gated on the section — or the profile tab — that reads them.
+`useExitRecords` gained the `enabled` flag its eight siblings already had.
+
+**They are not "profile-only", which is what this looked like at first.** Every
+one of these tables is read in TWO places: its own top-level section AND the
+matching tab of somebody's profile. Gate on only the profile and Payroll draws
+an empty table; gate on only the section and the payslip tab does. Each
+condition names both. `docs` rides with `onboarding` — Onboarding is where
+documents are counted and listed, they have no page of their own.
+
+The five hooks are declared further down the component than the other four,
+because the gate reads `section` and `profTab`, which are state declared below
+the original hook block.
+
+## Three defects found by testing, not by reading
+
+1. **`onDelete` was in the modal's props type but never destructured.** `tsc`
+   caught it; `vite build` does not typecheck, so the button would have thrown
+   a ReferenceError on the first click in production.
+2. **The footer spacer was inverted** — `marginLeft: mode === 'view' ? 0 :
+   'auto'`, which is backwards. `.modal-foot` is `justify-content:flex-end`,
+   so with no auto margin the destructive button sat touching Close. It now
+   renders only in view mode, with the auto margin, and measures at left:18px.
+3. **At 375px the fourth button clipped the first one off the edge.** Not
+   scrolled to — cut in half and unreadable. `.modal-foot` wraps now; on a
+   phone Approve takes its own row, which puts the primary and the destructive
+   button further apart than the desktop layout does.
+
+## Verified in Chromium, `?demo=1`
+
+Demo honours `enabled` (the gate check precedes the `isDemo()` branch), so
+walking the sections proved the gate both ways: Salary 12 payslips, Onboarding
+6 documents / 30 checklist items, Exit 1 leaver — all empty until opened, all
+correct once opened. Profile Salary and Onboarding tabs likewise. Approve step
+1 → validation error → fill → step 2 recap → Back preserves every field. Foot
+buttons measured at 1440 and 375, no clipping and no horizontal scroll on
+either. `.btn--danger` in light mode is #A81E12 on #FCE0DC.
+`typecheck`, `build` and `deno check` on the new function all clean.
+
+## ADARSH: THREE THINGS TO RUN — THE FRONTEND ALONE IS NOT ENOUGH
+
+Vercel picks up the frontend from `main` by itself. The other three are manual,
+and **until all three are done the Delete buttons will fail**:
+
+1. **Migration `0021_job_applications_delete.sql`** → SQL Editor. Without it,
+   deleting an application is refused by RLS.
+2. **New Edge Function `delete-employee`** → Edge Functions → New function,
+   named exactly that. Without it, deleting an employee 404s.
+3. **Redeploy `approve-job-application`** — it changed in this round. Without
+   it, Approve stays slow and still waits on the email.
