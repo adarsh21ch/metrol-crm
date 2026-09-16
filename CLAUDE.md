@@ -4173,3 +4173,107 @@ but that says nothing about `RESEND_API_KEY` or the `hr@metrol.in` sending
 domain. **The next real test needs an application that still HAS an
 employee** — either a fresh approval, or one Adarsh has not deleted the
 employee for.
+
+---
+
+# Round 1 of the attendance brief — the employee's own month (2026-09-16)
+
+Adarsh dictated a large multi-round brief (attendance → leave → payroll)
+before sleeping. It is written down in full in `ATTENDANCE-PAYROLL-PLAN.md`
+so none of it depends on remembering this conversation. This is Round 1.
+
+## What was already there, and it was most of the rules
+
+Before building anything, the live schema was checked against what he asked
+for. Four of his "rules we need to create" already existed:
+
+| He asked for | Already in `attendance_settings` |
+|---|---|
+| a 7-minute relaxation before late | `grace_minutes` default **7** |
+| a 9-hour day | `required_minutes` default **540** |
+| half-day threshold | `half_day_minutes` default **270** |
+| Sunday off automatically | `week_offs` default `{0}` |
+
+And the **passport photo he asked for has been collected since Phase 8** — the
+joining form takes it, approval copies it into `employee-documents` as
+`doc_type='photo'`. It was never displayed to the person it belongs to. This
+round shows it rather than building a second uploader.
+
+**The gap was never data collection. It was display.**
+
+## The real problem: most days that matter have no attendance row
+
+A Sunday, a holiday, an approved leave and a plain absence are all "no row in
+`attendance`" — and the old Recent-days list rendered rows, so all four were
+simply invisible. You could not check a month against a payslip because the
+month had holes in it.
+
+`buildCalendar()` in `lib/attendance.ts` synthesises **every date in a range**
+and says what it is. Precedence, and the first rule is the one that matters:
+
+1. **A real attendance row always wins.** Somebody who came in and punched on
+   a Sunday or a national holiday worked that day. The row is evidence; the
+   holiday is only a default. No calendar rule gets to erase it.
+2. Approved leave — **approved only**. Adarsh was explicit that a request HR
+   has not approved is not leave. The status filter lives inside the function,
+   not in the caller, so pending leave cannot be passed in by accident.
+3. Holiday (named), then week off, then — for a date already past — absent.
+4. A future date is left blank rather than accused of anything.
+
+`calendarTotals()` counts off the SAME list the grid and the table render, so
+a tile can never disagree with the days under it. A late day counts in BOTH
+present and late: "how many days was I here" and "how many times was I late"
+are different questions and one number serves neither.
+
+## What the employee now sees
+
+- **Header**: the passport photo, name, employee ID, designation, department,
+  email — the identity block he described.
+- **Range filter**: two date inputs ("from where to where", his words) plus
+  This month / Last month / Last 30 days, because typing two dates to get
+  "this month" is a tax on the nine-out-of-ten case.
+- **Colour grid**: seven columns so a row IS a week and Sundays line up under
+  each other. Leading blanks pad the first week — a grid that merely wraps at
+  seven puts every month's Sundays somewhere different.
+- **The Excel-shaped table**: Date · Punch in · Punch out · Work duration ·
+  Remark, every date present, newest first.
+
+**The half day is not amber-on-amber.** It shares late's colour family but
+carries a diagonal slash, so the two stay separable by shape — which is what
+somebody who cannot tell one amber from another needs.
+
+## Verified in Chromium, `?demo=1&as=member`, at 375px
+
+Not asserted — measured. **6 and 13 September 2026 rendered `H` / "Weekly
+off", and both are genuinely Sundays**; two padding cells, and 1 September
+2026 is genuinely a Tuesday, so the week lines up. The 7th shows the half-day
+slash at 5h 20m. Tiles read Present 11 (9 plain + 2 late), Late 2, Half 1,
+Absent 2. The table shows a row for the 13th reading "Weekly off" with em
+dashes where the times would be.
+
+**No horizontal page scroll at 375px** — `scrollWidth` equals the 375px
+viewport. The table is 573px inside a 345px `.att-table-wrap`, contained by
+its own `overflow-x:auto`, which is this file's standing rule for tables.
+
+**A measurement trap worth recording:** the first overflow check reported
+`viewport: 0` and flagged every element as overflowing. The browser pane was
+collapsed, so `clientWidth` was zero and everything "overflowed" nothing.
+**Set an explicit viewport before believing an overflow measurement.**
+
+`typecheck` and `build` clean.
+
+## Rounds 2–5 are specified, not built
+
+`ATTENDANCE-PAYROLL-PLAN.md` carries them: the rules engine (L1–L4 then the
+5th late becomes a half day, paid-leave accrual, carry-forward vs
+encashment), QR-only mode, payroll from attendance with two pay periods, and
+the T&C as an in-app page. **Round 2 is the gate** — salary cannot be built
+on rules that do not exist yet.
+
+## The punch-out bug is NOT fixed, and was not guessed at
+
+He reported a QR punch-out that did not update. `punch_by_qr`'s punch-out
+branch was read end to end and is correct, and it is proven live (31/31). Two
+candidates remain and they need one answer from him to tell apart: the
+deliberate **2-minute double-scan guard** (`too_soon`), or a scan that never
+decoded. Asking beats shipping a fix for the wrong one.

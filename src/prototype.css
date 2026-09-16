@@ -1486,3 +1486,92 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .topbar-account--always{display:flex}
 .topbar-account .acct-row{display:flex;align-items:center;gap:8px}
 @media (max-width:860px){ .topbar-account{display:flex} }
+
+/* ===================================================== the attendance month
+   The employee's own month, as Adarsh asked for it: a grid of coloured
+   squares you can read in one glance, and an Excel-shaped table under it for
+   the exact times. Both render the SAME list of days (buildCalendar), so the
+   square and the row can never tell different stories about one date. */
+
+.emp-head{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;margin-bottom:14px;
+}
+/* The passport photo the joining form already collected. Fixed box with
+   object-fit so a portrait phone snap and a scanned square both sit correctly
+   instead of stretching somebody's face. */
+.emp-photo{
+  width:64px;height:64px;border-radius:10px;object-fit:cover;flex:none;
+  border:1px solid var(--line);background:var(--surface-2);
+}
+.emp-photo--none{display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-weight:800;font-size:22px;color:var(--ink-3)}
+.emp-id{display:flex;flex-direction:column;gap:3px;min-width:0}
+.emp-id h2{font-family:var(--display);font-size:19px;font-weight:800;margin:0;line-height:1.2}
+.emp-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.emp-code{
+  font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);
+  font-size:12px;font-weight:600;letter-spacing:.02em;
+  background:var(--surface-3);border:1px solid var(--line);
+  border-radius:5px;padding:1px 7px;color:var(--ink);
+}
+
+/* The range picker. Two dates and a row of quick answers, because "this
+   month" is what somebody wants nine times out of ten and typing two dates
+   to get it is a tax. */
+.range-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.range-bar .field{gap:4px}
+.range-bar .input{height:34px}
+.range-quick{display:flex;gap:6px;flex-wrap:wrap}
+
+.cal-grid{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:5px;
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:12px;margin-bottom:14px;
+}
+.cal-dow{
+  font-size:10.5px;font-weight:600;color:var(--ink-3);text-align:center;
+  padding-bottom:2px;text-transform:uppercase;letter-spacing:.04em;
+}
+.cal-cell{
+  aspect-ratio:1;border-radius:7px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px;
+  font-size:12px;font-weight:600;border:1px solid transparent;
+  min-height:34px;
+}
+.cal-cell .d{font-size:11px;line-height:1}
+.cal-cell .m{font-size:9px;font-weight:700;line-height:1;opacity:.85}
+.cal--present{background:var(--good-soft);color:var(--good);border-color:var(--good-line)}
+.cal--late{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line)}
+.cal--half{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line);
+  /* A half day is a late day's cousin, not its twin — same family of colour,
+     cut across so the two are still separable at a glance and by shape, which
+     is what somebody who cannot tell amber from amber needs. */
+  background-image:linear-gradient(135deg,transparent 46%,currentColor 46%,currentColor 54%,transparent 54%)}
+.cal--leave{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent-line)}
+.cal--absent{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-line)}
+.cal--holiday{background:var(--surface-2);color:var(--ink-3);border-color:var(--line)}
+.cal--open{background:var(--surface-3);color:var(--ink-2);border-color:var(--line)}
+.cal--future{background:transparent;color:var(--ink-4,var(--ink-3));opacity:.35}
+.cal--pad{background:transparent;border-color:transparent}
+
+.cal-key{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-3);margin-bottom:14px}
+.cal-key span{display:inline-flex;align-items:center;gap:5px}
+.cal-key i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid transparent}
+
+/* The table. Scrolls sideways in its OWN box on a phone rather than making
+   the page scroll — the rule this file already follows everywhere else. */
+.att-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.att-table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+.att-table th{
+  text-align:left;font-size:11px;font-weight:600;color:var(--ink-3);
+  text-transform:uppercase;letter-spacing:.04em;
+  padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;
+  position:sticky;top:0;background:var(--surface);
+}
+.att-table td{padding:9px 12px;border-bottom:1px solid var(--line-2,var(--line));white-space:nowrap}
+.att-table tr:last-child td{border-bottom:0}
+.att-table tbody tr:hover{background:var(--surface-2)}
+.att-table .num{font-variant-numeric:tabular-nums}
+.att-table .muted{color:var(--ink-3)}

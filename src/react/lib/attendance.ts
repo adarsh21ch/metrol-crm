@@ -258,3 +258,152 @@ export function metersBetween(lat1: number, lng1: number, lat2: number, lng2: nu
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
   return Math.round(R * 2 * Math.asin(Math.sqrt(a)) * 10) / 10
 }
+
+/* ------------------------------------------------------- the day calendar */
+
+/**
+ * What a single date MEANS for one employee — which is not the same question
+ * as "is there an attendance row". Most days that matter have no row at all:
+ * a Sunday, Republic Day, an approved leave, and a plain absence are all
+ * "nothing in the attendance table", and until now all four were invisible on
+ * the employee's own screen. Adarsh asked for them by name: holidays and
+ * Sundays marked H, automatically.
+ */
+export type DayKind =
+  | 'present' | 'late' | 'half_day' | 'in_progress'
+  | 'leave' | 'holiday' | 'week_off' | 'absent' | 'future'
+
+export interface CalendarDay {
+  date: string
+  kind: DayKind
+  /** One short phrase for the Remark column and the square's tooltip. */
+  remark: string
+  /** The real row, when one exists — the table still shows real punch times. */
+  row: AttendanceRow | null
+}
+
+export const DAY_KIND: Record<DayKind, { label: string; cls: string }> = {
+  present:     { label: 'Present',      cls: 'cal--present' },
+  late:        { label: 'Late',         cls: 'cal--late' },
+  half_day:    { label: 'Half day',     cls: 'cal--half' },
+  in_progress: { label: 'In office',    cls: 'cal--open' },
+  leave:       { label: 'Leave',        cls: 'cal--leave' },
+  holiday:     { label: 'Holiday',      cls: 'cal--holiday' },
+  week_off:    { label: 'Weekly off',   cls: 'cal--holiday' },
+  absent:      { label: 'Absent',       cls: 'cal--absent' },
+  future:      { label: '',             cls: 'cal--future' },
+}
+
+/** Date-only maths done in UTC on purpose. These are calendar dates, not
+ *  moments — running them through the device's local timezone is how a date
+ *  silently becomes the day before in the wrong hemisphere. */
+export const addDays = (iso: string, n: number): string => {
+  const d = new Date(iso + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+const weekdayOf = (iso: string): number => new Date(iso + 'T00:00:00Z').getUTCDay()
+
+/** First and last date of the month an ISO date falls in. */
+export const monthStart = (iso: string) => iso.slice(0, 8) + '01'
+export const monthEnd = (iso: string) => {
+  const d = new Date(iso.slice(0, 8) + '01T00:00:00Z')
+  d.setUTCMonth(d.getUTCMonth() + 1)
+  d.setUTCDate(0)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Every date from `from` to `to`, told what it is.
+ *
+ * **Precedence, and the first rule is the one that matters:** a real
+ * attendance row ALWAYS wins. Somebody who came in and punched on a Sunday or
+ * a national holiday worked that day, and no calendar rule gets to erase it —
+ * the row is the evidence, the holiday is only the default. After that:
+ * approved leave, then holiday, then week off, then — for a date already past
+ * — absent. A future date is left blank rather than accused of anything.
+ *
+ * **Only APPROVED leave counts.** Adarsh was explicit: a request HR has not
+ * approved is not leave, and it must not colour the day or spend a balance.
+ */
+export function buildCalendar(opts: {
+  from: string
+  to: string
+  rows: AttendanceRow[]
+  holidays: Holiday[]
+  weekOffs: number[]
+  /** Leave requests for this ONE employee. Status is filtered here, not by
+   *  the caller, so nobody can pass pending leave in by accident. */
+  leaves: { startDate: string; endDate: string; status: string }[]
+  today: string
+}): CalendarDay[] {
+  const { from, to, rows, holidays, weekOffs, leaves, today } = opts
+  if (!from || !to || from > to) return []
+
+  const rowByDate = new Map(rows.map((r) => [r.workDate, r]))
+  const holidayByDate = new Map(holidays.map((h) => [h.date, h.name]))
+  const approved = leaves.filter((l) => l.status === 'approved')
+
+  const out: CalendarDay[] = []
+  // A guard, not a limit anybody should hit: two years of days. A typo in a
+  // date field must not spin here forever.
+  for (let d = from, guard = 0; d <= to && guard < 800; d = addDays(d, 1), guard++) {
+    const row = rowByDate.get(d) ?? null
+
+    if (row) {
+      const kind: DayKind =
+        row.status === 'present' ? (row.lateMinutes > 0 ? 'late' : 'present')
+        : row.status === 'late' ? 'late'
+        : row.status === 'half_day' ? 'half_day'
+        : row.status === 'in_progress' ? 'in_progress'
+        : 'absent'
+      const extra = row.lateMinutes > 0 ? `${row.lateMinutes} min late` : ''
+      out.push({
+        date: d, kind, row,
+        remark: extra ? `${DAY_KIND[kind].label} · ${extra}` : DAY_KIND[kind].label,
+      })
+      continue
+    }
+
+    const onLeave = approved.find((l) => d >= l.startDate && d <= l.endDate)
+    if (onLeave) { out.push({ date: d, kind: 'leave', row: null, remark: 'Leave' }); continue }
+
+    const holiday = holidayByDate.get(d)
+    if (holiday) { out.push({ date: d, kind: 'holiday', row: null, remark: holiday }); continue }
+
+    if (weekOffs.includes(weekdayOf(d))) {
+      out.push({ date: d, kind: 'week_off', row: null, remark: 'Weekly off' })
+      continue
+    }
+
+    if (d > today) { out.push({ date: d, kind: 'future', row: null, remark: '' }); continue }
+    out.push({ date: d, kind: 'absent', row: null, remark: 'Absent' })
+  }
+  return out
+}
+
+export interface CalendarTotals {
+  present: number; late: number; halfDay: number; leave: number
+  holiday: number; absent: number; workedMinutes: number
+}
+
+/** Counted off the SAME list the table and the grid render, so the tiles can
+ *  never disagree with the days underneath them. */
+export function calendarTotals(days: CalendarDay[]): CalendarTotals {
+  const t: CalendarTotals = { present: 0, late: 0, halfDay: 0, leave: 0, holiday: 0, absent: 0, workedMinutes: 0 }
+  for (const d of days) {
+    if (d.row) t.workedMinutes += d.row.workedMinutes || 0
+    switch (d.kind) {
+      case 'present': case 'in_progress': t.present++; break
+      // A late day is still a day worked — it counts in BOTH, because "how
+      // many days was I here" and "how many times was I late" are different
+      // questions and answering them with one number serves neither.
+      case 'late': t.present++; t.late++; break
+      case 'half_day': t.halfDay++; break
+      case 'leave': t.leave++; break
+      case 'holiday': case 'week_off': t.holiday++; break
+      case 'absent': t.absent++; break
+    }
+  }
+  return t
+}

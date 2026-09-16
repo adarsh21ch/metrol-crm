@@ -10,7 +10,7 @@ import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
-import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
+import { agoDays, count, daysSince, initials, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
@@ -20,7 +20,8 @@ import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
 import { useExitTasks } from '@/data/useExitTasks'
 import { useAttendance } from '@/data/useAttendance'
 import { PunchCard } from '@/components/PunchCard'
-import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
+import { statusChip, fmtDuration, fmtTime, officeToday,
+  buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
 import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod, unpaidLeaveDays, usedLeaveDays } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -147,13 +148,27 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       : []),
     [att.rows, myEmployee],
   )
-  /* "Late 3" is a count of this month, not of all time — the client asked for
-     a running number, and a number that only ever goes up stops meaning
-     anything by March. */
-  const monthSummary = useMemo(
-    () => summarise(myAtt.filter((r) => monthOf(r.workDate) === monthOf(officeToday(tz)))),
-    [myAtt, tz],
-  )
+  /* The range the attendance table and the grid both answer to. Defaults to
+     this month because that is what somebody opening the screen wants; the
+     two date inputs are there for Adarsh's "from where to where". */
+  const [attFrom, setAttFrom] = useState(() => monthStart(officeToday()))
+  const [attTo, setAttTo] = useState(() => officeToday())
+
+  /* Every date in the range, told what it is — a punched day, an approved
+     leave, a holiday, a Sunday, or an absence. The grid and the table below
+     render THIS list, not two separately-derived ones, so a square and its
+     row cannot disagree about a date. */
+  const calendar = useMemo(() => buildCalendar({
+    from: attFrom, to: attTo,
+    rows: myAtt,
+    holidays: att.holidays,
+    weekOffs: att.settings?.weekOffs ?? [0],
+    leaves: myLeave,
+    today: officeToday(tz),
+  }), [attFrom, attTo, myAtt, att.holidays, att.settings, myLeave, tz])
+  const totals = useMemo(() => calendarTotals(calendar), [calendar])
+
+
   const [requestingLeave, setRequestingLeave] = useState(false)
   // No create/update calls live on this screen at all — RLS (0010) refuses
   // every write to salary_records for anybody but the owner or HR, so this is
@@ -175,6 +190,18 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     () => (myEmployee ? myDocs.rows.filter((d) => d.employeeId === myEmployee.id) : []),
     [myDocs.rows, myEmployee],
   )
+
+  /* The passport photo the joining form already collected — it has been
+     sitting in employee-documents since approval and was never shown to the
+     person it belongs to. Signed on demand, like every other document. */
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const photoDoc = useMemo(() => myOwnDocs.find((d) => d.docType === 'photo') ?? null, [myOwnDocs])
+  useEffect(() => {
+    let alive = true
+    if (!photoDoc) { setPhotoUrl(null); return }
+    void myDocs.downloadUrl(photoDoc.filePath).then((u) => { if (alive) setPhotoUrl(u) })
+    return () => { alive = false }
+  }, [photoDoc, myDocs.downloadUrl])
   // Only relevant once somebody is actually leaving — showing this tab to
   // every active employee would read as a strange, unprompted question.
   const isLeaving = !!myEmployee && myEmployee.status !== 'active'
@@ -522,47 +549,137 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                                  myOfficeId={myEmployee.officeId} toast={toast} />
                     </div>
 
-                    <div className="section">
-                      <div className="section-head">
-                        <h3>This month</h3>
-                        <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-                          {fmtDuration(monthSummary.workedMinutes)} worked across {count(monthSummary.days, 'day')}
+                    {/* Who this is. The passport photo has existed in
+                        employee-documents since the day HR approved the
+                        joining form — it was collected, copied, and then
+                        never once shown to the person it belongs to. */}
+                    <div className="emp-head">
+                      {photoUrl
+                        ? <img className="emp-photo" src={photoUrl} alt="" />
+                        : <div className="emp-photo emp-photo--none">{initials(myEmployee.fullName)}</div>}
+                      <div className="emp-id">
+                        <h2>{myEmployee.fullName}</h2>
+                        <div className="emp-meta">
+                          <span className="emp-code">{myEmployee.employeeCode || 'No ID'}</span>
+                          <span>{myEmployee.designation || 'No designation'}</span>
+                          <span>·</span>
+                          <span>{ws.departmentName(myEmployee.departmentId) ?? 'No department'}</span>
                         </div>
-                      </div>
-                      <div className="att-sum">
-                        <div className="att-sum-tile"><div className="n">{monthSummary.present}</div><div className="l">Present</div></div>
-                        <div className="att-sum-tile"><div className="n">{monthSummary.late}</div><div className="l">Late coming</div></div>
-                        <div className="att-sum-tile"><div className="n">{monthSummary.halfDay}</div><div className="l">Half days</div></div>
-                        <div className="att-sum-tile"><div className="n">{monthSummary.missing}</div><div className="l">No punch out</div></div>
+                        <div className="emp-meta" style={{ color: 'var(--ink-3)' }}>{myEmployee.workEmail || me?.email}</div>
                       </div>
                     </div>
 
                     <div className="section">
-                      <div className="section-head"><h3>Recent days</h3></div>
-                      {myAtt.length === 0 ? (
-                        <p style={{ color: 'var(--ink-3)' }}>Nothing recorded yet. Your first punch in will show up here.</p>
-                      ) : (
-                        <div className="ov-actions">
-                          {myAtt.slice(0, 30).map((r) => (
-                            <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
-                              <span className="ov-n">{fmtDate(r.workDate).slice(0, 6)}</span>
-                              <span className="ov-l">
-                                {fmtTime(r.punchInAt, tz)} – {fmtTime(r.punchOutAt, tz)}
-                                <span style={{ color: 'var(--ink-3)' }}>
-                                  {'  ·  '}{fmtDuration(r.workedMinutes)}
-                                  {r.shiftStart ? ' · shift ' + fmtShift(r.shiftStart) : ''}
-                                  {r.lateMinutes ? ' · ' + r.lateMinutes + ' min late' : ''}
-                                  {/* A day HR typed in is a different kind of fact from one the
-                                      geofence recorded, and the person it belongs to should be
-                                      able to see which is which. */}
-                                  {r.source === 'hr' ? ' · corrected by HR' : ''}
-                                </span>
-                              </span>
-                              <Chip cls={statusChip(r.status).cls}>{statusChip(r.status).label}</Chip>
-                            </div>
-                          ))}
+                      <div className="section-head"><h3>My attendance</h3></div>
+
+                      {/* "From where to where" — his words. Typed dates for a
+                          specific window, and the three ranges anybody
+                          actually asks for next to them. */}
+                      <div className="range-bar">
+                        <div className="field">
+                          <label htmlFor="attFrom">From</label>
+                          <input className="input" id="attFrom" type="date" value={attFrom}
+                                 max={attTo} onChange={(e) => setAttFrom(e.target.value)} />
                         </div>
+                        <div className="field">
+                          <label htmlFor="attTo">To</label>
+                          <input className="input" id="attTo" type="date" value={attTo}
+                                 min={attFrom} onChange={(e) => setAttTo(e.target.value)} />
+                        </div>
+                        <div className="range-quick">
+                          <button className="btn btn--sm" onClick={() => {
+                            const t = officeToday(tz); setAttFrom(monthStart(t)); setAttTo(t)
+                          }}>This month</button>
+                          <button className="btn btn--sm" onClick={() => {
+                            const prev = addDays(monthStart(officeToday(tz)), -1)
+                            setAttFrom(monthStart(prev)); setAttTo(monthEnd(prev))
+                          }}>Last month</button>
+                          <button className="btn btn--sm" onClick={() => {
+                            const t = officeToday(tz); setAttFrom(addDays(t, -29)); setAttTo(t)
+                          }}>Last 30 days</button>
+                        </div>
+                      </div>
+
+                      <div className="att-sum">
+                        <div className="att-sum-tile"><div className="n">{totals.present}</div><div className="l">Present</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.late}</div><div className="l">Late coming</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.halfDay}</div><div className="l">Half days</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.leave}</div><div className="l">Leave</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.absent}</div><div className="l">Absent</div></div>
+                        <div className="att-sum-tile"><div className="n">{fmtDuration(totals.workedMinutes)}</div><div className="l">Worked</div></div>
+                      </div>
+
+                      {/* The month at a glance. Seven columns, so a row IS a
+                          week and Sundays line up under each other — a grid
+                          that just wraps at seven without padding the first
+                          week would put every month's Sundays somewhere
+                          different. */}
+                      {calendar.length > 0 && (
+                        <>
+                          <div className="cal-grid">
+                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                              <div className="cal-dow" key={i}>{d}</div>
+                            ))}
+                            {Array.from({ length: new Date(calendar[0].date + 'T00:00:00Z').getUTCDay() }).map((_, i) => (
+                              <div className="cal-cell cal--pad" key={'pad' + i} />
+                            ))}
+                            {calendar.map((d) => (
+                              <div className={'cal-cell ' + DAY_KIND[d.kind].cls} key={d.date}
+                                   title={`${fmtDate(d.date)} — ${d.remark || 'Nothing recorded'}`}>
+                                <span className="d">{Number(d.date.slice(8, 10))}</span>
+                                {(d.kind === 'holiday' || d.kind === 'week_off') && <span className="m">H</span>}
+                                {d.kind === 'leave' && <span className="m">L</span>}
+                                {d.kind === 'half_day' && <span className="m">½</span>}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="cal-key">
+                            <span><i style={{ background: 'var(--good-soft)', borderColor: 'var(--good-line)' }} />Present</span>
+                            <span><i style={{ background: 'var(--warn-soft)', borderColor: 'var(--warn-line)' }} />Late / half day</span>
+                            <span><i style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent-line)' }} />Leave</span>
+                            <span><i style={{ background: 'var(--bad-soft)', borderColor: 'var(--bad-line)' }} />Absent</span>
+                            <span><i style={{ background: 'var(--surface-2)', borderColor: 'var(--line)' }} />H — holiday or weekly off</span>
+                          </div>
+                        </>
                       )}
+
+                      {/* The same days again, with the actual times on them.
+                          Every date in the range has a row — a Sunday, a
+                          holiday and an absence all used to be simply missing
+                          from this list, which is what made it impossible to
+                          check a month against a payslip. */}
+                      <div className="att-table-wrap">
+                        <table className="att-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th><th>Punch in</th><th>Punch out</th>
+                              <th>Work duration</th><th>Remark</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {calendar.filter((d) => d.kind !== 'future').slice().reverse().map((d) => (
+                              <tr key={d.date}>
+                                <td className="num">{fmtDate(d.date)}</td>
+                                <td className="num">{d.row ? fmtTime(d.row.punchInAt, tz) : <span className="muted">—</span>}</td>
+                                <td className="num">{d.row ? fmtTime(d.row.punchOutAt, tz) : <span className="muted">—</span>}</td>
+                                <td className="num">{d.row ? fmtDuration(d.row.workedMinutes) : <span className="muted">—</span>}</td>
+                                <td>
+                                  <Chip cls={d.row ? statusChip(d.row.status).cls : 'chip--mute'}>{DAY_KIND[d.kind].label}</Chip>
+                                  {d.remark && d.remark !== DAY_KIND[d.kind].label && (
+                                    <span className="muted">{'  '}{d.remark}</span>
+                                  )}
+                                  {d.row?.source === 'hr' && <span className="muted">{'  ·  corrected by HR'}</span>}
+                                </td>
+                              </tr>
+                            ))}
+                            {calendar.filter((d) => d.kind !== 'future').length === 0 && (
+                              <tr><td colSpan={5} className="muted" style={{ padding: 16 }}>
+                                Nothing in this range. Pick different dates, or punch in to start today.
+                              </td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </>
                 )}
