@@ -20,6 +20,49 @@ const safeName = (name: string) => {
   return ext ? `${base}.${ext}` : base
 }
 
+/** What actually made Submit look frozen: five files straight off a phone are
+ *  20–30 MB, and on an Indian uplink that is a minute of silence.
+ *
+ *  A 4000px camera photo is shrunk to 1600px on its long edge at JPEG 0.82 —
+ *  roughly 300 KB, a ten-fold cut. 1600px is chosen so a PAN or Aadhaar card
+ *  stays READABLE: the numbers on one photographed edge-to-edge land around
+ *  1100px wide at that size, well above what HR needs to check them. Shrinking
+ *  further would start costing legibility, which is the whole point of
+ *  collecting the document.
+ *
+ *  PDFs and anything already under 600 KB pass through untouched — a PDF has
+ *  no pixels to resample, and a small file has nothing to win. Every failure
+ *  path returns the ORIGINAL file: a browser that cannot decode the image must
+ *  still be able to apply. */
+const MAX_EDGE = 1600
+const SHRINK_ABOVE = 600 * 1024
+
+async function shrink(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.size <= SHRINK_ABOVE) return file
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+    if (scale === 1) { bitmap.close(); return file }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * scale)
+    canvas.height = Math.round(bitmap.height * scale)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) { bitmap.close(); return file }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.82))
+    // Only take the smaller one. An already-optimised JPEG can come back
+    // BIGGER after a re-encode, and shipping that would be a loss.
+    if (!blob || blob.size >= file.size) return file
+    const base = file.name.replace(/\.[^.]+$/, '')
+    return new File([blob], `${base}.jpg`, { type: 'image/jpeg' })
+  } catch {
+    return file
+  }
+}
+
 const toApp = (r: Row): JobApplication => ({
   id: str(r.id),
   fullName: str(r.full_name),
@@ -185,7 +228,7 @@ export function useJobApplications(enabled = true) {
 
   useEffect(() => { void load() }, [load])
 
-  const submit = useCallback(async (form: ApplicationSubmission): Promise<string | null> => {
+  const submit = useCallback(async (form: ApplicationSubmission, onProgress?: (msg: string) => void): Promise<string | null> => {
     if (isDemo()) return 'This is a demo. Applications cannot actually be submitted here.'
 
     if (!form.noPreviousEmployment && !form.files.relieving_letter) {
@@ -204,14 +247,34 @@ export function useJobApplications(enabled = true) {
       ['aadhaar', form.files.aadhaar], ['bank_proof', form.files.bank_proof],
       ['relieving_letter', form.files.relieving_letter],
     ]
+    const attached = uploads.filter((u): u is [keyof ApplicationSubmission['files'], File] => u[1] != null)
     const paths: Record<string, string | null> = {}
-    for (const [key, file] of uploads) {
-      if (!file) { paths[key] = null; continue }
+    for (const [key, file] of uploads) if (!file) paths[key] = null
+
+    // Shrink first, so the progress count reflects real uploading rather than
+    // stalling at "1 of 5" while the biggest photo is still being resampled.
+    onProgress?.('Preparing…')
+    const prepared = await Promise.all(attached.map(async ([key, file]) => [key, await shrink(file)] as const))
+
+    // Uploaded together, not one after another. They are independent, and
+    // five round-trips serialised is five times the handshake latency for no
+    // reason. `done` is counted rather than indexed because they finish out
+    // of order — the number is "how many are up", not "which one is going".
+    let done = 0
+    const total = prepared.length
+    onProgress?.(`Uploading 0 of ${total}…`)
+    const results = await Promise.all(prepared.map(async ([key, file]) => {
       const path = `${id}/${key}-${stamp}-${safeName(file.name)}`
       const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file)
-      if (upErr) return `Could not upload ${key.replace('_', ' ')}: ${upErr.message}`
-      paths[key] = path
-    }
+      done += 1
+      onProgress?.(`Uploading ${done} of ${total}…`)
+      return { key, path, upErr }
+    }))
+    const failed = results.find((r) => r.upErr)
+    if (failed) return `Could not upload ${String(failed.key).replace('_', ' ')}: ${failed.upErr!.message}`
+    for (const r of results) paths[r.key] = r.path
+
+    onProgress?.('Saving…')
 
     // full_name stays the column every other screen already reads; the paper
     // form asks for the two halves, so it is built from them rather than

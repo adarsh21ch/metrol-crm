@@ -3311,3 +3311,74 @@ holiday dates. And **one question worth answering when convenient**: of the
 other twenty-four paper fields, which belong on the permanent employee record?
 The bank block and Aadhaar are the likely yes — payroll and statutory filing
 both want them — but nothing will be added to `employees` on a guess.
+
+---
+
+# 0020 is installed, and Submit was not stuck — it was silent (2026-09-16)
+
+Adarsh ran `0020_application_full_form.sql` and redeployed the Edge Function.
+Verified by screenshot of his own check query: **new columns present — true (26
+of 26)**, acceptance constraint installed — true, quarantine trigger still
+installed — true. He then filled the real form on company.metrol.in, watched
+the button sit on "Submitting…", and asked why it was stuck.
+
+**It was not stuck. The second screenshot is "Application received".** It
+submitted — it just took long enough, with nothing on screen changing, to be
+indistinguishable from a hang. That is a real defect even though the data
+arrived: the next person to see that button will close the tab.
+
+## Two causes, and the bigger one is not the obvious one
+
+**1. The uploads ran one after another.** A plain `for` loop `await`ed each of
+the five files in turn, so five independent uploads paid five serialised
+round-trips. They go up together now via `Promise.all`. `done` is *counted*
+rather than indexed, because parallel uploads finish out of order — the number
+means "how many are up", not "which one is going".
+
+**2. The files were enormous, and that is what actually cost the minute.**
+Five documents straight off a phone are 20–30 MB. Parallelism does not help
+much when the uplink is saturated — 25 MB is 25 MB — so the real fix was to
+stop sending 25 MB.
+
+`shrink()` resamples any image over 600 KB to **1600px on its long edge at JPEG
+0.82**. Measured in Chromium on a 4000×3000 photo: out at 1600×1200, **92%
+smaller**.
+
+**Why 1600 and not smaller:** these are PAN and Aadhaar cards, and the whole
+point of collecting them is that HR can READ them. A card photographed
+edge-to-edge puts its number around 1100px wide at this size — comfortably
+legible. Going further would start trading away the document's only purpose.
+
+**Three deliberate pass-throughs:** a PDF (no pixels to resample), anything
+already under 600 KB (nothing to win), and **any re-encode that came out
+bigger** than the original — an already-optimised JPEG can do exactly that, and
+shipping the larger one would be a loss. Every failure path returns the
+original file: a browser that cannot decode the image must still be able to
+apply.
+
+## The button now says what it is doing
+
+`submit()` takes an optional `onProgress`, and the button reads
+**Preparing… → Uploading 1 of 5… → … → Saving…** instead of one frozen
+"Submitting…". Shrinking is announced before the count starts so it does not
+appear to stall at "1 of 5" while the biggest photo is being resampled.
+
+Labels are deliberately short. `.wiz-next` is `min-width:160px`, and measured
+at 375px the row is 245px with Back at 59px and Submit at 160px — it fits
+inside the existing minimum, so nothing reflows and the page does not scroll
+sideways. "Uploading documents… 3 of 5" would not have.
+
+## Verified in Chromium
+
+`typecheck` and `build` clean. Layout measured at 375px as above. The shrink
+path exercised end to end on a generated 4000×3000 JPEG: `createImageBitmap` →
+canvas → `toBlob`, 1600×1200 out, 92% saved.
+
+**No Edge Function change in this round — nothing to redeploy.** Vercel picks
+this up from `main` on its own.
+
+## One live record now exists
+
+Adarsh's own test application (ADARSH, socialwiire@gmail.com) is a real row on
+`job_applications`. It is the first end-to-end proof the pipeline works, and
+it is also the obvious thing to approve or reject when testing HR's side.

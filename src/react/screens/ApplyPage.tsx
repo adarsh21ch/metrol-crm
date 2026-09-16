@@ -99,6 +99,10 @@ export function ApplyPage() {
     photo: null, pan: null, aadhaar: null, bank_proof: null, relieving_letter: null,
   })
   const [busy, setBusy] = useState(false)
+  // What the Submit button says while it works. Five documents off a phone
+  // take real seconds to go up, and a button frozen on "Submitting…" for a
+  // minute reads as a hang — which is exactly how it was read.
+  const [progress, setProgress] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const topRef = useRef<HTMLDivElement | null>(null)
@@ -214,8 +218,9 @@ export function ApplyPage() {
         relieving_letter: d.noPreviousEmployment ? null : files.relieving_letter,
       },
     }
-    const message = await apps.submit(submission)
+    const message = await apps.submit(submission, setProgress)
     setBusy(false)
+    setProgress('')
     if (message) return setErr(message)
     // Only now — a failed submit must leave the draft exactly where it was.
     try { localStorage.removeItem(DRAFT_KEY) } catch { /* nothing to clean up */ }
@@ -697,7 +702,7 @@ export function ApplyPage() {
                 </button>
               ) : (
                 <button className="btn btn--primary btn--lg wiz-next" type="submit" disabled={busy}>
-                  {busy ? 'Submitting…' : 'Submit application'}
+                  {busy ? (progress || 'Submitting…') : 'Submit application'}
                 </button>
               )}
             </div>
