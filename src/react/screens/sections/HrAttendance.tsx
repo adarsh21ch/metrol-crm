@@ -54,7 +54,16 @@ export function HrAttendance({
   // Days somebody walked out of without punching out would otherwise sit at
   // "in office" for ever. Free plans have no scheduler, so the screen that
   // cares is the one that settles them.
-  useEffect(() => { void att.finalizeOpen() }, [att])
+  //
+  // DEPEND ON THE FUNCTION, NOT ON `att`. This read `[att]`, and `att` is a
+  // fresh object literal from every render of useAttendance — so this effect
+  // re-ran on EVERY RENDER of this screen, firing `finalize_open_attendance()`
+  // (an RPC that WRITES) again and again: on every keystroke in the search
+  // box, every toast, every tab click. That is a write endpoint being hammered
+  // for the life of the page, and it is the single biggest reason this screen
+  // felt like it was wading through treacle. `finalizeOpen` is a useCallback
+  // with an empty dependency list, so keying on it runs this exactly once.
+  useEffect(() => { void att.finalizeOpen() }, [att.finalizeOpen])
 
   const staff = useMemo(
     () => employees.filter((e) => e.status !== 'resigned'),

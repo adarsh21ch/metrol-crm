@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoSalaryRecords, isDemo } from '@/data/demo'
 import type { SalaryRecord, SalaryStatus } from '@/lib/hr'
@@ -42,9 +42,20 @@ export function useSalaryRecords(enabled = true) {
   const [rows, setRows] = useState<SalaryRecord[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
+  const fetched = useRef(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!enabled) { setLoading(false); return }
+    /* Fetch once per mount, not once per visit. Gating these hooks on the
+       section that reads them (so opening HR stopped firing nine queries)
+       had a cost nobody asked for: `enabled` flips on every tab switch, so
+       going Salary → Leave → Salary re-queried Salary each time and the tab
+       felt like it was thinking. The rows are already in state and correct;
+       re-reading them to learn the same thing is the definition of a slow
+       tab. `reload(true)` still forces a genuine re-read, which is what the
+       Refresh buttons and the post-write reconciles call. */
+    if (fetched.current && !force) { setLoading(false); return }
+    fetched.current = true
     if (isDemo()) {
       setRows(demoSalaryRecords)
       setLoading(false)
@@ -117,16 +128,24 @@ export function useSalaryRecords(enabled = true) {
       setRows((p) => p.map((r) => (r.id === id ? { ...r, status: 'paid', paidBy, paidAt: new Date().toISOString() } : r)))
       return null
     }
+    // Optimistic, same reasoning as the checkboxes: one chip changing colour
+    // should not cost a round trip of staring at the old one.
+    let before: SalaryRecord[] = []
+    setRows((p) => {
+      before = p
+      return p.map((r) => (r.id === id ? { ...r, status: 'paid', paidBy, paidAt: new Date().toISOString() } : r))
+    })
+
     const { data, error: err } = await supabase
       .from('salary_records')
       .update({ status: 'paid', paid_by: paidBy, paid_at: new Date().toISOString() })
       .eq('id', id).select('*').single()
-    if (err) return err.message
+    if (err) { setRows(before); return err.message }
     if (data) setRows((p) => p.map((r) => (r.id === id ? toSalaryRecord(data as Row) : r)))
     return null
   }, [])
 
-  return { rows, loading, error, reload: load, create, update, markPaid, clearError: () => setError(null) }
+  return { rows, loading, error, reload: () => load(true), create, update, markPaid, clearError: () => setError(null) }
 }
 
 export type SalaryRecords = ReturnType<typeof useSalaryRecords>

@@ -29,7 +29,9 @@ export function CompanyAdminModal({ ws, onClose }: { ws: Workspace; onClose: () 
       setCodeLoaded(true)
     })
     return () => { dead = true }
-  }, [ws])
+    // `ws` is a new object every render, so this refetched the invite code
+    // continuously while the modal was open. `getInviteCode` is stable.
+  }, [ws.getInviteCode])
 
   async function saveCode(e: React.FormEvent) {
     e.preventDefault()

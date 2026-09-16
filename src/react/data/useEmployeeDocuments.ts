@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoEmployeeDocuments, isDemo } from '@/data/demo'
 import type { DocType, EmployeeDocument } from '@/lib/hr'
@@ -33,9 +33,20 @@ export function useEmployeeDocuments(enabled = true) {
   const [rows, setRows] = useState<EmployeeDocument[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
+  const fetched = useRef(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!enabled) { setLoading(false); return }
+    /* Fetch once per mount, not once per visit. Gating these hooks on the
+       section that reads them (so opening HR stopped firing nine queries)
+       had a cost nobody asked for: `enabled` flips on every tab switch, so
+       going Salary → Leave → Salary re-queried Salary each time and the tab
+       felt like it was thinking. The rows are already in state and correct;
+       re-reading them to learn the same thing is the definition of a slow
+       tab. `reload(true)` still forces a genuine re-read, which is what the
+       Refresh buttons and the post-write reconciles call. */
+    if (fetched.current && !force) { setLoading(false); return }
+    fetched.current = true
     if (isDemo()) {
       setRows(demoEmployeeDocuments)
       setLoading(false)
@@ -95,7 +106,7 @@ export function useEmployeeDocuments(enabled = true) {
     return null
   }, [])
 
-  return { rows, loading, error, reload: load, upload, downloadUrl, remove, clearError: () => setError(null) }
+  return { rows, loading, error, reload: () => load(true), upload, downloadUrl, remove, clearError: () => setError(null) }
 }
 
 export type EmployeeDocuments = ReturnType<typeof useEmployeeDocuments>

@@ -62,7 +62,22 @@ Deno.serve(async (req: Request) => {
   })
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE)
 
-  const { data: callerUser, error: callerErr } = await asCaller.auth.getUser()
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return json({ error: 'Bad request body.' }, 400) }
+  const employeeId = String(body.employeeId ?? '')
+  if (!employeeId) return json({ error: 'employeeId is required.' }, 400)
+
+  // WAVE 1 — who is calling, and which employee, TOGETHER. These were two
+  // awaits in a straight line, and they never depended on each other: the
+  // employee id comes from the request body, not from the caller. Reading the
+  // employee before the permission check is safe because nothing is returned
+  // to the caller until the check below passes.
+  const [callerRes, employeeRes] = await Promise.all([
+    asCaller.auth.getUser(),
+    admin.from('employees').select('id, full_name, profile_id').eq('id', employeeId).single(),
+  ])
+
+  const { data: callerUser, error: callerErr } = callerRes
   if (callerErr || !callerUser?.user) return json({ error: 'Could not verify who is calling this.' }, 401)
   const callerId = callerUser.user.id
 
@@ -79,25 +94,19 @@ Deno.serve(async (req: Request) => {
   // from migration 0006 exactly: the caller's department's name. Spelled out
   // here rather than calling the SQL function, because `admin` runs as the
   // service role and is_hr() reads auth.uid(), which is not the caller here.
+  // WAVE 2 — the role AND the department name in one request. PostgREST
+  // embeds the foreign key, so `departments(name)` comes back with the
+  // profile instead of costing a second round trip to learn one string.
   const HR_DEPARTMENT = 'Human Resources'
   const { data: callerProfile } = await admin
-    .from('profiles').select('role, department_id').eq('id', callerId).single()
+    .from('profiles').select('role, departments(name)').eq('id', callerId).single()
 
-  let allowed = callerProfile?.role === 'owner'
-  if (!allowed && callerProfile?.department_id) {
-    const { data: dept } = await admin
-      .from('departments').select('name').eq('id', callerProfile.department_id).single()
-    allowed = dept?.name === HR_DEPARTMENT
-  }
+  const deptRel = (callerProfile as { departments?: { name?: string } | { name?: string }[] } | null)?.departments
+  const deptName = Array.isArray(deptRel) ? deptRel[0]?.name : deptRel?.name
+  const allowed = callerProfile?.role === 'owner' || deptName === HR_DEPARTMENT
   if (!allowed) return json({ error: 'Only the owner or HR can delete an employee record.' }, 403)
 
-  let body: Record<string, unknown>
-  try { body = await req.json() } catch { return json({ error: 'Bad request body.' }, 400) }
-  const employeeId = String(body.employeeId ?? '')
-  if (!employeeId) return json({ error: 'employeeId is required.' }, 400)
-
-  const { data: employee, error: empErr } = await admin
-    .from('employees').select('id, full_name, profile_id').eq('id', employeeId).single()
+  const { data: employee, error: empErr } = employeeRes
   if (empErr || !employee) return json({ error: 'That employee no longer exists.' }, 404)
 
   // 1. their files. Listed first, since a bucket with nothing under that
@@ -107,20 +116,25 @@ Deno.serve(async (req: Request) => {
     await admin.storage.from(DOCS_BUCKET).remove(files.map((f) => `${employee.id}/${f.name}`))
   }
 
-  // 2. the row. Cascades take leave/salary/onboarding/exit/attendance/
-  // documents with it — see the file header for why that is safe here.
-  const { error: delErr } = await admin.from('employees').delete().eq('id', employee.id)
-  if (delErr) return json({ error: `Could not delete the employee record: ${delErr.message}` }, 502)
+  // WAVE 3 — the row and the login TOGETHER. Postgres and GoTrue are separate
+  // systems with nothing to say to each other, so awaiting one before starting
+  // the other only ever cost a round trip. Cascades take leave/salary/
+  // onboarding/exit/attendance/documents with the row — see the file header.
+  const [rowRes, authRes] = await Promise.all([
+    admin.from('employees').delete().eq('id', employee.id),
+    employee.profile_id
+      ? admin.auth.admin.deleteUser(employee.profile_id)
+      : Promise.resolve({ error: null }),
+  ])
 
-  // 3. their login, if approving ever created one. A rejected or a manually
-  // added employee may have no profile_id at all — nothing to do then.
-  if (employee.profile_id) {
-    const { error: authErr } = await admin.auth.admin.deleteUser(employee.profile_id)
-    // Not fatal: the employee record — the part that actually matters for
-    // "get this test data out of my directory" — is already gone. A login
-    // Postgres no longer has an employee row for is inert, not dangerous,
-    // and worth surfacing rather than hiding.
-    if (authErr) return json({ ok: true, warning: `Employee deleted, but the login could not be removed: ${authErr.message}` })
+  if (rowRes.error) return json({ error: `Could not delete the employee record: ${rowRes.error.message}` }, 502)
+
+  // Not fatal: the employee record — the part that actually matters for "get
+  // this test data out of my directory" — is gone. A login Postgres no longer
+  // has an employee row for is inert, not dangerous, and worth surfacing
+  // rather than hiding.
+  if (authRes.error) {
+    return json({ ok: true, warning: `Employee deleted, but the login could not be removed: ${authRes.error.message}` })
   }
 
   return json({ ok: true })

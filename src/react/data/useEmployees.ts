@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoEmployees, isDemo } from '@/data/demo'
 import type { Employee } from '@/lib/hr'
@@ -93,11 +93,22 @@ export function useEmployees(enabled = true) {
   const [rows, setRows] = useState<Employee[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
+  const fetched = useRef(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     // A salesperson who does not lead a team never asks this question, so their
     // app never makes the request.
     if (!enabled) { setLoading(false); return }
+    /* Fetch once per mount, not once per visit. Gating these hooks on the
+       section that reads them (so opening HR stopped firing nine queries)
+       had a cost nobody asked for: `enabled` flips on every tab switch, so
+       going Salary → Leave → Salary re-queried Salary each time and the tab
+       felt like it was thinking. The rows are already in state and correct;
+       re-reading them to learn the same thing is the definition of a slow
+       tab. `reload(true)` still forces a genuine re-read, which is what the
+       Refresh buttons and the post-write reconciles call. */
+    if (fetched.current && !force) { setLoading(false); return }
+    fetched.current = true
     if (isDemo()) {
       setRows(demoEmployees)
       setLoading(false)
@@ -166,15 +177,24 @@ export function useEmployees(enabled = true) {
    *  exactly how every existing call site here already reads this return. */
   const remove = useCallback(async (id: string): Promise<string | null> => {
     if (isDemo()) { setRows((p) => p.filter((e) => e.id !== id)); return null }
+
+    // Optimistic: the row goes NOW. delete-employee is the slowest call in
+    // this app — a cold Deno isolate, then seven round trips of its own — and
+    // making somebody watch a directory that still lists the person they just
+    // deleted is what made this feel broken. `before` is the exact list we
+    // replaced, so a refusal puts back what was there rather than a guess.
+    let before: Employee[] = []
+    setRows((p) => { before = p; return p.filter((e) => e.id !== id) })
+
     const { data, error: err } = await supabase.functions.invoke('delete-employee', { body: { employeeId: id } })
-    if (err) return err.message
-    if (data?.error) return String(data.error)
-    setRows((p) => p.filter((e) => e.id !== id))
+    const message = err ? err.message : data?.error ? String(data.error) : null
+    if (message) { setRows(before); return message }
+
     if (data?.warning) console.warn('[delete-employee]', data.warning)
     return null
   }, [])
 
-  return { rows, loading, error, reload: load, create, update, remove, clearError: () => setError(null) }
+  return { rows, loading, error, reload: () => load(true), create, update, remove, clearError: () => setError(null) }
 }
 
 export type Employees = ReturnType<typeof useEmployees>

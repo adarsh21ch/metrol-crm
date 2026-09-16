@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoJobApplications, isDemo } from '@/data/demo'
 import type { JobApplication } from '@/lib/hr'
@@ -205,9 +205,20 @@ export function useJobApplications(enabled = true) {
   const [rows, setRows] = useState<JobApplication[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
+  const fetched = useRef(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!enabled) { setLoading(false); return }
+    /* Fetch once per mount, not once per visit. Gating these hooks on the
+       section that reads them (so opening HR stopped firing nine queries)
+       had a cost nobody asked for: `enabled` flips on every tab switch, so
+       going Salary → Leave → Salary re-queried Salary each time and the tab
+       felt like it was thinking. The rows are already in state and correct;
+       re-reading them to learn the same thing is the definition of a slow
+       tab. `reload(true)` still forces a genuine re-read, which is what the
+       Refresh buttons and the post-write reconciles call. */
+    if (fetched.current && !force) { setLoading(false); return }
+    fetched.current = true
     if (isDemo()) {
       setRows(demoJobApplications)
       setLoading(false)
@@ -358,14 +369,25 @@ export function useJobApplications(enabled = true) {
    *  would tell us that the first one didn't. */
   const approve = useCallback(async (id: string, details: ApprovalDetails): Promise<string | null> => {
     if (isDemo()) return 'This is a demo. Approving here cannot actually create a login.'
+
+    // Optimistic, for the same reason as remove(): the Edge Function is slow
+    // and the answer is not in doubt. The row reads "Approved" immediately and
+    // reverts, loudly, if the function refuses.
+    let before: JobApplication[] = []
+    setRows((p) => {
+      before = p
+      return p.map((a) => (a.id === id ? { ...a, status: 'approved', decidedAt: new Date().toISOString() } : a))
+    })
+
     const { data, error: err } = await supabase.functions.invoke('approve-job-application', {
       body: { applicationId: id, ...details },
     })
-    if (err) return err.message
-    if (data?.error) return String(data.error)
-    setRows((p) => p.map((a) => (a.id === id
-      ? { ...a, status: 'approved', employeeId: (data?.employeeId as string | undefined) ?? a.employeeId, decidedAt: new Date().toISOString() }
-      : a)))
+    const message = err ? err.message : data?.error ? String(data.error) : null
+    if (message) { setRows(before); return message }
+
+    // Only the employee id was genuinely unknown until now; patch that in.
+    const employeeId = data?.employeeId as string | undefined
+    if (employeeId) setRows((p) => p.map((a) => (a.id === id ? { ...a, employeeId } : a)))
     return null
   }, [])
 
@@ -390,11 +412,20 @@ export function useJobApplications(enabled = true) {
    *  `employee_id ... on delete set null` only fires the other direction. */
   const remove = useCallback(async (app: JobApplication): Promise<string | null> => {
     if (isDemo()) { setRows((p) => p.filter((a) => a.id !== app.id)); return null }
+
+    // Optimistic, and the two calls no longer queue behind each other. The
+    // documents and the row do not depend on one another — the row carries
+    // the paths, which we already hold — so waiting for five file deletes
+    // before asking Postgres to drop one row was pure serialised latency.
+    let before: JobApplication[] = []
+    setRows((p) => { before = p; return p.filter((a) => a.id !== app.id) })
+
     const paths = [app.photoPath, app.panPath, app.aadhaarPath, app.bankProofPath, app.relievingLetterPath].filter((p): p is string => !!p)
-    if (paths.length > 0) await supabase.storage.from(BUCKET).remove(paths)
-    const { error: err } = await supabase.from('job_applications').delete().eq('id', app.id)
-    if (err) return err.message
-    setRows((p) => p.filter((a) => a.id !== app.id))
+    const [, rowRes] = await Promise.all([
+      paths.length > 0 ? supabase.storage.from(BUCKET).remove(paths) : Promise.resolve(null),
+      supabase.from('job_applications').delete().eq('id', app.id),
+    ])
+    if (rowRes.error) { setRows(before); return rowRes.error.message }
     return null
   }, [])
 
@@ -404,7 +435,7 @@ export function useJobApplications(enabled = true) {
     return data?.signedUrl ?? null
   }, [])
 
-  return { rows, loading, error, reload: load, submit, reject, approve, resend, remove, documentUrl, clearError: () => setError(null) }
+  return { rows, loading, error, reload: () => load(true), submit, reject, approve, resend, remove, documentUrl, clearError: () => setError(null) }
 }
 
 export type JobApplications = ReturnType<typeof useJobApplications>

@@ -3649,3 +3649,146 @@ no email), employee records HR still has to enter, and the festival holiday
 dates. Attendance is live — one office branch is saved, so the old "attendance
 is inert" line in the sections above is stale; see the measured table dated
 2026-09-16.
+
+---
+
+# The performance audit — why every click felt like wading (2026-09-16)
+
+Adarsh, and he was right to be blunt: delete takes 20-30 seconds, every tab is
+slow, and other products on this machine (Academy OS, Sadhna) open instantly.
+"The button should work instantly if it is pressing."
+
+Audited the whole path — client hooks, render behaviour, queries, the Edge
+Functions. **Four causes, and one of them was mine from the round before.**
+
+## 1. An RPC that WRITES, fired on every single render
+
+`HrAttendance.tsx` had:
+
+```
+useEffect(() => { void att.finalizeOpen() }, [att])
+```
+
+`att` is the object literal `useAttendance` returns, and **no hook in this
+folder memoises its return**, so `att` is a brand-new object on every render.
+The effect therefore re-ran on EVERY RENDER of the attendance screen — every
+keystroke in the search box, every toast, every tab click — each time calling
+`finalize_open_attendance()`, an RPC that scans and UPDATES attendance rows.
+
+A write endpoint hammered continuously for the life of the page, against a
+database every other query on screen is also waiting on. This is the single
+biggest reason the app felt like it was wading, and nothing about it was
+visible without looking at the dependency array.
+
+`finalizeOpen` is a `useCallback` with an empty dep list, so the fix is to
+depend on the FUNCTION rather than the object: `[att.finalizeOpen]` cannot
+change, so it runs exactly once. `CompanyAdminModal` had the identical bug on
+`[ws]`, refetching the invite code continuously while the modal was open.
+
+**The rule: never put a whole hook-return object in a dependency array.** Put
+the specific function, and make sure that function is a `useCallback`.
+
+**The underlying hazard is still there and is deliberately not swept in this
+round:** all ten hooks in `data/` return a fresh object literal every render.
+Fixing that means wrapping each return in `useMemo` with a correct dependency
+list, and a wrong list there causes stale data — a worse bug than a slow one.
+The two live instances are fixed; anyone adding an effect keyed on `ws`, `att`,
+`hr` or friends will reintroduce it, so this is the first thing to check when
+something feels slow again.
+
+## 2. Nothing was optimistic — every button waited on the server
+
+This is the one Adarsh described exactly: "we already know what the next step
+is going to be, the button should work instantly." He is right, and the wait
+bought nothing — the outcome is known the moment the button is pressed.
+
+Delete employee, delete application, approve, mark-paid and every onboarding /
+exit CHECKBOX now apply the change immediately and reconcile after. Each keeps
+the exact state it replaced and puts it back if the server refuses.
+
+**The honesty rule they all follow: a failure must be LOUDER than the
+optimistic success, never quieter.** Every one returns the server's own message
+and restores precisely what was there, so a refused write can never be mistaken
+for one that worked. A checkbox that waits on the network before it ticks is
+the most obviously broken thing any app can do.
+
+## 3. Tab switches refetched — and that was MY regression
+
+The previous round gated five HR hooks on the section that reads them, which
+took HR's opening queries from nine to four. The cost, which nobody asked for:
+`enabled` flips on every tab switch, so Salary → Leave → Salary re-queried
+Salary each time. The rows were already in state and already correct.
+
+Every `enabled` hook now fetches **once per mount, not once per visit** — a
+`fetched` ref short-circuits the repeat. `reload()` became `load(true)` and
+still forces a genuine re-read, which is what the Refresh buttons and the
+post-approve reconcile need.
+
+Gating on a tab is right. Re-fetching because of it was not.
+
+## 4. `delete-employee` was eight round trips in a straight line
+
+Now three waves:
+
+- **Wave 1** — who is calling AND which employee, together. These never
+  depended on each other: the employee id comes from the request body, not
+  from the caller.
+- **Wave 2** — role and department name in ONE request, via PostgREST's
+  foreign-key embed (`select('role, departments(name)')`), instead of a second
+  round trip to learn one string.
+- **Wave 3** — the `employees` row and the `auth.users` login together.
+  Postgres and GoTrue are separate systems with nothing to say to each other.
+
+**Security order re-checked after the reshuffle**: the 403 still fires before
+the 404, so an unauthorised caller cannot use this endpoint to discover which
+employee ids exist. Verified by reading the returns in order.
+
+## What this does NOT fix, said plainly
+
+**Edge Function cold start.** Both functions do `import { createClient } from
+'npm:@supabase/supabase-js@2'`, which the edge runtime resolves at boot. A
+function invoked a few times a day is always cold, and that is seconds before
+a single line of our code runs. Nothing on the client can shorten it.
+
+What it can do is stop making the user watch it — which is exactly what the
+optimistic writes above achieve. The row disappears the instant Delete is
+pressed; the function finishing afterwards is no longer the user's problem.
+
+If cold start ever needs to actually go away, the route is to drop the SDK from
+`delete-employee` and use plain `fetch` against PostgREST and the Auth admin
+API — it is six requests and no dependency, so the isolate boots with nothing
+to download. Not done here: it is a rewrite of a security-sensitive function
+and deserves its own round rather than being slipped into a long one.
+
+## Not a cause, checked and cleared
+
+- `useWorkspace.load()` is already fully parallelised and its `events` query
+  bounded to 200. It is not the problem.
+- `attendance` is capped at 2000 rows. Fine at today's size; revisit when the
+  company has a year of punches.
+- The 592 KB main bundle is a first-load cost, not a per-click one, and does
+  not explain a slow button.
+- HrPage is 1408 lines with almost no memoisation, so every state change
+  re-renders every section. Real, but tens of milliseconds — nowhere near the
+  reported 20-30 seconds, and not worth a risky refactor on that evidence.
+
+## Verified in Chromium, `?demo=1&as=hr`
+
+Salary → Onboarding → Exit → Salary → Onboarding: every tab renders correct
+data, and revisits still carry it (12 payslips, 6 documents, 1 leaver), so the
+fetch-once guard caches rather than blanks. HR still sees Delete on an employee
+profile. `typecheck`, `build` and `deno check` clean.
+
+**Timings were deliberately NOT measured here.** There is no `.env` on this
+machine, so the dev server cannot reach the real database and any number from
+demo mode would be about demo mode. The claims above rest on the code — a
+stable `useCallback` in a dependency array cannot re-fire — not on a stopwatch.
+
+## ADARSH: ONE REDEPLOY, AND HOW TO SEE IT WORKED
+
+`delete-employee` changed again — paste it into Edge Functions once more. The
+frontend ships itself via Vercel.
+
+To see the first fix with your own eyes: open the Attendance tab, press F12 →
+Network, and type in the search box. Before this, every keystroke fired a
+`finalize_open_attendance` request. After it, none do.
