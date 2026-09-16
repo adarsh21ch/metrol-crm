@@ -28,6 +28,11 @@ import { APPLICATION_DOCS } from '@/lib/hr'
 const DRAFT_KEY = 'metrol-apply-draft-v1'
 const TERMS_PDF = '/metrol-media-terms-and-conditions.pdf'
 
+/** Ten digits, nothing else. A pasted "+91 98765 43210", "0098765…" or a
+ *  number with spaces all end up as the same ten characters, so what gets
+ *  stored does not depend on how somebody happened to type it. */
+const tenDigits = (v: string) => v.replace(/\D/g, '').replace(/^(?:0+|91)/, '').slice(0, 10)
+
 const blankEducation = (): EducationRow => ({ examination: '', year: '', institution: '', marks: '', subjects: '' })
 const blankEmployment = (): EmploymentRow => ({ from: '', to: '', totalYears: '', company: '', designation: '', grossSalary: '', reason: '' })
 const blankLanguage = (): LanguageRow => ({ language: '', understand: false, speak: false, read: false, write: false, remarks: '' })
@@ -107,6 +112,9 @@ export function ApplyPage() {
       // version of this form would otherwise arrive missing whatever has been
       // added since, and every one of those fields would read as undefined.
       const merged = { ...EMPTY, ...saved.draft }
+      // A draft written before the +91 became furniture holds the whole
+      // number; keep only what the field now expects.
+      merged.phone = tenDigits(merged.phone)
       if (isBlank(merged)) return          // a draft of nothing is not progress
       setD(merged)
       setStep(Math.min(saved.step ?? 0, STEPS.length - 1))
@@ -142,7 +150,7 @@ export function ApplyPage() {
       if (!d.dateOfBirth) return 'Date of birth is required.'
     }
     if (n === 1) {
-      if (!d.phone.trim()) return 'A contact number is required.'
+      if (d.phone.length !== 10) return 'Enter the 10 digits of your mobile number.'
       if (!d.email.trim()) return 'An email address is required.'
       if (!/^\S+@\S+\.\S+$/.test(d.email.trim())) return 'That email address does not look right.'
       if (!d.presentAddress.trim()) return 'Present address is required.'
@@ -180,7 +188,10 @@ export function ApplyPage() {
       gender: d.gender, dateOfBirth: d.dateOfBirth, placeOfBirth: d.placeOfBirth,
       nationality: d.nationality, religion: d.religion, maritalStatus: d.maritalStatus,
       dependents: d.dependents, aadhaarNumber: d.aadhaarNumber,
-      phone: d.phone, email: d.email, positionInterest: d.positionInterest,
+      // Stored complete — HR, the employee record and any future WhatsApp
+      // link all want a dialable number, not ten bare digits.
+      phone: d.phone ? `+91 ${d.phone}` : '',
+      email: d.email, positionInterest: d.positionInterest,
       presentAddress: d.presentAddress,
       permanentAddress: d.sameAddress ? d.presentAddress : d.permanentAddress,
       pincode: d.pincode,
@@ -334,8 +345,12 @@ export function ApplyPage() {
                 <div className="field-grid">
                   <div className="field">
                     <label htmlFor="apPhone">Contact number</label>
-                    <input className="input" id="apPhone" type="tel" autoComplete="tel" placeholder="+91 …"
-                           value={d.phone} onChange={(e) => set('phone', e.target.value)} />
+                    <div className="phone-wrap">
+                      <span className="phone-cc">+91</span>
+                      <input className="input" id="apPhone" type="tel" inputMode="numeric"
+                             autoComplete="tel-national" placeholder="10 digit number" maxLength={10}
+                             value={d.phone} onChange={(e) => set('phone', tenDigits(e.target.value))} />
+                    </div>
                   </div>
                   <div className="field">
                     <label htmlFor="apEmail">Email</label>

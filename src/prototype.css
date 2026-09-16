@@ -352,6 +352,20 @@ input,select{font:inherit;color:inherit}
 .tc-top .btn{margin-left:auto}
 .file-ok{font-size:11.5px;color:var(--good);font-weight:500}
 
+/* A country code that is part of the furniture rather than something to type.
+   Every number this company collects is Indian, so +91 is printed on the
+   field and the applicant enters the ten digits that actually differ. */
+.phone-wrap{display:flex;align-items:stretch;width:100%}
+.phone-cc{
+  display:flex;align-items:center;flex:none;padding:0 11px;
+  border:1px solid var(--line);border-right:0;border-radius:var(--r) 0 0 var(--r);
+  background:var(--surface-3);color:var(--ink-2);font-size:14px;font-weight:600;
+  letter-spacing:.01em;
+}
+.phone-wrap .input{border-radius:0 var(--r) var(--r) 0;min-width:0}
+/* The focus ring belongs to the pair, not to half of it. */
+.phone-wrap:focus-within .phone-cc{border-color:var(--accent)}
+
 /* A heading inside the application-review modal. The modal is long now that
    it carries the whole paper form, and unlabelled blocks of field pairs all
    look alike at a glance. */

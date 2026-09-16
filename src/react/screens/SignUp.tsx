@@ -38,7 +38,7 @@ export function SignUp({ onDone, onHaveAccount }: { onDone: () => void; onHaveAc
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password: pass,
-      options: { data: { name: name.trim(), phone: phone.trim() } },
+      options: { data: { name: name.trim(), phone: phone ? `+91 ${phone}` : '' } },
     })
     setBusy(false)
     if (error) return setErr(error.message)
@@ -87,8 +87,16 @@ export function SignUp({ onDone, onHaveAccount }: { onDone: () => void; onHaveAc
             </div>
             <div className="field">
               <label htmlFor="suPhone">Phone number</label>
-              <input className="input" id="suPhone" type="tel" required autoComplete="tel" placeholder="+91 …"
-                     value={phone} onChange={(e) => setPhone(e.target.value)} />
+              {/* Same fixed +91 as the joining form — every number this
+                  company collects is Indian, so it is printed on the field
+                  rather than typed into it. */}
+              <div className="phone-wrap">
+                <span className="phone-cc">+91</span>
+                <input className="input" id="suPhone" type="tel" required inputMode="numeric"
+                       autoComplete="tel-national" placeholder="10 digit number" maxLength={10}
+                       value={phone}
+                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').replace(/^(?:0+|91)/, '').slice(0, 10))} />
+              </div>
             </div>
             <div className="field">
               <label htmlFor="suEmail">Email</label>

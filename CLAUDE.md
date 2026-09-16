@@ -3197,3 +3197,23 @@ serves (HTTP 200, 9 KB). `typecheck` and `build` clean.
   copy the new paper-form fields onto the `employees` record at approval. They
   stay on the application, which HR can still open. Worth doing when Adarsh
   says which of them belong on the permanent employee record.
+
+## +91 is furniture, not something to type (2026-09-16)
+
+Adarsh: every number this company collects is Indian, so the field should
+carry the country code and the person should enter ten digits.
+
+`.phone-wrap` prints **+91** in a fixed block attached to the left of the
+input (focus ring belongs to the pair, not half of it). The field stores the
+ten digits alone and `tenDigits()` normalises whatever arrives — a pasted
+"+91 98765 43210", a leading 0, or spaces all reduce to the same ten
+characters, so what is stored never depends on how somebody typed it.
+Verified by pasting exactly that string: it became `9876543210`.
+
+The number is reassembled as `+91 XXXXXXXXXX` on submit, because HR, the
+employee record and any future WhatsApp link want a dialable number rather
+than ten bare digits. A draft saved before this change is normalised on
+restore.
+
+Applied to **SignUp** too, which had the same `placeholder="+91 …"` invitation
+to type it by hand.
