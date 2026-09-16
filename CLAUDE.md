@@ -2970,3 +2970,31 @@ proof.** Ask the question as the role and count what comes back.
 | shell rework part 4 | denser cards, deliberately not done |
 
 Every migration 0006–0019 is installed. The HR module is feature-complete.
+
+---
+
+# Holidays — seeded with the fixed-date ones, festivals left to HR (2026-09-16)
+
+Adarsh asked for the holiday list to start filled rather than empty, with HR
+free to edit/add/remove from there — the UI for that already exists (Leave →
+Holidays, built in Phase 7), so this is data, not a feature.
+
+**Seeded, because these are safe to be certain about:** Gandhi Jayanti,
+Christmas, New Year's Day, Republic Day, Independence Day — fixed on the
+Gregorian calendar, same date every year, nationally gazetted or
+near-universally observed. `supabase/scripts/seed_national_holidays.sql`,
+forward-looking only from today (2026-09-16) since a past holiday changes
+nothing.
+
+**Deliberately NOT seeded: Diwali, Holi, Dussehra, Eid, and every other
+lunar/lunisolar festival.** Their Gregorian date shifts every year and I do
+not have a reliable way to compute or recall the exact 2026/2027 dates with
+certainty. This table directly governs real leave-day counting — a wrong date
+here would silently mis-count somebody's leave, not just look wrong on a
+page. Guessing was the wrong trade here; HR adding the confirmed date from an
+official calendar is the right one. The script says this in its own comment
+too, so the reason travels with the file.
+
+**What Adarsh/HR do:** run the script once (paste-and-run, upsert-safe), then
+add the festival dates themselves via the Holidays screen as each one is
+confirmed for the year.
