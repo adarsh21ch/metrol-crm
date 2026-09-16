@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
-import { EMPLOYMENT, todayISO, type EmploymentType, type JobApplication } from '@/lib/hr'
+import { Chip } from '@/components/bits'
+import { EMPLOYMENT, fmtDate, todayISO, type EmploymentType, type JobApplication } from '@/lib/hr'
 import { fmtShift, type OfficeLocation, type Shift } from '@/lib/attendance'
 import type { ApprovalDetails } from '@/data/useJobApplications'
 import type { Department } from '@/lib/types'
+
+/** One label / value pair, the same shape HrPage uses on an employee's own
+ *  record — an application is read the same way, so it looks the same. */
+const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
+  <div className="hr-fld"><div className="l">{l}</div><div className="v">{v || '—'}</div></div>
+)
 
 const DOCS: { key: keyof Pick<JobApplication, 'photoPath' | 'panPath' | 'aadhaarPath' | 'bankProofPath' | 'relievingLetterPath'>; label: string }[] = [
   { key: 'photoPath', label: 'Photo' },
@@ -120,13 +127,119 @@ export function ApplicationReviewModal({
       }
     >
       <div className="auth-form">
-        <div className="field"><label>Phone</label><div className="v">{app.phone || '—'}</div></div>
-        <div className="field"><label>Email</label><div className="v">{app.email}</div></div>
-        {app.noPreviousEmployment && (
-          <div className="field"><label>Note</label><div className="v">No previous employer — fresher.</div></div>
+        {/* Everything the applicant filled in, in the order the paper form
+            asks for it — HR is usually reading this next to the physical
+            file, so matching that order is what makes it checkable. Empty
+            fields render an em dash rather than vanishing, because "they
+            left it blank" is itself something HR needs to see. */}
+        <div className="rev-sec">Personal</div>
+        <div className="hr-fields">
+          <Fld l="Father's / husband's name" v={app.fatherOrHusband} />
+          <Fld l="Gender" v={app.gender} />
+          <Fld l="Date of birth" v={app.dateOfBirth ? fmtDate(app.dateOfBirth) : ''} />
+          <Fld l="Place of birth" v={app.placeOfBirth} />
+          <Fld l="Nationality" v={app.nationality} />
+          <Fld l="Religion" v={app.religion} />
+          <Fld l="Marital status" v={app.maritalStatus} />
+          <Fld l="Dependents" v={app.dependents} />
+          <Fld l="Aadhaar number" v={app.aadhaarNumber} />
+        </div>
+
+        <div className="rev-sec">Contact &amp; address</div>
+        <div className="hr-fields">
+          <Fld l="Phone" v={app.phone} />
+          <Fld l="Email" v={app.email} />
+          <Fld l="Pincode" v={app.pincode} />
+          <Fld l="Present address" v={app.presentAddress} />
+          <Fld l="Permanent address" v={app.permanentAddress} />
+        </div>
+
+        {app.education.length > 0 && (
+          <>
+            <div className="rev-sec">Education</div>
+            <div className="ov-actions">
+              {app.education.map((e, i) => (
+                <div className="ov-row" key={i} style={{ cursor: 'default' }}>
+                  <span className="ov-l">
+                    <strong>{e.examination || '—'}</strong>
+                    <span style={{ color: 'var(--ink-3)' }}>
+                      {e.institution ? '  ·  ' + e.institution : ''}
+                      {e.year ? '  ·  ' + e.year : ''}
+                      {e.marks ? '  ·  ' + e.marks : ''}
+                      {e.subjects ? '  ·  ' + e.subjects : ''}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
+        {app.technicalQualification && (
+          <div className="field"><label>Technical qualification</label><div className="v">{app.technicalQualification}</div></div>
+        )}
+
+        <div className="rev-sec">Work history</div>
+        {app.noPreviousEmployment ? (
+          <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>No previous employer — fresher.</p>
+        ) : app.employmentHistory.length === 0 ? (
+          <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>Nothing entered.</p>
+        ) : (
+          <div className="ov-actions">
+            {app.employmentHistory.map((e, i) => (
+              <div className="ov-row" key={i} style={{ cursor: 'default' }}>
+                <span className="ov-l">
+                  <strong>{e.company || '—'}</strong>
+                  <span style={{ color: 'var(--ink-3)' }}>
+                    {e.designation ? '  ·  ' + e.designation : ''}
+                    {e.from || e.to ? '  ·  ' + e.from + ' – ' + e.to : ''}
+                    {e.grossSalary ? '  ·  ' + e.grossSalary : ''}
+                    {e.reason ? '  ·  left: ' + e.reason : ''}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="rev-sec">Bank</div>
+        <div className="hr-fields">
+          <Fld l="Bank name" v={app.bankName} />
+          <Fld l="Name as on document" v={app.bankAccountName} />
+          <Fld l="Account number" v={app.bankAccountNo} />
+          <Fld l="IFSC" v={app.bankIfsc} />
+        </div>
+
+        {app.languages.length > 0 && (
+          <>
+            <div className="rev-sec">Languages</div>
+            <div className="hr-soon">
+              {app.languages.map((l, i) => {
+                const can = [l.understand && 'understands', l.speak && 'speaks', l.read && 'reads', l.write && 'writes']
+                  .filter(Boolean).join(', ')
+                return <Chip key={i} cls="chip--mute">{l.language}{can ? ' — ' + can : ''}</Chip>
+              })}
+            </div>
+          </>
+        )}
+
+        {(app.referenceName || app.referenceDepartment) && (
+          <>
+            <div className="rev-sec">Reference</div>
+            <div className="hr-fields">
+              <Fld l="Name" v={app.referenceName} />
+              <Fld l="Department" v={app.referenceDepartment} />
+            </div>
+          </>
+        )}
+
+        <div className="rev-sec">Declaration &amp; terms</div>
+        <div className="hr-fields">
+          <Fld l="Declaration accepted" v={app.declarationAcceptedAt ? fmtDate(app.declarationAcceptedAt.slice(0, 10)) : 'Not accepted'} />
+          <Fld l="Terms accepted" v={app.termsAcceptedAt ? fmtDate(app.termsAcceptedAt.slice(0, 10)) : 'Not accepted'} />
+        </div>
+
+        <div className="rev-sec">Documents</div>
         <div className="field">
-          <label>Documents</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {DOCS.map((d) => (
               <button key={d.key} type="button" className="btn btn--sm" disabled={!app[d.key]}

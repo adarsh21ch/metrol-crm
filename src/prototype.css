@@ -300,6 +300,67 @@ input,select{font:inherit;color:inherit}
    .hr-fields already uses for the same reason. */
 .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 18px}
 
+/* --------------------------------------------------- the apply-form wizard */
+/* Eight short sections instead of one endless scroll — see ApplyPage.tsx. */
+.wiz-head{display:flex;flex-direction:column;gap:7px}
+.wiz-meta{display:flex;align-items:baseline;gap:10px}
+.wiz-step{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.wiz-name{font-size:13.5px;font-weight:600;color:var(--ink);margin-left:auto}
+.wiz-bar{height:4px;border-radius:2px;background:var(--surface-3);overflow:hidden}
+.wiz-bar i{display:block;height:100%;background:var(--accent);transition:width .22s ease}
+.wiz-note{
+  font-size:12.5px;line-height:1.5;color:var(--ink-2);
+  background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;
+}
+/* Back sits left, the forward action right and wide — the one the thumb wants
+   on a phone is the one that keeps the form moving. */
+.wiz-nav{display:flex;align-items:center;gap:10px;padding-top:4px}
+.wiz-next{margin-left:auto;min-width:160px}
+
+/* A repeatable row: education, an employer, a language. Boxed so several of
+   them read as separate entries rather than one run-on list of inputs. */
+.rep-row{
+  border:1px solid var(--line);border-radius:9px;padding:12px 13px;
+  display:flex;flex-direction:column;gap:11px;background:var(--surface-2);
+}
+.rep-head{display:flex;align-items:center;gap:10px}
+.rep-head > span{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.rep-title{flex:1;min-width:0;height:36px}
+.rep-x{
+  margin-left:auto;background:none;border:0;padding:2px 4px;
+  font-size:11.5px;font-weight:600;color:var(--ink-3);
+}
+.rep-x:hover{color:var(--bad)}
+.rep-add{align-self:flex-start}
+.lang-ticks{display:flex;flex-wrap:wrap;gap:10px 16px}
+
+/* A checkbox and its words as one tappable unit, rather than a 13px box
+   somebody has to hit exactly. */
+.check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;color:var(--ink-2);line-height:1.45}
+.check input{flex:none;width:17px;height:17px}
+
+.decl{
+  font-size:12.5px;line-height:1.6;color:var(--ink-2);
+  background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:13px 14px;
+}
+.tc-box{
+  border:1px solid var(--line);border-radius:9px;padding:13px 14px;
+  display:flex;flex-direction:column;gap:10px;background:var(--surface-2);
+}
+.tc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tc-top strong{font-size:13.5px}
+.tc-top .btn{margin-left:auto}
+.file-ok{font-size:11.5px;color:var(--good);font-weight:500}
+
+/* A heading inside the application-review modal. The modal is long now that
+   it carries the whole paper form, and unlabelled blocks of field pairs all
+   look alike at a glance. */
+.rev-sec{
+  font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--ink-3);
+  padding-top:10px;margin-top:2px;border-top:1px solid var(--line);
+}
+.rev-sec:first-child{border-top:0;padding-top:0}
+
 /* ------------------------------------------------------------- app shell */
 .topbar{
   height:var(--topbar-h);flex:0 0 var(--topbar-h);

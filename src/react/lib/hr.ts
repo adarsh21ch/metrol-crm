@@ -325,6 +325,13 @@ export type ApplicationStatus = 'pending' | 'approved' | 'rejected'
  *  else in the database until HR approves — see 0017. The five paths point
  *  into the QUARANTINED 'job-applications' bucket, never 'employee-documents'
  *  — moving them across is the Edge Function's job, on approval. */
+/** One row of each repeatable table on the paper application form. Kept
+ *  loose (all strings) because they are transcribed answers, not values this
+ *  app computes with — HR reads them, nothing sums them. */
+export interface AppEducation { examination: string; year: string; institution: string; marks: string; subjects: string }
+export interface AppEmployment { from: string; to: string; totalYears: string; company: string; designation: string; grossSalary: string; reason: string }
+export interface AppLanguage { language: string; understand: boolean; speak: boolean; read: boolean; write: boolean; remarks: string }
+
 export interface JobApplication {
   id: string
   fullName: string
@@ -332,6 +339,33 @@ export interface JobApplication {
   email: string
   positionInterest: string
   noPreviousEmployment: boolean
+  // ---- everything the printed form asks for (migration 0020)
+  firstName: string
+  lastName: string
+  fatherOrHusband: string
+  gender: string
+  dateOfBirth: string | null
+  placeOfBirth: string
+  nationality: string
+  religion: string
+  maritalStatus: string
+  dependents: string
+  aadhaarNumber: string
+  presentAddress: string
+  permanentAddress: string
+  pincode: string
+  education: AppEducation[]
+  technicalQualification: string
+  employmentHistory: AppEmployment[]
+  bankName: string
+  bankAccountName: string
+  bankAccountNo: string
+  bankIfsc: string
+  languages: AppLanguage[]
+  referenceName: string
+  referenceDepartment: string
+  declarationAcceptedAt: string | null
+  termsAcceptedAt: string | null
   photoPath: string
   panPath: string
   aadhaarPath: string

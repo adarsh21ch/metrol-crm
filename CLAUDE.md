@@ -3097,3 +3097,103 @@ this form itself — the candidate fills them before submitting, not HR at
 approval — so nothing was guessed here. Add exactly what the photos show,
 once they arrive; do not invent fields from memory of what a joining form
 "usually" asks.
+
+---
+
+# The joining form becomes the real joining form (2026-09-16)
+
+Adarsh sent ten photographs of Metrol Media's printed **APPLICATION FORM** and
+its **TERMS & CONDITIONS OF EMPLOYMENT**, and asked for three things: collect
+what the paper collects, make it bearable on a phone, and do not lose what
+somebody typed if they close the tab.
+
+**Nothing here was invented.** Every field below is a line on that paper. The
+sample employee's own details in the photographs were ignored, as instructed.
+
+## What the paper asks, and where it now lives
+
+`supabase/migrations/0020_application_full_form.sql` adds 26 columns:
+first/last name, father's or husband's name, gender, DOB, place of birth,
+nationality, religion, marital status, dependents, Aadhaar number, present and
+permanent address, pincode, technical qualification, the four bank fields,
+reference name and department, and the two acceptance timestamps — plus
+**four jsonb columns** for education, employment history and languages.
+
+**Why jsonb and not child tables:** those three are TABLES on the paper with
+room for several rows each, and nothing in this app will ever ask "every
+applicant who passed 12th in 2022". HR reads them as a block, on one screen,
+for one person. A jsonb array keeps that block together, keeps an unapproved
+stranger's data out of the tables real employees live in, and means approving
+somebody does not fan rows across four more tables. Normalise it the day a
+report over this data is actually wanted.
+
+**The two acceptances are timestamps, not booleans**, and 0020's trigger
+overwrites both with the server's `now()`. A boolean cannot answer "when did
+they agree to this", which is the only question that matters if it is ever
+disputed — and the moment must not come from a clock the applicant controls.
+
+## The wizard, and the two things Adarsh asked for by name
+
+Eight sections, one screen each: Personal → Contact & address → Education →
+Work history → Bank → Languages & reference → Documents → Declaration & terms.
+`.field-grid` pairs short fields two-to-a-row on a desktop card and folds to one
+on a phone, so the same markup serves both with no breakpoint of its own.
+
+**Progress survives closing the tab.** Every keystroke writes the draft to
+`localStorage` under `metrol-apply-draft-v1` — no debounce, because a debounce
+is exactly what loses the last thing typed before a tab closes — and the step
+they were on comes back with it. The draft is cleared only on a *successful*
+submit; a failed one leaves it exactly where it was.
+
+**Files are the one thing this cannot keep**, and the form says so rather than
+letting somebody discover it: a `File` cannot be serialised into
+`localStorage`, so a restored draft shows a notice on step 1 and again on step
+7 telling them the documents need re-attaching. Saying it twice is deliberate —
+the first is a warning, the second is where it actually bites.
+
+**A bug found by testing, not by reading:** the persist effect ran on mount, so
+merely *opening* the page wrote an empty draft — and the next visit then
+greeted a first-time visitor with "we found answers you had already started"
+over a blank form. `isBlank()` now guards both the read and the write: a draft
+of nothing is not progress. This only showed up because the form was opened
+twice in a row; opening it once looked perfect.
+
+## Terms & Conditions
+
+`public/metrol-media-terms-and-conditions.pdf` — the full twelve sections,
+typeset from the photographs with reportlab (`scratchpad/gen_tc.py` built it;
+the PDF is committed, the script is not). Step 8 shows the declaration verbatim
+from the paper, a tick for it, a **Download PDF** button, and a separate tick
+for the terms. Both are required before Submit will go.
+
+**One thing Adarsh should look at:** the printed T&C numbers its third section
+twice — 3.1–3.6, then restarts at 3.2 Period Leave through 3.5 Same-Day Leave
+Rule, so there are two 3.2s, two 3.3s, two 3.4s and two 3.5s. The PDF
+renumbers that run sequentially as 3.7–3.10 so it reads correctly. **The source
+document still has the duplicates** — worth fixing there too, especially if
+anything ever cites a clause by number.
+
+## HR's side
+
+`ApplicationReviewModal` now shows all of it, in the paper's own order, under
+`.rev-sec` headings — HR is usually reading this next to the physical file, so
+matching that order is what makes it checkable. Blank fields render an em dash
+rather than disappearing: "they left it blank" is itself something HR needs to
+see.
+
+## Verified in Chromium
+
+At 375px: one column, the progress bar and step name, repeatable rows as their
+own boxed cards, declaration and T&C with the download button. Typed two
+fields, did a full page reload, both came back with the restore notice — the
+exact scenario Adarsh described. At 1400px: two columns, no dead strip. The PDF
+serves (HTTP 200, 9 KB). `typecheck` and `build` clean.
+
+## Open
+
+- **0020 has not been run against the live database.** Until it is, the new
+  fields have nowhere to land and a submit will fail on the missing columns.
+- The Edge Function copies documents and creates the login; it does **not** yet
+  copy the new paper-form fields onto the `employees` record at approval. They
+  stay on the application, which HR can still open. Worth doing when Adarsh
+  says which of them belong on the permanent employee record.

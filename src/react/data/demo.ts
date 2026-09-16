@@ -472,16 +472,55 @@ export const demoAttendance: AttendanceRow[] = (() => {
  *  HR turned down. Nothing here can actually be approved from the demo —
  *  that needs the real Edge Function — but the review screen and its layout
  *  are fully walkable. */
+/** The paper-form half of an application (migration 0020). Spread into each
+ *  demo row so the fixtures say what is interesting about that applicant and
+ *  inherit the rest — three hand-typed copies of twenty-six fields would
+ *  drift apart the first time one is edited. */
+const APP_BLANK = {
+  firstName: '', lastName: '', fatherOrHusband: '', gender: '', dateOfBirth: null,
+  placeOfBirth: '', nationality: 'Indian', religion: '', maritalStatus: '', dependents: '',
+  aadhaarNumber: '', presentAddress: '', permanentAddress: '', pincode: '',
+  education: [], technicalQualification: '', employmentHistory: [],
+  bankName: '', bankAccountName: '', bankAccountNo: '', bankIfsc: '',
+  languages: [], referenceName: '', referenceDepartment: '',
+  declarationAcceptedAt: null, termsAcceptedAt: null,
+} satisfies Partial<JobApplication>
+
 export const demoJobApplications: JobApplication[] = [
   {
+    ...APP_BLANK,
     id: 'app1', fullName: 'Rakesh Kumar', phone: '+91 98765 43210', email: 'rakesh.kumar@example.com',
     positionInterest: 'Video Editor', noPreviousEmployment: false,
+    firstName: 'Rakesh', lastName: 'Kumar', fatherOrHusband: 'Suresh Kumar',
+    gender: 'Male', dateOfBirth: '2001-04-18', placeOfBirth: 'Ghaziabad',
+    religion: 'Hindu', maritalStatus: 'Bachelor', dependents: 'No',
+    aadhaarNumber: '6424 4201 0063', pincode: '201204',
+    presentAddress: 'D-33, Madan Pura, Modinagar, Ghaziabad',
+    permanentAddress: 'D-33, Madan Pura, Modinagar, Ghaziabad',
+    education: [
+      { examination: '10th Std.', year: '2018', institution: 'T.R.M. Public School', marks: '72%', subjects: 'General' },
+      { examination: '12th Std.', year: '2020', institution: 'Surevin International School', marks: '68%', subjects: 'Commerce' },
+      { examination: 'Diploma in VFX', year: '2023', institution: 'Arena Animation', marks: 'A', subjects: 'VFX, Editing' },
+    ],
+    technicalQualification: 'Adobe Premiere Pro, After Effects',
+    employmentHistory: [
+      { from: '2023-08', to: '2026-07', totalYears: '3', company: 'Bright Media, Noida',
+        designation: 'Junior Video Editor', grossSalary: '18,000', reason: 'Better opportunity' },
+    ],
+    bankName: 'Punjab National Bank', bankAccountName: 'MR. RAKESH KUMAR',
+    bankAccountNo: '0323001500095327', bankIfsc: 'PUNB0032300',
+    languages: [
+      { language: 'Hindi', understand: true, speak: true, read: true, write: true, remarks: '' },
+      { language: 'English', understand: true, speak: true, read: true, write: false, remarks: '' },
+    ],
+    declarationAcceptedAt: iso(1), termsAcceptedAt: iso(1),
     photoPath: 'app1/photo.jpg', panPath: 'app1/pan.jpg', aadhaarPath: 'app1/aadhaar.jpg',
     bankProofPath: 'app1/bank.jpg', relievingLetterPath: 'app1/relieving.pdf',
     status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null, employeeId: null,
     inviteSentCount: 0, inviteSentAt: null, createdAt: iso(1),
   },
   {
+    ...APP_BLANK,
     id: 'app2', fullName: 'Sneha Iyer', phone: '+91 98200 55221', email: 'sneha.iyer@example.com',
     positionInterest: 'Sales Executive', noPreviousEmployment: true,
     photoPath: 'app2/photo.jpg', panPath: 'app2/pan.jpg', aadhaarPath: 'app2/aadhaar.jpg',
@@ -490,6 +529,7 @@ export const demoJobApplications: JobApplication[] = [
     inviteSentCount: 1, inviteSentAt: iso(2), createdAt: iso(4),
   },
   {
+    ...APP_BLANK,
     id: 'app3', fullName: 'Manoj Tiwari', phone: '+91 90000 12121', email: 'manoj.t@example.com',
     positionInterest: 'Developer', noPreviousEmployment: false,
     photoPath: 'app3/photo.jpg', panPath: 'app3/pan.jpg', aadhaarPath: 'app3/aadhaar.jpg',

@@ -14,6 +14,34 @@ const toApp = (r: Row): JobApplication => ({
   email: str(r.email),
   positionInterest: str(r.position_interest),
   noPreviousEmployment: Boolean(r.no_previous_employment),
+  firstName: str(r.first_name),
+  lastName: str(r.last_name),
+  fatherOrHusband: str(r.father_or_husband),
+  gender: str(r.gender),
+  dateOfBirth: (r.date_of_birth as string | null) ?? null,
+  placeOfBirth: str(r.place_of_birth),
+  nationality: str(r.nationality),
+  religion: str(r.religion),
+  maritalStatus: str(r.marital_status),
+  dependents: str(r.dependents),
+  aadhaarNumber: str(r.aadhaar_number),
+  presentAddress: str(r.present_address),
+  permanentAddress: str(r.permanent_address),
+  pincode: str(r.pincode),
+  // jsonb comes back parsed; the guard is for a row written before 0020,
+  // where the column does not exist at all and this would be undefined.
+  education: Array.isArray(r.education) ? (r.education as JobApplication['education']) : [],
+  technicalQualification: str(r.technical_qualification),
+  employmentHistory: Array.isArray(r.employment_history) ? (r.employment_history as JobApplication['employmentHistory']) : [],
+  bankName: str(r.bank_name),
+  bankAccountName: str(r.bank_account_name),
+  bankAccountNo: str(r.bank_account_no),
+  bankIfsc: str(r.bank_ifsc),
+  languages: Array.isArray(r.languages) ? (r.languages as JobApplication['languages']) : [],
+  referenceName: str(r.reference_name),
+  referenceDepartment: str(r.reference_department),
+  declarationAcceptedAt: (r.declaration_accepted_at as string | null) ?? null,
+  termsAcceptedAt: (r.terms_accepted_at as string | null) ?? null,
   photoPath: str(r.photo_path),
   panPath: str(r.pan_path),
   aadhaarPath: str(r.aadhaar_path),
@@ -31,11 +59,61 @@ const toApp = (r: Row): JobApplication => ({
 
 const BUCKET = 'job-applications'
 
+/** One row of the education table on the paper form. */
+export interface EducationRow {
+  examination: string; year: string; institution: string; marks: string; subjects: string
+}
+/** One row of the employee-history table on the paper form. */
+export interface EmploymentRow {
+  from: string; to: string; totalYears: string; company: string
+  designation: string; grossSalary: string; reason: string
+}
+/** One row of the language table — four skills, each a plain yes/no tick. */
+export interface LanguageRow {
+  language: string; understand: boolean; speak: boolean; read: boolean; write: boolean; remarks: string
+}
+
+/**
+ * Every field Metrol Media's printed application form asks for. The shape
+ * follows the paper: personal data, then addresses, then the three tables,
+ * then bank, then the reference, then the two acceptances.
+ */
 export interface ApplicationSubmission {
-  fullName: string
+  // personal
+  firstName: string
+  lastName: string
+  fatherOrHusband: string
+  gender: string
+  dateOfBirth: string
+  placeOfBirth: string
+  nationality: string
+  religion: string
+  maritalStatus: string
+  dependents: string
+  aadhaarNumber: string
   phone: string
   email: string
   positionInterest: string
+  // address
+  presentAddress: string
+  permanentAddress: string
+  pincode: string
+  // qualifications and history
+  education: EducationRow[]
+  technicalQualification: string
+  employmentHistory: EmploymentRow[]
+  // bank
+  bankName: string
+  bankAccountName: string
+  bankAccountNo: string
+  bankIfsc: string
+  languages: LanguageRow[]
+  // reference
+  referenceName: string
+  referenceDepartment: string
+  // gates
+  declarationAccepted: boolean
+  termsAccepted: boolean
   noPreviousEmployment: boolean
   files: {
     photo: File
@@ -100,6 +178,8 @@ export function useJobApplications(enabled = true) {
     if (!form.noPreviousEmployment && !form.files.relieving_letter) {
       return 'A relieving letter is required, or tick "I have no previous employer."'
     }
+    if (!form.declarationAccepted) return 'Please accept the declaration before submitting.'
+    if (!form.termsAccepted) return 'Please accept the Terms & Conditions before submitting.'
 
     // Generated here, not left to the table's default, so the upload path and
     // the row it belongs to agree before either exists — see 0017 section 4.
@@ -120,12 +200,52 @@ export function useJobApplications(enabled = true) {
       paths[key] = path
     }
 
+    // full_name stays the column every other screen already reads; the paper
+    // form asks for the two halves, so it is built from them rather than
+    // asked for a third time.
+    const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
+
+    // A blank row the candidate tabbed through is not an answer — drop it
+    // rather than storing empty objects HR has to read past.
+    const education = form.education.filter((r) => r.examination.trim() || r.institution.trim())
+    const employmentHistory = form.employmentHistory.filter((r) => r.company.trim() || r.designation.trim())
+    const languages = form.languages.filter((r) => r.language.trim())
+
     const { error: err } = await supabase.from('job_applications').insert({
       id,
-      full_name: form.fullName.trim(),
+      full_name: fullName,
+      first_name: form.firstName.trim(),
+      last_name: form.lastName.trim(),
+      father_or_husband: form.fatherOrHusband.trim(),
+      gender: form.gender,
+      date_of_birth: form.dateOfBirth || null,
+      place_of_birth: form.placeOfBirth.trim(),
+      nationality: form.nationality.trim(),
+      religion: form.religion.trim(),
+      marital_status: form.maritalStatus,
+      dependents: form.dependents.trim(),
+      aadhaar_number: form.aadhaarNumber.trim(),
       phone: form.phone.trim(),
       email: form.email.trim(),
       position_interest: form.positionInterest.trim(),
+      present_address: form.presentAddress.trim(),
+      permanent_address: form.permanentAddress.trim(),
+      pincode: form.pincode.trim(),
+      education,
+      technical_qualification: form.technicalQualification.trim(),
+      employment_history: employmentHistory,
+      bank_name: form.bankName.trim(),
+      bank_account_name: form.bankAccountName.trim(),
+      bank_account_no: form.bankAccountNo.trim(),
+      bank_ifsc: form.bankIfsc.trim().toUpperCase(),
+      languages,
+      reference_name: form.referenceName.trim(),
+      reference_department: form.referenceDepartment.trim(),
+      // Sent as a marker only — 0020's trigger overwrites both with the
+      // server's own now(), because "when did they agree" must not come
+      // from a clock the applicant controls.
+      declaration_accepted_at: form.declarationAccepted ? new Date().toISOString() : null,
+      terms_accepted_at: form.termsAccepted ? new Date().toISOString() : null,
       no_previous_employment: form.noPreviousEmployment,
       photo_path: paths.photo,
       pan_path: paths.pan,
