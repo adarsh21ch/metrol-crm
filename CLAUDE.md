@@ -3495,14 +3495,34 @@ buttons measured at 1440 and 375, no clipping and no horizontal scroll on
 either. `.btn--danger` in light mode is #A81E12 on #FCE0DC.
 `typecheck`, `build` and `deno check` on the new function all clean.
 
-## ADARSH: THREE THINGS TO RUN — THE FRONTEND ALONE IS NOT ENOUGH
+## All three manual steps DONE — 2026-09-16
 
-Vercel picks up the frontend from `main` by itself. The other three are manual,
-and **until all three are done the Delete buttons will fail**:
+Adarsh ran 0021 and deployed both functions the same day the round shipped.
 
-1. **Migration `0021_job_applications_delete.sql`** → SQL Editor. Without it,
-   deleting an application is refused by RLS.
-2. **New Edge Function `delete-employee`** → Edge Functions → New function,
-   named exactly that. Without it, deleting an employee 404s.
-3. **Redeploy `approve-job-application`** — it changed in this round. Without
-   it, Approve stays slow and still waits on the email.
+**`delete-employee` is live, confirmed here rather than taken on trust.** A POST
+to `/functions/v1/delete-employee` returns the gateway's
+`UNAUTHORIZED_NO_AUTH_HEADER` 401, and a POST to an invented function name
+returns `NOT_FOUND` 404 — so the route exists. `approve-job-application` answers
+the same way. **That differential is the whole test**: a bare 401 on its own
+proves nothing, because a 401 is also what you would get if every unknown path
+demanded auth. The 404 control is what turns it into evidence.
+
+This works on `*.supabase.co` precisely where the same idea fails on
+company.metrol.in — Vercel's bot checkpoint answers 200 to everything, including
+paths that do not exist (see the 2026-09-13 correction above). Different host,
+different rules; do not generalise either result to the other.
+
+`WHATS-INSTALLED.sql` gained four rows so the state is measurable rather than
+remembered: 0017's table, 0020's `present_address` column, 0021's delete policy,
+and — as a standing invariant — that `employees` still has **zero** DELETE
+policies. That last one is not a migration check. It is the harder-door design
+asserting itself: the day somebody adds a delete policy to `employees`, the
+owner-only Edge Function stops being the only way in and nobody would otherwise
+notice.
+
+## Still Adarsh's, unchanged
+
+`RESEND_API_KEY` secret · office branches (0) · employee records · festival
+holiday dates. And the open question from two rounds ago: of the twenty-four
+remaining paper fields, which belong on the permanent employee record? Bank
+block and Aadhaar are the likely yes; nothing goes on a guess.

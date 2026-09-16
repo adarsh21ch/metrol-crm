@@ -51,6 +51,19 @@ select '0016 leave_type column',    (select count(*) from have_col where table_n
 union all
 select '0016 working_days_between()',(select count(*) from have_fn where proname = 'working_days_between')::text
 union all
+select '0017 job_applications',     (select count(*) from have_table where relname = 'job_applications')::text
+union all
+select '0020 full-form columns (want 1)',
+                                    (select count(*) from have_col where table_name = 'job_applications' and column_name = 'present_address')::text
+union all
+select '0021 application DELETE policy (want 1)',
+                                    (select count(*) from pg_policies where schemaname = 'public'
+                                       and tablename = 'job_applications' and policyname = 'job_applications_delete')::text
+union all
+select '— employees DELETE policy (must stay 0)',
+                                    (select count(*) from pg_policies where schemaname = 'public'
+                                       and tablename = 'employees' and cmd = 'DELETE')::text
+union all
 -- Row counts only for tables 0013/0014 proved are there by running against
 -- them. leave_requests is deliberately NOT counted here: if it turned out to be
 -- missing, naming it in this query would make the whole query error and tell
