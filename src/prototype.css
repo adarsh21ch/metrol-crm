@@ -1525,53 +1525,90 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .range-bar .input{height:34px}
 .range-quick{display:flex;gap:6px;flex-wrap:wrap}
 
+/* The month grid. Capped in width on purpose: seven columns across a full
+   desktop card turned every day into a great blocky tile, which is what
+   Adarsh meant by "too cheap". Small, square, tight — a date chip, not a
+   panel. */
 .cal-grid{
-  display:grid;grid-template-columns:repeat(7,1fr);gap:5px;
+  display:grid;grid-template-columns:repeat(7,1fr);gap:6px;
   background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--r);padding:12px;margin-bottom:14px;
+  border-radius:var(--r);padding:14px;margin-bottom:12px;
+  max-width:452px;
 }
 .cal-dow{
-  font-size:10.5px;font-weight:600;color:var(--ink-3);text-align:center;
-  padding-bottom:2px;text-transform:uppercase;letter-spacing:.04em;
+  font-size:10px;font-weight:600;color:var(--ink-3);text-align:center;
+  padding-bottom:4px;text-transform:uppercase;letter-spacing:.06em;
 }
+/* Monochrome by default — white card, hairline border, ink number. Colour is
+   something a day EARNS, not the baseline, which is what keeps a month of
+   ordinary days calm and makes the exceptions findable. */
 .cal-cell{
-  aspect-ratio:1;border-radius:7px;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:1px;
-  font-size:12px;font-weight:600;border:1px solid transparent;
-  min-height:34px;
+  aspect-ratio:1;border-radius:9px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:var(--surface);border:1px solid var(--line);
+  font-size:12px;font-weight:600;color:var(--ink-2);
+  font-variant-numeric:tabular-nums;line-height:1;
 }
-.cal-cell .d{font-size:11px;line-height:1}
-.cal-cell .m{font-size:9px;font-weight:700;line-height:1;opacity:.85}
-.cal--present{background:var(--good-soft);color:var(--good);border-color:var(--good-line)}
-.cal--late{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line)}
-.cal--half{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line);
-  /* A half day is a late day's cousin, not its twin — same family of colour,
-     cut across so the two are still separable at a glance and by shape, which
-     is what somebody who cannot tell amber from amber needs. */
-  background-image:linear-gradient(135deg,transparent 46%,currentColor 46%,currentColor 54%,transparent 54%)}
-.cal--leave{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent-line)}
-.cal--absent{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-line)}
-.cal--holiday{background:var(--surface-2);color:var(--ink-3);border-color:var(--line)}
-.cal--open{background:var(--surface-3);color:var(--ink-2);border-color:var(--line)}
-.cal--future{background:transparent;color:var(--ink-4,var(--ink-3));opacity:.35}
+.cal-cell .d{line-height:1}
+/* The small deliberate mark under the number — his "proper checkbox kind of
+   thing". A 4px dot carries the status without repainting the whole tile. */
+.cal-cell .m{
+  font-size:8.5px;font-weight:700;line-height:1;letter-spacing:.04em;
+  opacity:.9;height:8px;display:flex;align-items:center;
+}
+.cal-cell .dot{width:4px;height:4px;border-radius:50%;background:currentColor}
+
+.cal--present{background:var(--good-soft);border-color:var(--good-line);color:var(--good)}
+.cal--late{background:var(--warn-soft);border-color:var(--warn-line);color:var(--warn)}
+/* Half day shares late's family but is cut across, so the two stay separable
+   by SHAPE and not only by two neighbouring ambers. */
+.cal--half{
+  background:var(--warn-soft);border-color:var(--warn-line);color:var(--warn);
+  background-image:linear-gradient(135deg,transparent 47%,currentColor 47%,currentColor 53%,transparent 53%);
+}
+.cal--leave{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-ink)}
+.cal--absent{background:var(--bad-soft);border-color:var(--bad-line);color:var(--bad)}
+/* A holiday is not an event. It stays plain so the working days stand out. */
+.cal--holiday{background:var(--surface-2);border-color:var(--line);color:var(--ink-3)}
+.cal--open{background:var(--surface-3);border-color:var(--line);color:var(--ink-2)}
+.cal--future{background:transparent;border-color:transparent;color:var(--ink-3);opacity:.3}
 .cal--pad{background:transparent;border-color:transparent}
 
-.cal-key{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-3);margin-bottom:14px}
+.cal-key{display:flex;gap:11px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-bottom:14px}
 .cal-key span{display:inline-flex;align-items:center;gap:5px}
-.cal-key i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid transparent}
+.cal-key i{width:10px;height:10px;border-radius:3px;display:inline-block;border:1px solid transparent}
 
-/* The table. Scrolls sideways in its OWN box on a phone rather than making
-   the page scroll — the rule this file already follows everywhere else. */
+/* The table. On a phone all five columns FIT — Adarsh was right that a
+   horizontal scroll to read your own attendance is a bad trade, and right
+   about what to spend the space on: the year is the same on every row and
+   carries nothing, so it is hidden below 560px (and so is the am/pm, which a
+   09:30-in / 06:42-out pair does not need to disambiguate). */
 .att-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
-.att-table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+.att-table{width:100%;border-collapse:collapse;font-size:13px}
 .att-table th{
-  text-align:left;font-size:11px;font-weight:600;color:var(--ink-3);
+  text-align:left;font-size:10.5px;font-weight:600;color:var(--ink-3);
   text-transform:uppercase;letter-spacing:.04em;
   padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;
-  position:sticky;top:0;background:var(--surface);
 }
-.att-table td{padding:9px 12px;border-bottom:1px solid var(--line-2,var(--line));white-space:nowrap}
+.att-table td{padding:9px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
 .att-table tr:last-child td{border-bottom:0}
 .att-table tbody tr:hover{background:var(--surface-2)}
 .att-table .num{font-variant-numeric:tabular-nums}
 .att-table .muted{color:var(--ink-3)}
+
+
+/* ---------------------------------------- the attendance month on a phone */
+@media (max-width:560px){
+  /* Every column fits, so nothing scrolls sideways to be read. */
+  .att-table{font-size:12px}
+  .att-table th{padding:8px 6px;font-size:9.5px;letter-spacing:.02em}
+  .att-table td{padding:8px 6px}
+  /* The year repeats on every single row and tells the reader nothing they
+     do not already know. The am/pm goes for the same reason: a punch-in at
+     09:30 and a punch-out at 06:42 are not ambiguous to anybody holding a
+     job. Both stay in the DOM for a desktop and for copy-paste. */
+  .att-table .yr,
+  .att-table .ampm{display:none}
+  .cal-grid{padding:10px;gap:5px}
+  .cal-cell{font-size:11.5px;border-radius:8px}
+}
