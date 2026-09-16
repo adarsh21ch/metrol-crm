@@ -29,7 +29,6 @@ const toEmployee = (r: Row): Employee => ({
   lastWorkingDay: (r.last_working_day as string | null) || null,
   notes: str(r.notes),
   createdAt: str(r.created_at),
-  annualLeaveDays: Number(r.annual_leave_days) || 0,
   shiftId: (r.shift_id as string | null) ?? null,
   officeId: (r.office_id as string | null) ?? null,
   offerExtendedOn: (r.offer_extended_on as string | null) || null,
@@ -64,7 +63,6 @@ const toRow = (p: Partial<EmployeeDraft>): Row => {
   if (p.status !== undefined) r.status = p.status
   if (p.lastWorkingDay !== undefined) r.last_working_day = orNull(p.lastWorkingDay)
   if (p.notes !== undefined) r.notes = orNull(p.notes.trim())
-  if (p.annualLeaveDays !== undefined) r.annual_leave_days = p.annualLeaveDays
   if (p.offerExtendedOn !== undefined) r.offer_extended_on = orNull(p.offerExtendedOn)
   if (p.offerAcceptedOn !== undefined) r.offer_accepted_on = orNull(p.offerAcceptedOn)
   if (p.resignationDate !== undefined) r.resignation_date = orNull(p.resignationDate)

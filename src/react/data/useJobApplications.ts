@@ -189,7 +189,9 @@ export interface ApprovalDetails {
   dateOfJoining: string
   grossAmount: number
   netAmount: number
-  annualLeaveDays: number
+  // No leave number any more: paid leave is a company-wide monthly rule
+  // (0022), not a per-person annual entitlement typed at approval. The Edge
+  // Function still writes its own default to the now-unread column.
 }
 
 /**

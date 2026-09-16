@@ -85,6 +85,23 @@ export interface AttendanceSettings {
    *  assigned to. On (the default) lets somebody working out of the other
    *  office that day punch there, and the row records which one it was. */
   allowAnyBranch: boolean
+  /** Round 2 (0022) — the leave rules. Lates 1..N in a month are free; every
+   *  late after the Nth is a half day. */
+  freeLatesPerMonth: number
+  paidLeavePerMonth: number
+  /** T&C 3.9, HR's switch. 0 = off; N = no paid leave for the joining month
+   *  and the N-1 after it. */
+  probationMonths: number
+  /** T&C 3.10, HR's switch. Approving leave filed on the day itself defaults
+   *  to unpaid; HR can keep it paid for an emergency. */
+  sameDayLeaveUnpaid: boolean
+  /** T&C 3.7, HR's number. 0 = off. Paid without touching the balance. */
+  periodLeavePerMonth: number
+  /** YYYY-MM-01 — the first month leave is counted by these rules. */
+  leaveRulesStart: string
+  /** Whether 0022 has run on this database. Until it has, the rules above are
+   *  0022's defaults read from nowhere, and nothing may try to save them. */
+  leaveRulesInstalled: boolean
   updatedAt: string | null
 }
 
@@ -272,18 +289,40 @@ export function metersBetween(lat1: number, lng1: number, lat2: number, lng2: nu
 export type DayKind =
   | 'present' | 'late' | 'half_day' | 'in_progress' | 'no_punch_out'
   | 'leave' | 'holiday' | 'week_off' | 'absent' | 'future'
+  /** Before they joined or after their last day. Not an absence — nobody was
+   *  expecting them. Rendered blank, like a day that has not happened yet. */
+  | 'outside'
 
 export interface CalendarDay {
   date: string
   kind: DayKind
-  /** Only what the day's LABEL does not already say — "6 min late", a
-   *  holiday's name — or empty. It used to repeat the label ("Late · 6 min
-   *  late" beside a chip reading Late), which on a phone cost the table the
-   *  width it needed to fit without scrolling sideways. */
+  /** Only what the day's LABEL does not already say — "L5 → half day · 6 min
+   *  late", a holiday's name, a leave type — or empty. It used to repeat the
+   *  label ("Late · 6 min late" beside a chip reading Late), which on a phone
+   *  cost the table the width it needed to fit without scrolling sideways. */
   remark: string
   /** The real row, when one exists — the table still shows real punch times. */
   row: AttendanceRow | null
+  /** This day's number among the month's late arrivals — L1, L2… — or null.
+   *  Counted across the whole calendar month from every row, not just the
+   *  range on screen, so a view starting on the 15th still says L5. */
+  lateNo: number | null
+  /** A late past the free ones, on a day that was otherwise a full (or still
+   *  running) day. It costs half a day; a day that was already a half day or
+   *  an absence costs nothing extra. Mirrors 0022's leave_month_summary. */
+  lateHalf: boolean
+  /** For a leave day: the approved request's type. Null when HR marked the
+   *  register "on leave" with no request behind it — ordinary paid leave. */
+  leaveType: string | null
 }
+
+/** Which rows are a late ARRIVAL. A status HR set by hand (on leave, holiday,
+ *  week off) is not, whatever minutes happen to be left on it. 0022 uses the
+ *  same list. */
+const LATE_STATUSES = new Set(['present', 'late', 'half_day', 'absent', 'in_progress', 'missing_punch_out'])
+/** Which days a late past the free ones can turn into a half day. */
+const LADDER_STATUSES = new Set(['present', 'late', 'in_progress', 'missing_punch_out'])
+export const isLateArrival = (r: AttendanceRow) => !!r.punchInAt && r.lateMinutes > 0 && LATE_STATUSES.has(r.status)
 
 export const DAY_KIND: Record<DayKind, { label: string; cls: string }> = {
   present:     { label: 'Present',      cls: 'cal--present' },
@@ -299,6 +338,7 @@ export const DAY_KIND: Record<DayKind, { label: string; cls: string }> = {
   week_off:    { label: 'Weekly off',   cls: 'cal--holiday' },
   absent:      { label: 'Absent',       cls: 'cal--absent' },
   future:      { label: '',             cls: 'cal--future' },
+  outside:     { label: '',             cls: 'cal--future' },
 }
 
 /** Date-only maths done in UTC on purpose. These are calendar dates, not
@@ -320,50 +360,90 @@ export const monthEnd = (iso: string) => {
   return d.toISOString().slice(0, 10)
 }
 
+/** Leave type labels, kept here rather than imported from hr.ts so this file
+ *  stays free of imports — 'casual' is the plain case and says nothing. */
+const LEAVE_REMARK: Record<string, string> = { sick: 'Sick', unpaid: 'Unpaid', period: 'Period' }
+
 /**
  * Every date from `from` to `to`, told what it is.
  *
- * **Precedence, and the first rule is the one that matters:** a real
- * attendance row ALWAYS wins. Somebody who came in and punched on a Sunday or
- * a national holiday worked that day, and no calendar rule gets to erase it —
- * the row is the evidence, the holiday is only the default. After that:
- * approved leave, then holiday, then week off, then — for a date already past
- * — absent. A future date is left blank rather than accused of anything.
+ * **Precedence — and it is 0022's `leave_month_summary` precedence exactly, so
+ * the grid somebody looks at and the number they are paid on cannot
+ * disagree:** a real attendance row ALWAYS wins (somebody who punched on a
+ * Sunday worked that day; the row is evidence, the calendar only a default) →
+ * a holiday → a week off → approved leave → a day not over yet (blank) →
+ * absent. Holiday and week off come BEFORE leave on purpose: a Sunday inside a
+ * week of approved leave is a Sunday, and 0016 never charged leave for it.
  *
  * **Only APPROVED leave counts.** Adarsh was explicit: a request HR has not
  * approved is not leave, and it must not colour the day or spend a balance.
+ *
+ * **Today, without a punch, is blank — not absent.** The day is not over; an
+ * absence at 9 in the morning is an accusation, not a fact.
  */
 export function buildCalendar(opts: {
   from: string
   to: string
+  /** This ONE employee's rows — all of them loaded, not only the range: the
+   *  late numbering counts from the 1st of each month. */
   rows: AttendanceRow[]
   holidays: Holiday[]
   weekOffs: number[]
   /** Leave requests for this ONE employee. Status is filtered here, not by
    *  the caller, so nobody can pass pending leave in by accident. */
-  leaves: { startDate: string; endDate: string; status: string }[]
+  leaves: { startDate: string; endDate: string; status: string; leaveType?: string; createdAt?: string }[]
   today: string
+  /** Lates 1..N in a month are free (attendance_settings.free_lates_per_month).
+   *  Unknown → no late is ever turned into a half day on screen. */
+  freeLates?: number
+  joinedOn?: string | null
+  lastDay?: string | null
 }): CalendarDay[] {
   const { from, to, rows, holidays, weekOffs, leaves, today } = opts
+  const freeLates = opts.freeLates ?? Infinity
   if (!from || !to || from > to) return []
 
   const rowByDate = new Map(rows.map((r) => [r.workDate, r]))
   const holidayByDate = new Map(holidays.map((h) => [h.date, h.name]))
-  const approved = leaves.filter((l) => l.status === 'approved')
+  // Newest request first — when two approved requests overlap a day, the
+  // later one is what HR last decided. 0022 orders by created_at the same way.
+  const approved = leaves
+    .filter((l) => l.status === 'approved')
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+  const leaveOn = (d: string) => approved.find((l) => d >= l.startDate && d <= l.endDate)
 
+  // L1, L2… per calendar month, over every row rather than the visible range.
+  const lateNo = new Map<string, number>()
+  const perMonth = new Map<string, number>()
+  for (const r of [...rows].sort((a, b) => a.workDate.localeCompare(b.workDate))) {
+    if (!isLateArrival(r)) continue
+    const m = r.workDate.slice(0, 7)
+    const n = (perMonth.get(m) ?? 0) + 1
+    perMonth.set(m, n)
+    lateNo.set(r.workDate, n)
+  }
+
+  const blank = { row: null, lateNo: null, lateHalf: false, leaveType: null }
   const out: CalendarDay[] = []
   // A guard, not a limit anybody should hit: two years of days. A typo in a
   // date field must not spin here forever.
   for (let d = from, guard = 0; d <= to && guard < 800; d = addDays(d, 1), guard++) {
+    if ((opts.joinedOn && d < opts.joinedOn) || (opts.lastDay && d > opts.lastDay)) {
+      out.push({ date: d, kind: 'outside', remark: '', ...blank })
+      continue
+    }
     const row = rowByDate.get(d) ?? null
 
     if (row) {
+      const n = lateNo.get(d) ?? null
+      const lateHalf = n !== null && n > freeLates && LADDER_STATUSES.has(row.status)
       // Every status 0013 allows, named. The old fall-through sent HR's own
       // "On leave", "Holiday" and "Week off" corrections — and a day somebody
       // punched in and never closed — to a red Absent square, telling the
       // employee the opposite of what HR had recorded.
       const kind: DayKind =
-        row.status === 'present' ? (row.lateMinutes > 0 ? 'late' : 'present')
+        (row.status === 'present' || row.status === 'late') && lateHalf ? 'half_day'
+        : row.status === 'present' ? (row.lateMinutes > 0 ? 'late' : 'present')
         : row.status === 'late' ? 'late'
         : row.status === 'half_day' ? 'half_day'
         : row.status === 'in_progress' ? 'in_progress'
@@ -372,23 +452,31 @@ export function buildCalendar(opts: {
         : row.status === 'holiday' ? 'holiday'
         : row.status === 'week_off' ? 'week_off'
         : 'absent'
-      out.push({ date: d, kind, row, remark: row.lateMinutes > 0 ? `${row.lateMinutes} min late` : '' })
+      const leaveType = kind === 'leave' ? (leaveOn(d)?.leaveType ?? null) : null
+      const remark = n !== null
+        ? `L${n}${lateHalf ? ' → half day' : ''} · ${row.lateMinutes} min late`
+        : leaveType ? (LEAVE_REMARK[leaveType] ?? '') : ''
+      out.push({ date: d, kind, row, remark, lateNo: n, lateHalf, leaveType })
       continue
     }
-
-    const onLeave = approved.find((l) => d >= l.startDate && d <= l.endDate)
-    if (onLeave) { out.push({ date: d, kind: 'leave', row: null, remark: '' }); continue }
 
     const holiday = holidayByDate.get(d)
-    if (holiday) { out.push({ date: d, kind: 'holiday', row: null, remark: holiday }); continue }
+    if (holiday) { out.push({ date: d, kind: 'holiday', remark: holiday, ...blank }); continue }
 
     if (weekOffs.includes(weekdayOf(d))) {
-      out.push({ date: d, kind: 'week_off', row: null, remark: '' })
+      out.push({ date: d, kind: 'week_off', remark: '', ...blank })
       continue
     }
 
-    if (d > today) { out.push({ date: d, kind: 'future', row: null, remark: '' }); continue }
-    out.push({ date: d, kind: 'absent', row: null, remark: '' })
+    const onLeave = leaveOn(d)
+    if (onLeave) {
+      const leaveType = onLeave.leaveType ?? null
+      out.push({ date: d, kind: 'leave', remark: leaveType ? (LEAVE_REMARK[leaveType] ?? '') : '', ...blank, leaveType })
+      continue
+    }
+
+    if (d >= today) { out.push({ date: d, kind: 'future', remark: '', ...blank }); continue }
+    out.push({ date: d, kind: 'absent', remark: '', ...blank })
   }
   return out
 }
@@ -404,13 +492,12 @@ export function calendarTotals(days: CalendarDay[]): CalendarTotals {
   const t: CalendarTotals = { present: 0, late: 0, halfDay: 0, leave: 0, holiday: 0, absent: 0, workedMinutes: 0 }
   for (const d of days) {
     if (d.row) t.workedMinutes += d.row.workedMinutes || 0
+    // Late counts ARRIVALS, whatever the day became — "how many times was I
+    // late" and "how many days was I here" are different questions.
+    if (d.lateNo !== null) t.late++
+    if (d.kind === 'half_day' || d.lateHalf) { t.halfDay++; continue }
     switch (d.kind) {
-      case 'present': case 'in_progress': case 'no_punch_out': t.present++; break
-      // A late day is still a day worked — it counts in BOTH, because "how
-      // many days was I here" and "how many times was I late" are different
-      // questions and answering them with one number serves neither.
-      case 'late': t.present++; t.late++; break
-      case 'half_day': t.halfDay++; break
+      case 'present': case 'late': case 'in_progress': case 'no_punch_out': t.present++; break
       case 'leave': t.leave++; break
       case 'holiday': case 'week_off': t.holiday++; break
       case 'absent': t.absent++; break

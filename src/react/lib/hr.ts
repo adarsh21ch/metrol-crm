@@ -28,10 +28,6 @@ export interface Employee {
   lastWorkingDay: string | null
   notes: string
   createdAt: string
-  /** How many days this person is entitled to this year. Remaining balance is
-   *  this minus their own approved days in the current year — computed, never
-   *  stored, so nothing needs reconciling when a request changes. */
-  annualLeaveDays: number
   /** Phase 4: was an offer made, and did they accept it. Both optional — a
    *  record for somebody who never signs in may never have either. */
   offerExtendedOn: string | null
@@ -74,12 +70,11 @@ export const HR_DEPARTMENT = 'Human Resources'
 
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
-/** Phase 7. Sick and casual both draw from the one shared entitlement
- *  (employees.annualLeaveDays); unpaid draws from nothing and is counted
- *  separately — Adarsh's call, 2026-09-12. Nothing about that is stored: it is
- *  how these rows are read, which is why changing the policy later is a change
- *  to usedLeaveDays() and not a migration. */
-export type LeaveType = 'sick' | 'casual' | 'unpaid'
+/** Sick and casual spend the monthly paid balance; unpaid spends nothing and
+ *  comes off salary. Period (0022, T&C 3.7) is paid WITHOUT touching the
+ *  balance, up to the monthly allowance HR sets — and only HR logs it. How a
+ *  month adds up lives in lib/leaveRules.ts, not here. */
+export type LeaveType = 'sick' | 'casual' | 'unpaid' | 'period'
 
 /** One request. `daysCount` is set by a database trigger (0009) from the two
  *  dates, never trusted from the client — a mismatched request must not be
@@ -118,32 +113,11 @@ export const LEAVE_TYPE: Record<LeaveType, { label: string; cls: string; short: 
   casual: { label: 'Casual', cls: 'chip--mute', short: 'CL' },
   sick: { label: 'Sick', cls: 'chip--mute', short: 'SL' },
   unpaid: { label: 'Unpaid', cls: 'chip--accent', short: 'LWP' },
+  period: { label: 'Period', cls: 'chip--mute', short: 'PER' },
 }
 
-/** Does this type come out of the paid annual entitlement? */
+/** Is this type paid at all? Period is — it just does not spend the balance. */
 export const isPaidLeave = (t: LeaveType) => t !== 'unpaid'
-
-/** The calendar year a request's balance counts against — the year it starts
- *  in, so a request spanning New Year's Eve does not straddle two balances. */
-export const leaveYear = (r: Pick<LeaveRequest, 'startDate'>) => Number((r.startDate || '').slice(0, 4))
-
-/** Approved PAID days this person has used in `year` (default: this year) —
- *  sick and casual, the two that share the entitlement. Unpaid is excluded on
- *  purpose: taking leave without pay is not spending a paid day. */
-export function usedLeaveDays(requests: LeaveRequest[], employeeId: string, year = new Date().getFullYear()): number {
-  return requests
-    .filter((r) => r.employeeId === employeeId && r.status === 'approved' && leaveYear(r) === year && isPaidLeave(r.leaveType))
-    .reduce((t, r) => t + r.daysCount, 0)
-}
-
-/** Approved unpaid days this year. Shown beside the balance rather than
- *  inside it — it is a real absence somebody should see, it just is not a
- *  withdrawal from the eighteen. */
-export function unpaidLeaveDays(requests: LeaveRequest[], employeeId: string, year = new Date().getFullYear()): number {
-  return requests
-    .filter((r) => r.employeeId === employeeId && r.status === 'approved' && leaveYear(r) === year && !isPaidLeave(r.leaveType))
-    .reduce((t, r) => t + r.daysCount, 0)
-}
 
 /** The working days in an inclusive date range, for the REQUEST FORM'S PREVIEW
  *  and for demo mode only. The number that gets stored is always the

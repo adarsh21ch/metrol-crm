@@ -16,12 +16,17 @@ import type { LeaveDraft } from '@/data/useLeaveRequests'
  *  hook re-reads the saved row rather than trusting this. Worth knowing if the
  *  two ever disagree: the record is still right and only a sentence was wrong. */
 export function LeaveRequestModal({
-  employeeId, weekOffs, holidays, onClose, onSave,
+  employeeId, weekOffs, holidays, allowPeriod = false, onClose, onSave,
 }: {
   employeeId: string
   /** 0 = Sunday, from attendance_settings. Sunday is Metrol's only week off. */
   weekOffs: number[]
   holidays: Holiday[]
+  /** Period leave (T&C 3.7) is a rule HR switches on, off by default — so the
+   *  option is not offered at all until they have. Offering a type the engine
+   *  will not pay is how somebody applies for something that silently becomes
+   *  ordinary leave. */
+  allowPeriod?: boolean
   onClose: () => void
   onSave: (draft: LeaveDraft) => Promise<string | null>
 }) {
@@ -90,7 +95,7 @@ export function LeaveRequestModal({
         <div className="field">
           <label>Type</label>
           <div className="seg seg--form" role="group" aria-label="Leave type">
-            {(Object.keys(LEAVE_TYPE) as LeaveType[]).map((t) => (
+            {(Object.keys(LEAVE_TYPE) as LeaveType[]).filter((t) => t !== 'period' || allowPeriod).map((t) => (
               <button key={t} type="button" className={leaveType === t ? 'is-on' : ''}
                       aria-pressed={leaveType === t} onClick={() => setLeaveType(t)}>
                 {LEAVE_TYPE[t].label}

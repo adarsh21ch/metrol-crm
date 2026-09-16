@@ -16,6 +16,8 @@ import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
 import { DocumentUploadModal } from '@/modals/DocumentUploadModal'
 import { ApplicationReviewModal } from '@/modals/ApplicationReviewModal'
+import { useLeaveBoard, useLeaveMonth } from '@/data/useLeaveMonths'
+import { addMonths, firstOfMonth, fmtDays, type LeaveChoice } from '@/lib/leaveRules'
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
 import { useJobApplications } from '@/data/useJobApplications'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
@@ -27,7 +29,7 @@ import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
 import {
-  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, unpaidLeaveDays, usedLeaveDays,
+  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
   type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord,
   HR_DEPARTMENT,
 } from '@/lib/hr'
@@ -209,6 +211,32 @@ export function HrPage({
      current rows is the behaviour you want anyway. */
   const inProfile = (tab: ProfileTab) => !!open && profTab === tab
   const salary = useSalaryRecords(section === 'salary' || inProfile('salary'))
+
+  /* Round 2's engine, read two ways from one place: `lm` asks about the person
+     whose profile is open, `board` asks about everybody in a month. Both are
+     gated the same way every other hook on this screen is. */
+  const [leaveMonth, setLeaveMonth] = useState(() => firstOfMonth(todayISO()))
+  const [closingFor, setClosingFor] = useState<string | null>(null)
+  const leaveSrc = useMemo(() => ({
+    employees: hr.rows, rows: att.rows, leaves: leave.rows,
+    holidays: att.holidays, settings: att.settings, today: todayISO(),
+  }), [hr.rows, att.rows, leave.rows, att.holidays, att.settings])
+  const lm = useLeaveMonth(inProfile('leave') ? openId : null, leaveMonth, leaveSrc)
+  const board = useLeaveBoard(leaveMonth, leaveSrc, section === 'leave')
+  const thisMonth = firstOfMonth(todayISO())
+  const monthName = (m: string) => new Date(m + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+
+  /** Recording the employee's choice for the month. The refusal that matters —
+   *  "close August first", "this month has not ended" — comes back as the
+   *  database's own sentence, not a generic failure. */
+  async function closeMonth(employeeId: string, choice: LeaveChoice) {
+    setClosingFor(employeeId)
+    const message = await board.close(employeeId, choice)
+    setClosingFor(null)
+    toast(message ?? (choice === 'payout'
+      ? 'Month closed — the unused days go on their salary.'
+      : 'Month closed — the unused days carry into next month.'))
+  }
   const onboarding = useOnboardingTasks(section === 'onboarding' || inProfile('onboarding'))
   const docs = useEmployeeDocuments(section === 'onboarding' || inProfile('onboarding'))
   const exitTasks = useExitTasks(section === 'exit' || inProfile('exit'))
@@ -659,14 +687,28 @@ export function HrPage({
                       <button className="btn btn--sm" onClick={() => { setLogEmpId(open.id); setLoggingFor(open.id) }}>Log leave</button>
                     </div>
                   </div>
-                  <div className="hr-fields" style={{ marginBottom: 12 }}>
-                    <Fld l="Annual entitlement" v={`${open.annualLeaveDays} days`} />
-                    <Fld l="Used this year" v={`${usedLeaveDays(leave.rows, open.id)} days`} />
-                    <Fld l="Remaining" v={`${Math.max(0, open.annualLeaveDays - usedLeaveDays(leave.rows, open.id))} days`} />
-                    {/* Separate, because it is not a withdrawal from the
-                        entitlement — it is still an absence HR should see. */}
-                    <Fld l="Unpaid taken" v={`${unpaidLeaveDays(leave.rows, open.id)} days`} />
+                  <div className="section-tools" style={{ marginBottom: 10, justifyContent: 'flex-start' }}>
+                    <button className="btn btn--sm" onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
+                    <strong style={{ alignSelf: 'center' }}>{monthName(leaveMonth)}</strong>
+                    <button className="btn btn--sm" disabled={leaveMonth >= thisMonth}
+                            onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
                   </div>
+                  {/* A month's balance, not a year's — 2 days accrue each month
+                      and what is left is paid out or carried. */}
+                  <div className="hr-fields" style={{ marginBottom: 12 }}>
+                    <Fld l="Available" v={fmtDays(lm.data?.available)} />
+                    <Fld l="Used" v={fmtDays(lm.data?.used)} />
+                    <Fld l="Left" v={fmtDays(lm.data?.closing)} />
+                    {/* Not a withdrawal from the balance — this is what comes
+                        off the salary, which is a different fact. */}
+                    <Fld l="Unpaid days" v={fmtDays(lm.data?.unpaidDays)} />
+                  </div>
+                  {lm.error && <div className="auth-err" style={{ marginBottom: 12 }}>{lm.error}</div>}
+                  {lm.data?.provisional && (
+                    <p className="punch-note" style={{ marginTop: -4 }}>
+                      {monthName(addMonths(leaveMonth, -1))} is not closed yet, so the brought-forward figure assumes it was carried.
+                    </p>
+                  )}
                   {leave.rows.filter((r) => r.employeeId === open.id).length === 0 ? (
                     <p style={{ color: 'var(--ink-3)' }}>No leave requests on record.</p>
                   ) : (
@@ -1128,6 +1170,63 @@ export function HrPage({
                             foot={<div className="grid-foot"><span>{count(leave.rows.length, 'request')}</span></div>} />
                 </div>
 
+                {/* The month close. This is where the employee's own choice —
+                    take the money or carry the days — is recorded, and it is
+                    what payroll reads later. One row per person, because the
+                    choice is per person and not a company-wide switch. */}
+                <div className="section">
+                  <div className="section-head">
+                    <h3>Close the month</h3>
+                    <div className="section-tools">
+                      <button className="btn btn--sm" onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
+                      <strong style={{ alignSelf: 'center' }}>{monthName(leaveMonth)}</strong>
+                      <button className="btn btn--sm" disabled={leaveMonth >= thisMonth}
+                              onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
+                    </div>
+                  </div>
+                  {board.error && <div className="auth-err" style={{ marginBottom: 10 }}>{board.error}</div>}
+                  <div className="ov-actions">
+                    {board.rows.length === 0 && !board.loading && (
+                      <p style={{ color: 'var(--ink-3)' }}>Nobody to close this month for yet.</p>
+                    )}
+                    {board.rows.map((r) => (
+                      <div className="ov-row" key={r.employeeId} style={{ cursor: 'default' }}>
+                        <span className="ov-n">{fmtDays(r.closing)}</span>
+                        <span className="ov-l">
+                          <strong>{r.fullName}</strong>
+                          <span style={{ color: 'var(--ink-3)' }}>
+                            {'  ·  '}used {fmtDays(r.used)}
+                            {'  ·  '}unpaid {fmtDays(r.unpaidDays)}
+                            {r.lateCount ? `  ·  ${r.lateCount} late` : ''}
+                            {r.unsettledDays ? `  ·  ${r.unsettledDays} not punched out` : ''}
+                          </span>
+                        </span>
+                        {r.closed ? (
+                          <Chip cls="chip--good">
+                            {r.choice === 'payout' ? `Paid out ${fmtDays(r.payoutDays)}` : `Carried ${fmtDays(r.carried)}`}
+                          </Chip>
+                        ) : (
+                          <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <button className="btn btn--sm" disabled={closingFor !== null}
+                                    onClick={() => void closeMonth(r.employeeId, 'carry')}>
+                              {closingFor === r.employeeId ? 'Closing…' : 'Carry forward'}
+                            </button>
+                            <button className="btn btn--sm btn--primary" disabled={closingFor !== null}
+                                    onClick={() => void closeMonth(r.employeeId, 'payout')}>
+                              Pay out
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="punch-note">
+                    Pay out puts every unused day on their salary and the balance restarts at zero. Carry forward adds them to next
+                    month instead. A month cannot be closed until it has ended, the month before it is closed, and every day somebody
+                    never punched out of has been settled.
+                  </p>
+                </div>
+
                 {/* The holidays list. It lives here rather than on a rail item
                     of its own because the only thing it changes is how leave
                     is counted, and this is the page somebody is already on
@@ -1296,6 +1395,7 @@ export function HrPage({
 
       {loggingFor && (
         <LeaveRequestModal employeeId={loggingFor} weekOffs={att.settings?.weekOffs ?? [0]} holidays={att.holidays}
+                           allowPeriod={(att.settings?.periodLeavePerMonth ?? 0) > 0}
                            onClose={() => setLoggingFor(null)} onSave={logLeave} />
       )}
       {deciding && (

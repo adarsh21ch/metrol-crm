@@ -4332,3 +4332,77 @@ scroll) — the documented last resort, on a screen size nobody at Metrol has.
 
 **Noted, not changed:** the *Worked* tile wraps "105h / 50m" onto two lines at
 360px. Pre-existing, cosmetic, left for a polish pass.
+
+---
+
+# Round 2 — the leave rules engine, finished (2026-09-16)
+
+The ladder, the accrual and the choice, all the way from Postgres to both
+screens. Adarsh's answers from the plan file were followed exactly; nothing
+here was invented.
+
+## What the engine does
+
+`0022_leave_rules_engine.sql` — `leave_month_summary()` (one person, one
+month), `leave_month_board()` (everybody in a month, HR only) and
+`close_leave_month()`. **2 paid days accrue per month.** Lates 1–4 in a month
+are free; **every late after the 4th is a half day**, and a half day costs 0.5
+of the balance. **Absent with no approved leave does not touch paid leave** —
+it is a day's salary, per answer 2. **Only APPROVED leave spends the balance**;
+pending is not leave. Closing records the employee's choice: **pay out** pays
+every unused day and the balance restarts at zero, **carry** adds them to next
+month. The three T&C extras — probation, same-day-unpaid, period leave — are
+numbers/switches in Settings and are **off by default**, per answer 3.
+
+A month refuses to close until it has ended, the month before it is closed, and
+every day nobody punched out of is settled. All three refusals come back as the
+database's own sentence.
+
+`leaveRules.ts` is the TypeScript mirror for demo mode and **matches the
+database on all 16 checks**, down to the half day.
+
+## What was built this round (the part that was missing)
+
+The two screens that still showed the old yearly "18 days a year" model, which
+is why the tree would not compile:
+
+- **The employee's Leave tab** is a MONTH now, with a month stepper: Available
+  (brought forward + earned), Used, Left, Unpaid. Plus the sentences that make
+  the numbers mean something — a provisional opening balance when HR has not
+  closed last month, the late ladder's running cost, and days never punched out
+  of. Closed months are listed underneath with the choice that was made.
+- **HR's profile Leave tab** — the same four figures for whoever is open.
+- **HR's "Close the month" board** — one row per person (closing balance, used,
+  unpaid, late count, unsettled days) with **Carry forward** and **Pay out**.
+  This is where the employee's choice is recorded, and it is what Round 4's
+  payroll will read.
+- **Period leave is not offered in the request form until HR switches it on**
+  (`periodLeavePerMonth > 0`). Offering a type the engine will not pay is how
+  somebody applies for something that silently becomes ordinary leave.
+
+## Verified in Chromium, `?demo=1`
+
+Member: Available 2 (0 brought forward + 2 earned), Used 1, Left 1, Unpaid 1,
+and the provisional notice. HR: the board lists all six with their own figures
+(Mohit 5 late, Arjun 2). **Closing the CURRENT month is refused** — "A month
+can only be closed once it is over." Stepped back to August 2026 and paid out:
+toast fired, the row became **"Paid out 1.5"**. `typecheck` and `build` clean,
+no console errors.
+
+**One wording bug of mine, caught by reading the rendered sentence rather than
+the code:** `lateHalfDays` COUNTS half days, it is not a number of days — the
+note said 5 lates had "taken 1 off your balance" when one half day costs 0.5.
+It now names both: how many half days, and what they cost.
+
+## 0022 IS NOT INSTALLED ON THE LIVE DATABASE
+
+Until Adarsh runs it, every leave figure on the live site shows the hook's own
+sentence — "The leave rules are not installed on the database yet — migration
+0022 has to be run first" — rather than PostgREST's schema-cache error. Nothing
+else on the site is affected; attendance, payroll and the rest are untouched.
+
+## Rounds 3–5 still specified, not built
+
+`ATTENDANCE-PAYROLL-PLAN.md` carries them: QR-only mode, payroll from
+attendance with two pay periods, and the T&C as an in-app page. Round 4 is now
+unblocked — it reads the closed months this round produces.

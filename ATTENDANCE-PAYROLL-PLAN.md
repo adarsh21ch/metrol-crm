@@ -70,6 +70,33 @@ Nothing visible; everything after this depends on it.
       full-day hours, lates-before-half-day, monthly paid leave). Adarsh was
       explicit: the owner must be able to change the criteria, not just read it.
 
+### Round 2 — ANSWERS, settled by Adarsh on 2026-09-16. Do NOT re-ask.
+
+Asked after reading `public/metrol-media-terms-and-conditions.pdf`, which
+agrees with the brief on 2 paid leaves/month, the 5th late = half day, and
+pay-out vs carry-forward — and adds rules the brief never mentioned.
+
+1. **6th, 7th… late in a month: EACH one is a half day.** Lates 1–4 free,
+   every late after the 4th costs half a day.
+2. **Absent with no approved leave = 1 day's salary.** Paid leave is NOT
+   touched. Only leave HR approved spends paid leave. (T&C 3.3's "double-day
+   deduction" is not automatic.)
+3. **The T&C's extra rules — probation (3.9: no paid leave in the first 3
+   months), same-day leave is unpaid (3.10), period leave (3.7: 1 paid day a
+   month for women) — are HR's to manage, not automatic.** His words: "leave
+   this on HR, HR can update and manage this in his leave rules or setting."
+   So each is a switch/number in the rules screen, **off by default**.
+4. **Pay-out pays EVERY unused day, and the balance goes back to 0.** Carried
+   days are cashable later. (Carry Jan's 2 → Feb starts at 4 → pay-out in Feb
+   pays 4 → March starts at 2.)
+
+### The T&C disagrees with today's settings — HR's call, not code
+
+- **What counts as late.** T&C 2.1/2.3: flexible 10:00–10:30, "late" after
+  10:30 for everyone. The app: three shifts (09:30/10:00/10:30) + a 7-minute
+  relaxation — Adarsh's own Phase 6 words. Both are expressible in settings
+  already (one 10:30 shift, relaxation 0). Flag to HR; do not change it.
+
 ## Round 3 — QR-only mode
 
 - [ ] Attendance settings gets **"QR only"**. When on, the punch-in/punch-out

@@ -22,7 +22,9 @@ import { useAttendance } from '@/data/useAttendance'
 import { PunchCard } from '@/components/PunchCard'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
-import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod, unpaidLeaveDays, usedLeaveDays } from '@/lib/hr'
+import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod } from '@/lib/hr'
+import { useLeaveMonth } from '@/data/useLeaveMonths'
+import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
 import type { Workspace } from '@/data/useWorkspace'
 
 type LeadsView = 'list' | 'board'
@@ -157,6 +159,20 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     [leave.rows, myEmployee],
   )
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
+
+  /* Leave stopped being a yearly entitlement in Round 2. It accrues 2 days a
+     MONTH, a half day costs half of one, and whatever is left is either paid
+     out or carried — so the balance is a month's balance, and the month has to
+     be pickable: somebody checking a payslip is asking about last month, not
+     this one. */
+  const [leaveMonth, setLeaveMonth] = useState(() => firstOfMonth(officeToday()))
+  const leaveSrc = useMemo(() => ({
+    employees: staff.rows, rows: att.rows, leaves: leave.rows,
+    holidays: att.holidays, settings: att.settings, today: officeToday(tz),
+  }), [staff.rows, att.rows, leave.rows, att.holidays, att.settings, tz])
+  const lm = useLeaveMonth(myEmployee?.id ?? null, leaveMonth, leaveSrc)
+  const thisMonth = firstOfMonth(officeToday(tz))
+  const monthName = (m: string) => new Date(m + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const myAtt = useMemo(
     () => (myEmployee
       ? att.rows.filter((r) => r.employeeId === myEmployee.id).sort((a, b) => b.workDate.localeCompare(a.workDate))
@@ -722,16 +738,72 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   </div>
                 ) : (
                   <>
-                    <div className="kpis">
-                      <Kpi accent label="Remaining" value={Math.max(0, myEmployee.annualLeaveDays - usedLeaveDays(leave.rows, myEmployee.id))}
-                           sub={`of ${myEmployee.annualLeaveDays} paid days this year`} />
-                      <Kpi label="Used" value={usedLeaveDays(leave.rows, myEmployee.id)} sub="approved sick or casual" />
-                      {/* Its own tile rather than folded into Used: unpaid days
-                          are a real absence, and they are not spent from the
-                          number above. Two facts, two tiles. */}
-                      <Kpi label="Unpaid" value={unpaidLeaveDays(leave.rows, myEmployee.id)} sub="approved without pay" />
-                      <Kpi label="Pending" value={myLeave.filter((r) => r.status === 'pending').length} sub="awaiting a decision" />
+                    <div className="section-tools" style={{ marginBottom: 12, justifyContent: 'flex-start' }}>
+                      <button className="btn btn--sm" onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>← Previous</button>
+                      <strong style={{ alignSelf: 'center' }}>{monthName(leaveMonth)}</strong>
+                      <button className="btn btn--sm" disabled={leaveMonth >= thisMonth}
+                              onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>Next →</button>
                     </div>
+
+                    <div className="kpis">
+                      {/* Available is what CAN be spent — last month's leftover
+                          plus this month's accrual — not a yearly allowance. */}
+                      <Kpi accent label="Available" value={fmtDays(lm.data?.available)}
+                           sub={`${fmtDays(lm.data?.opening)} brought forward + ${fmtDays(lm.data?.accrued)} earned`} />
+                      <Kpi label="Used" value={fmtDays(lm.data?.used)} sub="approved leave and half days" />
+                      <Kpi label="Left" value={fmtDays(lm.data?.closing)}
+                           sub={lm.data?.closed
+                             ? (lm.data.choice === 'payout' ? `paid out ${fmtDays(lm.data.payoutDays)}` : `carried ${fmtDays(lm.data.carried)}`)
+                             : 'before HR closes the month'} />
+                      {/* Unpaid is not a withdrawal from the balance — it is
+                          what comes off the salary. Two different facts. */}
+                      <Kpi label="Unpaid" value={fmtDays(lm.data?.unpaidDays)} sub="absences and leave without pay" />
+                    </div>
+
+                    {lm.error && <div className="auth-err" style={{ marginBottom: 14 }}>{lm.error}</div>}
+                    {lm.data && !lm.data.counted && (
+                      <p className="punch-note">Leave is not counted for this month yet, so every number above is zero.</p>
+                    )}
+                    {lm.data?.provisional && (
+                      <p className="punch-note">
+                        Last month has not been closed by HR yet, so the brought-forward figure assumes it was carried.
+                        It changes if they pay it out instead.
+                      </p>
+                    )}
+                    {!!lm.data?.lateHalfDays && (
+                      <p className="punch-note">
+                        {/* lateHalfDays COUNTS half days, it is not a number
+                            of days — one of them costs half a day. Saying "1
+                            off your balance" for a single half day was wrong. */}
+                        {lm.data.lateCount} late arrivals this month. The first {att.settings?.freeLatesPerMonth ?? 4} do
+                        not cost anything; each one after that is a half day, so far {fmtDays(lm.data.lateHalfDays)} of
+                        them — {fmtDays(lm.data.lateHalfDays * 0.5)} off your balance.
+                      </p>
+                    )}
+                    {!!lm.data?.unsettledDays && (
+                      <p className="punch-note">
+                        {lm.data.unsettledDays} day(s) you never punched out of. HR has to settle those before this month can close.
+                      </p>
+                    )}
+
+                    {lm.history.length > 0 && (
+                      <div className="section">
+                        <div className="section-head"><h3>Closed months</h3></div>
+                        <div className="ov-actions">
+                          {lm.history.map((h) => (
+                            <div className="ov-row" key={h.month} style={{ cursor: 'default' }}>
+                              <span className="ov-l">
+                                <strong>{monthName(h.month)}</strong>
+                                <span style={{ color: 'var(--ink-3)' }}>{'  ·  '}used {fmtDays(h.used)}</span>
+                              </span>
+                              <Chip cls="chip--mute">
+                                {h.choice === 'payout' ? `Paid out ${fmtDays(h.payoutDays)}` : `Carried ${fmtDays(h.carried)}`}
+                              </Chip>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {leave.error && <div className="auth-err" style={{ marginBottom: 14 }}>{leave.error}</div>}
 
@@ -912,6 +984,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           employeeId={myEmployee.id}
           weekOffs={att.settings?.weekOffs ?? [0]}
           holidays={att.holidays}
+          allowPeriod={(att.settings?.periodLeavePerMonth ?? 0) > 0}
           onClose={() => setRequestingLeave(false)}
           onSave={async (draft) => {
             const message = await leave.create(draft)

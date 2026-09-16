@@ -169,7 +169,7 @@ export const demoEmployees: Employee[] = [
     workEmail: HR_PERSON.email ?? '', personalEmail: 'priya.s@gmail.com', phone: '+91 98200 11001',
     dateOfBirth: '1994-08-19', address: 'Vijay Nagar, Indore, MP',
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
-    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), annualLeaveDays: 18, shiftId: 'sh1', officeId: 'off1',
+    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), shiftId: 'sh1', officeId: 'off1',
     offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
     resignationDate: null, noticePeriodDays: null,
   },
@@ -198,7 +198,6 @@ export const demoEmployees: Employee[] = [
     lastWorkingDay: i === 4 ? '2026-10-15' : null,
     notes: '',
     createdAt: iso(300 - i * 20),
-    annualLeaveDays: 18,
     offerExtendedOn: JOINED[i] ?? '2024-01-01',
     offerAcceptedOn: JOINED[i] ?? '2024-01-01',
     resignationDate: i === 4 ? '2026-09-01' : null,
@@ -389,6 +388,14 @@ export const demoAttendanceSettings: AttendanceSettings = {
   weekOffs: [0],
   timezone: 'Asia/Kolkata',
   allowAnyBranch: true,
+  freeLatesPerMonth: 4,
+  paidLeavePerMonth: 2,
+  probationMonths: 0,
+  sameDayLeaveUnpaid: false,
+  periodLeavePerMonth: 0,
+  // Last month, so demo mode has one whole month HR can actually close.
+  leaveRulesStart: (() => { const t = new Date(); return new Date(Date.UTC(t.getFullYear(), t.getMonth() - 1, 1)).toISOString().slice(0, 10) })(),
+  leaveRulesInstalled: true,
   updatedAt: iso(9),
 }
 
@@ -398,7 +405,7 @@ export const demoShifts: Shift[] = [
   { id: 'sh3', name: 'Shift 3', startsAt: '10:30:00', sortOrder: 3, isActive: true },
 ]
 
-/** Six weeks of days for everybody but the signed-in demo member, who is left
+/** Every day since the 1st of last month for everybody but the signed-in demo member, who is left
  *  without a row for today on purpose: the first thing anybody opening this
  *  screen wants to see is a punch button that works, not a day already closed.
  *  Sundays are skipped, because Sunday is the seeded week off. */
@@ -412,7 +419,11 @@ export const demoAttendance: AttendanceRow[] = (() => {
     demoShifts.find((s) => s.id === demoEmployees.find((e) => e.id === id)?.shiftId) ?? demoShifts[0]!
   const pad = (n: number) => String(n).padStart(2, '0')
 
-  for (let back = 42; back >= 0; back--) {
+  // From the 1st of LAST month, not a flat six weeks: the leave rules count
+  // whole months, and a demo month with its first week missing would read
+  // as four absences nobody took.
+  const since = (() => { const t = new Date(); const f = new Date(t.getFullYear(), t.getMonth() - 1, 1); return Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime() - f.getTime()) / 86400000) })()
+  for (let back = since; back >= 0; back--) {
     const d = new Date()
     d.setDate(d.getDate() - back)
     if (d.getDay() === 0) continue
@@ -428,7 +439,9 @@ export const demoAttendance: AttendanceRow[] = (() => {
       const shift = shiftFor(id)
       const startH = Number(shift.startsAt.slice(0, 2))
       const startM = Number(shift.startsAt.slice(3, 5))
-      const lateBy = seed === 5 ? 24 : seed === 11 ? 13 : seed % 3 === 0 ? 4 : 0
+      // The signed-in member runs late more often than the rest, so the late
+      // rule (L5 onwards is a half day) has something real to show.
+      const lateBy = seed === 5 ? 24 : seed === 11 ? 13 : id === 'e1' && seed % 5 === 2 ? 16 : seed % 3 === 0 ? 4 : 0
       const inMin = startH * 60 + startM + lateBy
       const workMin = seed === 8 ? 320 : 540 + (seed % 4) * 6
       const at = (mins: number) => new Date(`${date}T${pad(Math.floor(mins / 60))}:${pad(mins % 60)}:00+05:30`).toISOString()

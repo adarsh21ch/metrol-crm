@@ -75,7 +75,6 @@ export function ApplicationReviewModal({
   const [dateOfJoining, setDateOfJoining] = useState(todayISO())
   const [gross, setGross] = useState('')
   const [net, setNet] = useState('')
-  const [annualLeaveDays, setAnnualLeaveDays] = useState(18)
 
   const view = async (path: string | null) => {
     if (!path) return
@@ -94,7 +93,7 @@ export function ApplicationReviewModal({
     setAction('approve'); setErr(null)
     const message = await onApprove({
       departmentId, designation: designation.trim(), employmentType, officeId, shiftId, dateOfJoining,
-      grossAmount: Number(gross) || 0, netAmount: Number(net) || 0, annualLeaveDays,
+      grossAmount: Number(gross) || 0, netAmount: Number(net) || 0,
     })
     setAction(null)
     if (message) { setErr(message); return }
@@ -380,11 +379,6 @@ export function ApplicationReviewModal({
               <label htmlFor="arNet">Net salary (₹/month)</label>
               <input className="input" id="arNet" type="number" min={0} value={net} onChange={(e) => setNet(e.target.value)} placeholder="Optional" />
             </div>
-            <div className="field">
-              <label htmlFor="arLeave">Annual leave days</label>
-              <input className="input" id="arLeave" type="number" min={0} step={0.5} value={annualLeaveDays}
-                     onChange={(e) => setAnnualLeaveDays(Number(e.target.value) || 0)} />
-            </div>
           </>
         )}
 
@@ -410,7 +404,6 @@ export function ApplicationReviewModal({
                   here and on the record it creates. */}
               <Fld l="Gross salary" v={gross ? `${money(Number(gross))}/month` : undefined} />
               <Fld l="Net salary" v={net ? `${money(Number(net))}/month` : undefined} />
-              <Fld l="Annual leave days" v={annualLeaveDays} />
             </div>
             <p style={{ color: 'var(--ink-3)', fontSize: 12 }}>
               This creates their login and sends them an email to set a password, using the address they applied with.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoAttendance, demoAttendanceSettings, demoEmployees, demoHolidays, demoOffices, demoShifts, isDemo } from '@/data/demo'
 import { officeDate, officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type Holiday, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
@@ -43,6 +43,15 @@ const toSettings = (r: Row): AttendanceSettings => ({
   weekOffs: Array.isArray(r.week_offs) ? (r.week_offs as number[]).map(Number) : [0],
   timezone: str(r.timezone) || 'Asia/Kolkata',
   allowAnyBranch: r.allow_any_branch !== false,
+  // 0022. The defaults are 0022's own, so a bundle that ships before the
+  // migration runs still reads sensible numbers rather than zeros.
+  freeLatesPerMonth: r.free_lates_per_month == null ? 4 : Number(r.free_lates_per_month),
+  paidLeavePerMonth: r.paid_leave_per_month == null ? 2 : Number(r.paid_leave_per_month),
+  probationMonths: Number(r.probation_months) || 0,
+  sameDayLeaveUnpaid: r.same_day_leave_unpaid === true,
+  periodLeavePerMonth: Number(r.period_leave_per_month) || 0,
+  leaveRulesStart: str(r.leave_rules_start) || '2026-09-01',
+  leaveRulesInstalled: 'free_lates_per_month' in r,
   updatedAt: (r.updated_at as string | null) ?? null,
 })
 
@@ -94,6 +103,12 @@ export interface SettingsDraft {
   halfDayMinutes: number
   maxAccuracyMeters: number
   allowAnyBranch: boolean
+  freeLatesPerMonth: number
+  paidLeavePerMonth: number
+  probationMonths: number
+  sameDayLeaveUnpaid: boolean
+  periodLeavePerMonth: number
+  leaveRulesStart: string
 }
 
 export interface OfficeDraft {
@@ -129,6 +144,11 @@ export interface AttendanceDraft {
 export function useAttendance(enabled = true) {
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [settings, setSettings] = useState<AttendanceSettings | null>(null)
+  // Read by saveSettings without making it a dependency — a callback that
+  // changes identity every time settings load is the re-render hazard the
+  // performance round found in this very folder.
+  const settingsRef = useRef<AttendanceSettings | null>(null)
+  useEffect(() => { settingsRef.current = settings }, [settings])
   const [shifts, setShifts] = useState<Shift[]>([])
   const [offices, setOffices] = useState<OfficeLocation[]>([])
   // Phase 7 put holidays here rather than in a hook of their own: this one
@@ -363,6 +383,16 @@ export function useAttendance(enabled = true) {
         half_day_minutes: draft.halfDayMinutes,
         max_accuracy_meters: draft.maxAccuracyMeters,
         allow_any_branch: draft.allowAnyBranch,
+        // Sent only once 0022 has added the columns — before that, naming
+        // them would refuse the WHOLE save, grace minutes included.
+        ...(settingsRef.current?.leaveRulesInstalled ? {
+          free_lates_per_month: draft.freeLatesPerMonth,
+          paid_leave_per_month: draft.paidLeavePerMonth,
+          probation_months: draft.probationMonths,
+          same_day_leave_unpaid: draft.sameDayLeaveUnpaid,
+          period_leave_per_month: draft.periodLeavePerMonth,
+          leave_rules_start: draft.leaveRulesStart,
+        } : {}),
       })
       .eq('id', true).select('*').single()
     if (err) return err.message
