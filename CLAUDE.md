@@ -3784,11 +3784,17 @@ machine, so the dev server cannot reach the real database and any number from
 demo mode would be about demo mode. The claims above rest on the code — a
 stable `useCallback` in a dependency array cannot re-fire — not on a stopwatch.
 
-## ADARSH: ONE REDEPLOY, AND HOW TO SEE IT WORKED
+## Redeployed 2026-09-16 — but NOT yet confirmed faster by the user
 
-`delete-employee` changed again — paste it into Edge Functions once more. The
-frontend ships itself via Vercel.
+Adarsh redeployed `delete-employee` the same day. **He has not yet said whether
+the app actually feels faster**, so do not record this round as proven. The
+code changes are verified; the outcome he cares about is not.
 
-To see the first fix with your own eyes: open the Attendance tab, press F12 →
-Network, and type in the search box. Before this, every keystroke fired a
-`finalize_open_attendance` request. After it, none do.
+How he can check the biggest fix: Attendance tab → F12 → Network → type in the
+search box. Before this round every keystroke fired a `finalize_open_attendance`
+request; after it, none do.
+
+If delete still drags on the FIRST click of a session and is quick afterwards,
+that is Edge Function cold start, not this code — the fix for that is dropping
+the npm SDK from `delete-employee` for plain `fetch`, which is deliberately
+left as its own round (see above).
