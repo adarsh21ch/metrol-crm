@@ -2,6 +2,7 @@ import type { useHoverTip } from '@/components/HoverTip'
 import type { usePanes } from '@/lib/usePanes'
 import { initials } from '@/lib/format'
 import type { Workspace } from '@/data/useWorkspace'
+import { AccountControls } from '@/components/AccountControls'
 
 /**
  * The persistent left-hand nav for the owner's whole app — not just inside a
@@ -21,7 +22,8 @@ export interface RailItem {
 }
 
 export function Rail({
-  ws, active, panes, tip, items, onOpenProjects, onOpenProject, onOpenTeam, onOpenHr, onOpenSettings,
+  ws, active, panes, tip, items, roleLabel, onOpenProfile,
+  onOpenProjects, onOpenProject, onOpenTeam, onOpenHr, onOpenSettings,
 }: {
   ws: Workspace
   active: 'projects' | 'team' | 'hr' | string
@@ -41,6 +43,10 @@ export function Rail({
    *  `items` branch) never renders this. */
   onOpenHr?: () => void
   onOpenSettings?: () => void
+  /** What prints under the name in the foot — "Owner", "HR", a department.
+   *  Each screen already had its own answer; they are not interchangeable. */
+  roleLabel?: string
+  onOpenProfile?: () => void
 }) {
   return (
     <nav className={'rail' + (panes.railWide ? ' is-wide' : '')} aria-label="Navigation">
@@ -104,6 +110,15 @@ export function Rail({
         </span>
         <span className="rail-name">Settings</span>
       </button>
+      )}
+
+      {/* Who you are, and the way out. Adarsh's point, and he is right: on a
+          desktop this app IS a sidebar and a canvas, so the account block is
+          navigation chrome and belongs here rather than floating above the
+          content. The same component renders in the topbar on a phone, where
+          there is no rail to put it in. */}
+      {onOpenProfile && (
+        <AccountControls ws={ws} variant="rail" roleLabel={roleLabel ?? ''} onOpenProfile={onOpenProfile} />
       )}
 
       <button className="rail-toggle" onClick={panes.toggleRail} aria-label="Show project names">

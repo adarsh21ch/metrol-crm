@@ -10,8 +10,9 @@
 // one accidental click from erasing someone's history. This function does
 // NOT reverse that decision. The client still cannot delete an employee row;
 // DELETE is still revoked at the table. This is a second, separate, harder
-// door: owner-only, requires the service role, and lives at a URL nobody
-// reaches by habit.
+// door: it requires the service role and lives at a URL nobody reaches by
+// habit. Owner OR HR may open it — see the check below for why HR belongs
+// there, and note that "HR" is a department, not a role.
 //
 // What it actually deletes:
 //   1. The auth.users login (if one exists) — the one piece nothing in
@@ -65,11 +66,30 @@ Deno.serve(async (req: Request) => {
   if (callerErr || !callerUser?.user) return json({ error: 'Could not verify who is calling this.' }, 401)
   const callerId = callerUser.user.id
 
-  // OWNER ONLY — not HR, unlike approve-job-application. Approving is a
-  // reviewable decision HR makes every day; deleting an employee outright is
-  // not something this app should let more than one role reach.
-  const { data: callerProfile } = await admin.from('profiles').select('role').eq('id', callerId).single()
-  if (callerProfile?.role !== 'owner') return json({ error: 'Only the owner can delete an employee record.' }, 403)
+  // OWNER OR HR. This shipped owner-only, on the reasoning that erasing
+  // somebody is not a daily action. Adarsh's answer was that HR is the one
+  // MAINTAINING the directory — the person who enters every record is the
+  // person who has to fix a wrong one, and routing that through the owner
+  // makes the owner a bottleneck on HR's own data. Migration 0021 already
+  // grants exactly this pair on applications (`is_owner() or is_hr()`), so
+  // both deletes now answer to the same two people.
+  //
+  // HR is a DEPARTMENT, not a role — that is settled in CLAUDE.md and is why
+  // `profiles.role` has no 'hr' value to test. This mirrors public.is_hr()
+  // from migration 0006 exactly: the caller's department's name. Spelled out
+  // here rather than calling the SQL function, because `admin` runs as the
+  // service role and is_hr() reads auth.uid(), which is not the caller here.
+  const HR_DEPARTMENT = 'Human Resources'
+  const { data: callerProfile } = await admin
+    .from('profiles').select('role, department_id').eq('id', callerId).single()
+
+  let allowed = callerProfile?.role === 'owner'
+  if (!allowed && callerProfile?.department_id) {
+    const { data: dept } = await admin
+      .from('departments').select('name').eq('id', callerProfile.department_id).single()
+    allowed = dept?.name === HR_DEPARTMENT
+  }
+  if (!allowed) return json({ error: 'Only the owner or HR can delete an employee record.' }, 403)
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return json({ error: 'Bad request body.' }, 400) }

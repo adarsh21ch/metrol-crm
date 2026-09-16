@@ -3,12 +3,11 @@ import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Rail, type RailItem } from '@/components/Rail'
 import { BottomNav, type BottomNavItem } from '@/components/BottomNav'
 import { Modal } from '@/components/Modal'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
-import { Avatar, Chip, IconBtn, Kpi } from '@/components/bits'
+import { Avatar, Chip, Kpi } from '@/components/bits'
 import { count, initials, money } from '@/lib/format'
-import { supabase } from '@/lib/supabase'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { EmployeeModal } from '@/modals/EmployeeModal'
 import { HrAttendance } from '@/screens/sections/HrAttendance'
@@ -30,6 +29,7 @@ import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summa
 import {
   APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO, unpaidLeaveDays, usedLeaveDays,
   type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord,
+  HR_DEPARTMENT,
 } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -42,11 +42,6 @@ const PEOPLE_ICON = (
 const DEPT_ICON = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01" />
-  </svg>
-)
-const GEAR_BACK = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
   </svg>
 )
 const LEAVE_ICON = (
@@ -183,6 +178,10 @@ export function HrPage({
   const openDept = (id: string) => { setDeptId(id); setSection('directory') }
   const [showLeavers, setShowLeavers] = useState(false)
 
+  /* Owner or HR — the same pair the delete-employee Edge Function enforces
+     server-side. This is a convenience for the UI only: hiding the button
+     stops nobody, and the function refuses anyone else regardless. */
+  const canDelete = ws.me?.role === 'owner' || ws.departmentName(ws.me?.departmentId ?? null) === HR_DEPARTMENT
   const open = openId ? hr.rows.find((e) => e.id === openId) ?? null : null
   const openEmployee = (id: string) => { setOpenId(id); setProfTab('overview') }
   const employeeName = (id: string) => hr.rows.find((e) => e.id === id)?.fullName ?? 'Unknown'
@@ -468,20 +467,13 @@ export function HrPage({
         </div>
         <div className="topbar-right">
           {onBackToProjects && <button className="btn btn--sm" onClick={onBackToProjects}>← Projects</button>}
-          <ThemeToggle />
-          <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
-            <Avatar lg src={ws.me?.avatarUrl}>{initials(ws.me?.name ?? '?')}</Avatar>
-            <div>
-              <div className="name">{ws.me?.name ?? 'HR'}</div>
-              <div className="role">{ws.me?.role === 'owner' ? 'Owner' : 'HR'}</div>
-            </div>
-          </button>
-          <IconBtn title="Sign out" onClick={() => void supabase.auth.signOut()}>{GEAR_BACK}</IconBtn>
+          <AccountControls ws={ws} variant="topbar" roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'}
+                           onOpenProfile={() => setProfileOpen(true)} />
         </div>
       </div>
 
       <div className="shell">
-        <Rail ws={ws} active={open ? 'directory' : section} panes={panes} tip={tip} items={railItems} />
+        <Rail ws={ws} roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'} onOpenProfile={() => setProfileOpen(true)} active={open ? 'directory' : section} panes={panes} tip={tip} items={railItems} />
 
         <div className="workspace">
 
@@ -528,14 +520,25 @@ export function HrPage({
                         Mark as resigned
                       </button>
                     )}
-                    {/* Owner-only, and deliberately apart from "Mark as
-                        resigned" — that is how a REAL employee leaves and
-                        keeps their history; this is for a record that should
-                        never have existed (a test application approved while
-                        proving the joining form worked). Two clicks, the
-                        second one naming who is about to be erased, because
-                        there is no undo past this button. */}
-                    {ws.me?.role === 'owner' && (
+                    {/* Deliberately apart from "Mark as resigned" — that is
+                        how a REAL employee leaves and keeps their history;
+                        this is for a record that should never have existed (a
+                        test application approved while proving the joining
+                        form worked). Two clicks, the second one naming who is
+                        about to be erased, because there is no undo past it.
+
+                        Owner OR HR. It shipped owner-only on the reasoning
+                        that erasing somebody is not a daily HR action —
+                        Adarsh's answer was that HR is the one MAINTAINING
+                        this directory, and he is right: the person who enters
+                        every record is the person who has to fix a wrong one,
+                        and sending them to the owner for it makes the owner a
+                        bottleneck on HR's own data. The same pair is what
+                        migration 0021 already grants on applications, so the
+                        two deletes now answer to the same two people.
+                        `canDelete` matches the Edge Function's own check
+                        exactly — see its header. */}
+                    {canDelete && (
                       <button className="btn btn--sm btn--danger" disabled={deletingEmp} onClick={() => void deleteEmployee(open)}>
                         {deletingEmp ? 'Deleting…' : 'Delete'}
                       </button>

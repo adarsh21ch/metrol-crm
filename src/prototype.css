@@ -1450,3 +1450,32 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
      to the bottom, and never taller than the screen. */
   .modal{max-height:88dvh}
 }
+
+
+/* ============================================ the account block
+   Who you are and the way out, moved off the topbar. On a desktop this app is
+   a sidebar and a canvas, so "signed in as" is navigation chrome and belongs
+   in the rail; the topbar copy exists for the phone, where there is no rail at
+   all. CSS picks between them — exactly one is ever on screen — so the two can
+   never disagree about what they are showing.
+
+   `--always` is the employee's own app: it has no rail, so its topbar block is
+   the only one there is and must survive on a desktop too. */
+.rail-foot{border-top:1px solid var(--line-2);margin-top:6px;padding:9px 0 2px;
+  display:flex;flex-direction:column;align-items:center;gap:5px}
+.rail-foot .acct-row{display:flex;align-items:center;justify-content:center;gap:1px;flex-wrap:wrap}
+.rail-foot .user-chip{width:100%;justify-content:center;padding:6px 0}
+/* Collapsed to 64px there is only room for the avatar; the name and role come
+   back when the rail is widened, and the hover tooltip already names it. */
+.rail-foot .user-chip > div{display:none}
+.rail.is-wide .rail-foot{align-items:stretch;padding:9px 7px 2px}
+.rail.is-wide .rail-foot .acct-row{justify-content:flex-start}
+.rail.is-wide .rail-foot .user-chip{justify-content:flex-start;padding:6px}
+.rail.is-wide .rail-foot .user-chip > div{display:block;min-width:0}
+.rail.is-wide .rail-foot .user-chip .name,
+.rail.is-wide .rail-foot .user-chip .role{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.topbar-account{display:none;align-items:center;gap:12px}
+.topbar-account--always{display:flex}
+.topbar-account .acct-row{display:flex;align-items:center;gap:8px}
+@media (max-width:860px){ .topbar-account{display:flex} }

@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
 import { Rail } from '@/components/Rail'
 import { BottomNav } from '@/components/BottomNav'
 import { DensitySlider } from '@/components/DensitySlider'
-import { Avatar, Chip, IconBtn } from '@/components/bits'
+import { Chip, IconBtn } from '@/components/bits'
 import { usePanes } from '@/lib/usePanes'
-import { initials } from '@/lib/format'
 import { isConverted, type Lead } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
 import { ImportModal } from '@/modals/ImportModal'
@@ -103,23 +102,13 @@ export function ProjectShell({
           <option value="__team">Team</option>
         </select>
         <div className="topbar-right">
-          <ThemeToggle />
-          <DensitySlider />
-          {isOwner && (
-            <IconBtn title="Company settings" onClick={() => setAdminOpen(true)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></IconBtn>
-          )}
-          <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
-            <Avatar lg src={ws.me?.avatarUrl}>{initials(ws.me?.name ?? '?')}</Avatar>
-            <div>
-              <div className="name">{isOwner ? 'Owner' : (ws.me?.name ?? '')}</div>
-              <div className="role">{ws.me?.email}</div>
-            </div>
-          </button>
+          <AccountControls ws={ws} variant="topbar" extra={<DensitySlider />} roleLabel={ws.me?.email ?? 'Owner'}
+                           onOpenProfile={() => setProfileOpen(true)} />
         </div>
       </div>
 
       <div className="shell">
-        <Rail ws={ws} active={projectId} panes={panes} tip={tip}
+        <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={() => setProfileOpen(true)} active={projectId} panes={panes} tip={tip}
               onOpenProjects={onBack} onOpenProject={onOpenProject}
               onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 

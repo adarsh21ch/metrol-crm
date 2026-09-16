@@ -3,16 +3,15 @@ import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
 import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { AccountControls } from '@/components/AccountControls'
 import { DensitySlider } from '@/components/DensitySlider'
-import { Avatar, Chip, EditChip, IconBtn, Kpi } from '@/components/bits'
+import { Avatar, Chip, EditChip, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
@@ -347,22 +346,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           <div className="brand-name">Metrol Media</div>
         </div>
         <div className="topbar-right">
-          <ThemeToggle />
-          <DensitySlider />
-          <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
-            <Avatar lg src={me?.avatarUrl}>{me?.initials}</Avatar>
-            <div>
-              <div className="name">{me?.name}</div>
-              {/* Their actual department, not a word hardcoded when Sales was
-                  the only one that existed. */}
-              <div className="role">{ws.departmentName(me?.departmentId ?? null) ?? 'Sales'}</div>
-            </div>
-          </button>
-          <IconBtn title="Sign out" onClick={() => void supabase.auth.signOut()}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
-          </IconBtn>
+          <AccountControls ws={ws} variant="topbar" alwaysShow extra={<DensitySlider />}
+                           roleLabel={ws.departmentName(me?.departmentId ?? null) ?? 'Sales'}
+                           onOpenProfile={() => setProfileOpen(true)} />
         </div>
       </div>
 

@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
 import { Rail } from '@/components/Rail'
 import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { usePanes } from '@/lib/usePanes'
-import { Avatar, Chip, IconBtn } from '@/components/bits'
+import { Avatar, Chip } from '@/components/bits'
 import { agoWords, count, initials, money, num } from '@/lib/format'
 import { isConverted, type Project } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
-import { supabase } from '@/lib/supabase'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
 
@@ -86,27 +85,13 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; 
           <div className="brand-name">Metrol Media</div>
         </div>
         <div className="topbar-right">
-          <ThemeToggle />
-          {ws.me?.role === 'owner' && (
-            <IconBtn title="Company settings" onClick={() => setAdminOpen(true)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></IconBtn>
-          )}
-          <button className="user-chip" title="My profile" onClick={() => setProfileOpen(true)}>
-            <Avatar lg src={ws.me?.avatarUrl}>{initials(ws.me?.name ?? '?')}</Avatar>
-            <div>
-              <div className="name">{ws.me?.role === 'owner' ? 'Owner' : (ws.me?.name ?? '')}</div>
-              <div className="role">{ws.me?.email}</div>
-            </div>
-          </button>
-          <IconBtn title="Sign out" onClick={() => void supabase.auth.signOut()}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
-          </IconBtn>
+          <AccountControls ws={ws} variant="topbar" roleLabel={ws.me?.email ?? 'Owner'}
+                           onOpenProfile={() => setProfileOpen(true)} />
         </div>
       </div>
 
       <div className="shell">
-        <Rail ws={ws} active="projects" panes={panes} tip={tip}
+        <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={() => setProfileOpen(true)} active="projects" panes={panes} tip={tip}
               onOpenProjects={() => {}} onOpenProject={onOpen}
               onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 

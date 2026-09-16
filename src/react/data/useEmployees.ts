@@ -151,8 +151,10 @@ export function useEmployees(enabled = true) {
     return null
   }, [])
 
-  /** Owner-only, and irreversible — see the Edge Function's own header for
-   *  exactly what it deletes and why each piece is safe to cascade.
+  /** Owner or HR, and irreversible — see the Edge Function's own header for
+   *  exactly what it deletes and why each piece is safe to cascade. The
+   *  permission is decided THERE, not here: hiding the button in HrPage is a
+   *  courtesy, and the function refuses anybody else whatever the client does.
    *
    *  Kept to the same `string | null` shape as every other mutation here —
    *  null means it worked, a string is something to show — rather than a

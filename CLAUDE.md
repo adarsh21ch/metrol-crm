@@ -3553,3 +3553,93 @@ block and Aadhaar are the likely yes; nothing goes on a guess.
 database and both functions are measured facts; the two buttons wired to them
 have never been clicked against a real row. That is the one thing left to
 confirm, and it takes two clicks.
+
+---
+
+# Sign out was broken, the account block moved to the sidebar, HR can delete (2026-09-16)
+
+Three things Adarsh asked for in one message.
+
+## 1. Sign out genuinely did nothing, and the reason is a footgun
+
+`supabase.auth.signOut()` defaults to `scope: 'global'`, which POSTs to
+`/auth/v1/logout`. **When that POST fails — an expired or already-revoked
+refresh token is the ordinary case, not an exotic one — supabase-js RETURNS the
+error and leaves the stored session exactly where it was.** Every call site in
+this app was `void supabase.auth.signOut()`, so the error went nowhere,
+`onAuthStateChange` never fired, and the button did nothing at all: no spinner,
+no message, no sign-out.
+
+`signOut()` in `lib/supabase.ts` now degrades instead of giving up — server,
+then `scope: 'local'`, then drop the `sb-*-auth-token` key by hand and reload.
+There is no state in which pressing Sign out should leave somebody signed in.
+
+**The `void` is what hid this.** `void somePromise()` discards a rejection AND
+a returned error object. Do not use it on anything whose failure matters.
+
+## 2. The account block belongs in the sidebar
+
+Adarsh: "if we have a sidebar, why is the top section showing the profile name
+and the sign out button… we will be working on the desktop." Right — on a
+desktop this app is a rail and a canvas, so "signed in as" is navigation
+chrome, not something the content area should carry.
+
+`AccountControls` is **one** component in two homes: the rail's foot on a
+desktop, the topbar on a phone where there is no rail at all. Which one shows
+is decided in CSS (`.topbar-account` is `display:none` above 860px; the rail is
+`display:none` below it), so exactly one is ever on screen and the two cannot
+drift — the lesson `Rail.tsx`'s own header already records about forking.
+
+Collapsed to 64px the foot shows the avatar alone; widening the rail brings
+back the name and role, ellipsised.
+
+Three things fell out of doing it:
+
+- **ProjectShell had no Sign out button at all.** Nobody had noticed; it has
+  one now, for free, because the rail carries it everywhere.
+- **The topbar gear is gone from Projects, TeamPage and ProjectShell.** The
+  rail has had a Settings entry on all three since Round 16, and this file
+  already said the topbar copy was the one to drop if the duplication ever
+  read as redundant. It did. Nothing is lost — verified Settings still opens
+  from the rail on each.
+- **`.topbar-account--always`** exists for the employee's own app, which has no
+  rail, so its topbar block is the only one and must survive on a desktop.
+  `Member` and `ProjectShell` pass their density slider through `extra` —
+  ProjectShell's was nearly dropped in this move and was caught by `tsc`
+  reporting the now-unused import.
+
+## 3. HR can delete an employee
+
+It shipped owner-only on the reasoning that erasing somebody is not a daily HR
+action. Adarsh's answer: HR is the one **maintaining** the directory. He is
+right — the person who enters every record is the person who has to fix a wrong
+one, and routing that through the owner makes the owner a bottleneck on HR's
+own data.
+
+Both gates changed, and they must stay in step: `canDelete` in `HrPage.tsx`
+(courtesy only — hiding a button stops nobody) and the real one in
+`delete-employee/index.ts`. **HR is a department, not a role**, so the function
+mirrors `public.is_hr()` from 0006 by name — it cannot call `is_hr()` itself,
+because `admin` runs as the service role and that function reads `auth.uid()`.
+
+This now matches migration 0021, which already granted `is_owner() or is_hr()`
+on applications. Both deletes answer to the same two people. What has NOT
+changed: `employees` still has zero DELETE policies and DELETE is still revoked
+— the browser cannot delete a row, only ask the function to.
+
+## Verified in Chromium, `?demo=1`
+
+Desktop 1440px: rail foot visible with theme/sign-out/profile on HR, owner
+Projects and inside a project; `.topbar-right` empty on all three; Settings
+still in the rail. Rail widened → "Priya Sharma / HR" with no overflow.
+375px: rail hidden, topbar block visible with the same three controls, no
+horizontal scroll. Member at 1440px: topbar block still visible (no rail) and
+its density slider intact. HR at 1440px now sees **Edit · Mark as resigned ·
+Delete** on an employee. `typecheck`, `build` and `deno check` clean.
+
+## ADARSH: ONE THING TO REDEPLOY
+
+**`delete-employee` changed — paste it into Supabase → Edge Functions again.**
+Until you do, the Delete button will appear for HR and the server will still
+refuse with "Only the owner can delete an employee record." The frontend goes
+out on its own via Vercel.
