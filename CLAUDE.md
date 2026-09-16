@@ -3028,3 +3028,34 @@ own time, not blocking anything else.
 No code is owed. Every phase (1–9) plus the shell rework (parts 1–3) is built,
 proven against the live database, and now deployed. Part 4 (denser cards) is
 the only deliberately-skipped item, and it was never re-requested.
+
+---
+
+# Departments — Cards or List, same as Projects (2026-09-16)
+
+Adarsh, looking at the Departments screen: too basic as a stacked list, and
+he wanted the same Cards/List choice the owner's Projects screen already has
+— cards by default, a grid of three, click a department to open it. **Not**
+a new per-department dashboard — that is still the thing nobody has defined
+content for and still explicitly not being invented. "Open that department"
+turned out to already exist: the Employees page already filters to one
+department via its own dropdown, so a card click just sets that filter and
+switches to Employees (`openDept()`). Reusing what is there rather than
+building a second way to see the same people.
+
+**The grid is the literal `.proj-grid` class**, not a copy of its rules —
+Projects' 3/2/1-column responsive breakpoints now serve both screens from one
+place, so they cannot drift apart the way a duplicated rule eventually does.
+`.dept-card` is new and lighter than `.proj-card`: no photo (a department has
+none), a monogram badge instead, a headcount stat, and the same avatar-stack
+footer Projects already uses for its team. List view is untouched — the exact
+markup from before this round, same wording, same behaviour.
+
+`metrol-crm-deptview` remembers the choice per browser, mirroring
+`metrol-crm-projview`. Default Cards.
+
+**Verified in Chromium**, `?demo=1&as=hr`: renders 3-column at 1280px, single
+column at phone width; clicking Sales opens Employees pre-filtered to Sales
+(5 of 6 shown, dropdown reads Sales); an empty department's card reads
+"Nobody yet" in the footer and "0 · People" in the stat, matching the list
+view's own empty wording. `typecheck` and `build` clean.

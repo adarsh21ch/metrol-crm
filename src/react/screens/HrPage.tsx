@@ -162,6 +162,25 @@ export function HrPage({
 
   const [q, setQ] = useState('')
   const [deptId, setDeptId] = useState('')
+  /* Cards or List, the same choice Projects already gives the owner — a
+     department with nobody in it is a single fact, and a wall of stacked
+     "Nobody yet" cards buries the ones that matter. Cards read as a grid to
+     scan; List is today's stacked view, unchanged, for whoever would rather
+     read down a page. Default Cards, remembered per browser. */
+  const DEPT_VIEW_KEY = 'metrol-crm-deptview'
+  const [deptView, setDeptView] = useState<'cards' | 'list'>(() => {
+    try { return localStorage.getItem(DEPT_VIEW_KEY) === 'list' ? 'list' : 'cards' } catch { return 'cards' }
+  })
+  const pickDeptView = (v: 'cards' | 'list') => {
+    setDeptView(v)
+    try { localStorage.setItem(DEPT_VIEW_KEY, v) } catch { /* a remembered view is a convenience */ }
+  }
+  /* A card opens the same roster the list already shows inline — filtered to
+     this department on the Employees page, which already has exactly this
+     filter built for its search bar. Not a new per-department dashboard:
+     nobody has said what one should contain yet, and this reuses what HR
+     already has rather than inventing a second way to see the same people. */
+  const openDept = (id: string) => { setDeptId(id); setSection('directory') }
   const [showLeavers, setShowLeavers] = useState(false)
 
   const open = openId ? hr.rows.find((e) => e.id === openId) ?? null : null
@@ -948,9 +967,49 @@ export function HrPage({
                 <div className="page-head">
                   <h1>Departments</h1>
                   <div className="sub">Where everybody sits. Moving somebody here is done on their record.</div>
+                  <div className="section-tools">
+                    <div className="seg">
+                      <button className={deptView === 'cards' ? 'is-on' : ''} onClick={() => pickDeptView('cards')}>Cards</button>
+                      <button className={deptView === 'list' ? 'is-on' : ''} onClick={() => pickDeptView('list')}>List</button>
+                    </div>
+                  </div>
                 </div>
 
-                {[...ws.departments].sort((a, b) => a.sortOrder - b.sortOrder).map((d) => {
+                {deptView === 'cards' && (
+                  <div className="proj-grid">
+                    {[...ws.departments].sort((a, b) => a.sortOrder - b.sortOrder).map((d) => {
+                      const mine = hr.rows.filter((e) => e.departmentId === d.id && e.status !== 'resigned')
+                      return (
+                        <button className="dept-card" key={d.id} onClick={() => openDept(d.id)}>
+                          <div className="dept-card-head">
+                            <div className="dept-mono">{initials(d.name)}</div>
+                            <h3>{d.name}</h3>
+                            {!d.isActive && <Chip cls="chip--mute">Retired</Chip>}
+                          </div>
+                          <div className="dept-stat">
+                            <span className="v">{mine.length}</span>
+                            <span className="k">{mine.length === 1 ? 'Person' : 'People'}</span>
+                          </div>
+                          <div className="proj-foot">
+                            {mine.length === 0 ? (
+                              <span className="cell-dash">Nobody yet</span>
+                            ) : (
+                              <>
+                                <span className="stack">
+                                  {mine.slice(0, 4).map((e) => <Avatar key={e.id}>{initials(e.fullName)}</Avatar>)}
+                                  {mine.length > 4 && <span className="stack-more">+{mine.length - 4}</span>}
+                                </span>
+                                <span>{count(mine.length, 'person', 'people')}</span>
+                              </>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {deptView === 'list' && [...ws.departments].sort((a, b) => a.sortOrder - b.sortOrder).map((d) => {
                   const mine = hr.rows.filter((e) => e.departmentId === d.id && e.status !== 'resigned')
                   return (
                     <div className="ov-card" key={d.id}>
