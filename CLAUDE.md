@@ -3255,3 +3255,59 @@ exactly what `blocking()` enforces, so the asterisk and the rule cannot drift.
 Required: first name, last name, gender, DOB, contact number, email, present
 address, pincode, and every document (the relieving letter drops off the list
 when "fresher" is ticked).
+
+---
+
+# Two fields the candidate already typed, carried to the employee record (2026-09-16)
+
+Left open at the end of the last round: the approval Edge Function creates the
+`employees` row but copies none of the joining form's new paper fields onto it.
+That was parked on Adarsh deciding which of them belong on a permanent employee
+record — and it still is, for most of them, because **`employees` has no column
+for father's name, gender, Aadhaar, religion, marital status, the bank block,
+education or employment history.** Giving them a home means ~20 new columns on
+the table real employees live in, and that is a schema decision, not a
+copy-paste.
+
+**Two of the twenty-six need no decision at all**: `employees.date_of_birth` and
+`employees.address` already exist, already mean exactly what the application's
+`date_of_birth` and `present_address` mean, and are already on the HR employee
+form — so today HR reads them on the application and then re-types them into
+the employee record by hand. The function now carries both.
+
+**Written to survive 0020 not being installed yet**: `app.date_of_birth ?? null`
+and `app.present_address ?? ''`, because `select('*')` simply will not return
+columns that do not exist, and an approval must not start failing on a missing
+field. It fills them when they are there and behaves exactly as before when
+they are not.
+
+`address` takes the **present** address, not the permanent one — an employee
+record's single address field is the one you would post something to or expect
+somebody at, which is where they live now.
+
+## Verified
+
+`typecheck` and `build` clean. `deno check` on the function reports the **same
+two `TS2322` errors as `HEAD` does** — a `SupabaseClient` generic mismatch
+between the two `createClient` instantiations at lines 197/216, pre-existing,
+unrelated to this change, and not what the deployed bundle resolves (the
+function has been live and working since 2026-09-16). Confirmed by stashing and
+re-running: 2 before, 2 after.
+
+## THE LIVE FORM IS BROKEN UNTIL 0020 RUNS
+
+Not a new finding, but it needs saying at the top of its own section rather than
+in a bullet: `0020_application_full_form.sql` has **not** been run on the live
+database, and `useJobApplications.submit()` inserts 26 columns that do not exist
+there yet. A real applicant on company.metrol.in fills eight steps, uploads five
+documents, presses Submit — and gets a database error at the last moment, with
+the draft still in `localStorage` and nothing on HR's screen. This is the single
+thing blocking the feature that is otherwise finished.
+
+## Still Adarsh's, unchanged
+
+`RESEND_API_KEY` secret · office branches (0) · employee records (1) · festival
+holiday dates. And **one question worth answering when convenient**: of the
+other twenty-four paper fields, which belong on the permanent employee record?
+The bank block and Aadhaar are the likely yes — payroll and statutory filing
+both want them — but nothing will be added to `employees` on a guess.

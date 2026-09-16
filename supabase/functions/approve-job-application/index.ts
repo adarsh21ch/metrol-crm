@@ -149,6 +149,13 @@ Deno.serve(async (req: Request) => {
     date_of_joining: dateOfJoining,
     work_email: app.email,
     phone: app.phone,
+    // The only two paper-form fields that already have a home on `employees`
+    // and mean exactly the same thing there. Carrying them means HR does not
+    // re-type what the candidate already wrote. The other ~20 fields from the
+    // joining form stay on the application on purpose — giving them a home
+    // here would mean new columns on `employees`, which is Adarsh's call.
+    date_of_birth: app.date_of_birth ?? null,
+    address: app.present_address ?? '',
     office_id: officeId,
     shift_id: shiftId,
     annual_leave_days: annualLeaveDays,
