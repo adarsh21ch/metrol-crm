@@ -104,8 +104,21 @@ Deno.serve(async (req: Request) => {
   if (appErr || !app) return json({ error: 'That application no longer exists.' }, 404)
 
   if (body.resend) {
-    if (app.status !== 'approved' || !app.employee_id) {
+    if (app.status !== 'approved') {
       return json({ error: 'Only an already-approved application can be resent.' }, 400)
+    }
+    // These used to be ONE combined check with one generic message, which is
+    // exactly what Adarsh hit: an application that reads "Approved" on
+    // screen, with a genuinely different, discoverable reason underneath.
+    // 0017's own FK is `employee_id ... on delete set null` — the moment
+    // delete-employee removes the employee this application produced,
+    // Postgres sets employee_id back to null BY ITSELF. Nothing marks the
+    // application as changed; it still says "Approved", because it was — the
+    // decision stands, only the record it created is gone. Worth saying so
+    // rather than making this read like the application was never approved
+    // at all.
+    if (!app.employee_id) {
+      return json({ error: 'This application is approved, but the employee record it created has since been deleted — there is no login left to invite.' }, 400)
     }
     const { data: emp } = await admin.from('employees').select('employee_code').eq('id', app.employee_id).single()
     const sent = await sendInviteEmail({ email: app.email, fullName: app.full_name, employeeCode: emp?.employee_code ?? '', supabaseUrl: SUPABASE_URL, admin, resendKey: RESEND_API_KEY })

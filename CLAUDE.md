@@ -4111,3 +4111,65 @@ Client-only change — no migration, and the Edge Functions' own source did not
 change, only how the browser reads their response. But the site itself has to
 ship the new bundle before the real error becomes visible, so this still
 needs the normal `git push` → Vercel path, already done.
+
+---
+
+# Two more bugs, found within a minute of Adarsh actually using it (2026-09-16)
+
+Both from the same click: he opened his own test application and pressed
+"Send invite email".
+
+## 1. "Only an already-approved application can be resent" — on an approved one
+
+The Edge Function's resend guard was one combined check: `app.status !==
+'approved' || !app.employee_id`, one generic message for both. Adarsh's
+application genuinely says Approved on screen, so the message was simply
+wrong for what actually happened.
+
+**The real reason: he deleted the employee this application produced**, using
+the Delete button this very session built and asked him to test. 0017's own
+FK is `employee_id uuid references public.employees(id) on delete set null`
+— the moment `delete-employee` removed the employee row, Postgres set
+`job_applications.employee_id` back to null **by itself**. Nothing marks the
+application as changed. It still reads "Approved", because it was — the
+decision stands, only the record it created is gone. Split into two honest
+messages: still-pending gets the original sentence, approved-but-orphaned
+gets its own — "approved, but the employee record it created has since been
+deleted — there is no login left to invite."
+
+**This is the interaction of two features from the same day**, not a bug in
+either one alone: approve-then-delete-the-employee is a sequence that did not
+exist before this session, and nothing prompted for it.
+
+## 2. "The delete button also got pressed" — it didn't, its LABEL lied
+
+One shared `busy` boolean drove FOUR different buttons' text — Approve,
+Reject, Resend, Delete all read the same flag. Press "Send invite email" and
+`busy` goes true; the Delete button next to it also reads `busy`, so its
+label flips to **"Deleting…"** while nothing is being deleted. Adarsh saw
+this immediately and described it exactly right: both buttons looked like
+they were "pressing continuously".
+
+Replaced the boolean with `action: 'approve' | 'delete' | 'reject' | 'resend'
+| null`. `action !== null` still disables every button — two of these
+overlapping for real is not a state worth allowing — but only the button
+whose OWN action matches shows a busy label. Verified no live code reference
+to `busy` survives (comments describing the old bug, which mention the word,
+correctly do).
+
+## Verified
+
+`typecheck` and `build` clean. `deno check` reports the same 2 pre-existing
+`TS2322` errors confirmed earlier this session as unrelated (a generic
+mismatch between two `createClient` calls, present at HEAD before today,
+nowhere near either line touched here).
+
+## What this does NOT tell us
+
+**Whether Resend actually sends an email is still unconfirmed.** Both bugs
+found today sit IN FRONT of that check — the guard now correctly explains why
+THIS PARTICULAR application can't be resent (no employee behind it anymore),
+but that says nothing about `RESEND_API_KEY` or the `hr@metrol.in` sending
+domain. **The next real test needs an application that still HAS an
+employee** — either a fresh approval, or one Adarsh has not deleted the
+employee for.

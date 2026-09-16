@@ -52,7 +52,18 @@ export function ApplicationReviewModal({
   // Continue / Back fixes that: you always know which of the two things you
   // are doing, and the footer's one button always matches it.
   const [mode, setMode] = useState<'view' | 'approve-details' | 'approve-confirm' | 'reject'>('view')
-  const [busy, setBusy] = useState(false)
+  // ONE shared `busy` boolean used to drive FOUR unrelated buttons' labels —
+  // Delete, Reject, Resend and Approve all read the same flag, so pressing
+  // any one of them flipped every OTHER button's text too: click "Send
+  // invite email" and "Delete application" changed to "Deleting…" right next
+  // to it, with nothing actually being deleted. Adarsh saw exactly that and
+  // described it as both buttons "pressing continuously" — which one action
+  // is running is now its own piece of state, not a boolean every button
+  // reinterprets as being about itself. `action !== null` still disables
+  // every button (two of these should never overlap — approving and
+  // deleting the same application at once is not a state worth allowing),
+  // but only the button whose OWN action matches shows a busy label.
+  const [action, setAction] = useState<'approve' | 'delete' | 'reject' | 'resend' | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [note, setNote] = useState('')
 
@@ -80,37 +91,37 @@ export function ApplicationReviewModal({
   }
 
   const submitApprove = async () => {
-    setBusy(true); setErr(null)
+    setAction('approve'); setErr(null)
     const message = await onApprove({
       departmentId, designation: designation.trim(), employmentType, officeId, shiftId, dateOfJoining,
       grossAmount: Number(gross) || 0, netAmount: Number(net) || 0, annualLeaveDays,
     })
-    setBusy(false)
+    setAction(null)
     if (message) { setErr(message); return }
     onClose()
   }
 
   const submitDelete = async () => {
     if (!window.confirm(`Delete ${app.fullName}'s application? This removes it and its documents for good.`)) return
-    setBusy(true); setErr(null)
+    setAction('delete'); setErr(null)
     const message = await onDelete()
-    setBusy(false)
+    setAction(null)
     if (message) { setErr(message); return }
     onClose()
   }
 
   const submitReject = async () => {
-    setBusy(true); setErr(null)
+    setAction('reject'); setErr(null)
     const message = await onReject(note.trim())
-    setBusy(false)
+    setAction(null)
     if (message) { setErr(message); return }
     onClose()
   }
 
   const submitResend = async () => {
-    setBusy(true); setErr(null)
+    setAction('resend'); setErr(null)
     const message = await onResend()
-    setBusy(false)
+    setAction(null)
     if (message) { setErr(message); return }
     onClose()
   }
@@ -132,8 +143,8 @@ export function ApplicationReviewModal({
               marks it as different from Close next to it. */}
           {mode === 'view' && (
             <>
-              <button className="btn btn--sm btn--danger" disabled={busy} onClick={() => void submitDelete()}>
-                {busy ? 'Deleting…' : 'Delete application'}
+              <button className="btn btn--sm btn--danger" disabled={action !== null} onClick={() => void submitDelete()}>
+                {action === 'delete' ? 'Deleting…' : 'Delete application'}
               </button>
               {/* .modal-foot is justify-content:flex-end — every button is
                   already hard right, so it takes an auto margin HERE to push
@@ -146,7 +157,7 @@ export function ApplicationReviewModal({
               <span style={{ marginLeft: 'auto' }} />
             </>
           )}
-          <button className="btn btn--sm" onClick={mode === 'approve-confirm' ? () => setMode('approve-details') : onClose} disabled={busy}>
+          <button className="btn btn--sm" onClick={mode === 'approve-confirm' ? () => setMode('approve-details') : onClose} disabled={action !== null}>
             {mode === 'approve-confirm' ? 'Back' : 'Close'}
           </button>
           {mode === 'view' && app.status === 'pending' && (
@@ -156,21 +167,21 @@ export function ApplicationReviewModal({
             </>
           )}
           {mode === 'view' && app.status === 'approved' && (
-            <button className="btn btn--sm btn--primary" disabled={busy} onClick={() => void submitResend()}>
-              {busy ? 'Sending…' : app.inviteSentCount > 0 ? 'Resend invite email' : 'Send invite email'}
+            <button className="btn btn--sm btn--primary" disabled={action !== null} onClick={() => void submitResend()}>
+              {action === 'resend' ? 'Sending…' : app.inviteSentCount > 0 ? 'Resend invite email' : 'Send invite email'}
             </button>
           )}
           {mode === 'reject' && (
-            <button className="btn btn--sm btn--primary" disabled={busy} onClick={() => void submitReject()}>
-              {busy ? 'Rejecting…' : 'Confirm reject'}
+            <button className="btn btn--sm btn--primary" disabled={action !== null} onClick={() => void submitReject()}>
+              {action === 'reject' ? 'Rejecting…' : 'Confirm reject'}
             </button>
           )}
           {mode === 'approve-details' && (
             <button className="btn btn--sm btn--primary" onClick={continueApprove}>Continue →</button>
           )}
           {mode === 'approve-confirm' && (
-            <button className="btn btn--sm btn--primary" disabled={busy} onClick={() => void submitApprove()}>
-              {busy ? 'Approving…' : 'Approve and create login'}
+            <button className="btn btn--sm btn--primary" disabled={action !== null} onClick={() => void submitApprove()}>
+              {action === 'approve' ? 'Approving…' : 'Approve and create login'}
             </button>
           )}
         </>
