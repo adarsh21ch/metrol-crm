@@ -149,8 +149,10 @@ Migration `0024_monthly_salary.sql` — two ALTER TABLE statements
 (`employees.monthly_salary`, `salary_records.payslip_sent_count` /
 `payslip_sent_at`), proven against a throwaway local Postgres cluster before
 being handed to Adarsh: idempotent, rejects a negative salary, null and a
-real value both accepted, new columns default correctly. **Not yet run on
-the live database — Adarsh has to paste it in.**
+real value both accepted, new columns default correctly. **CONFIRMED live on
+the real database, 2026-09-17** — Adarsh ran it directly in the Supabase SQL
+editor and all three proof rows read back correct: `monthly_salary` column
+present, both `salary_records` email-tracking columns present.
 
 **Nobody has a monthly salary set yet.** The field exists and HR can fill it
 in on the Edit employee form, but every current employee reads

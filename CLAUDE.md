@@ -4632,31 +4632,33 @@ correctly with the new fields present, and the Terms & Conditions page
 renders and computes its comparison table correctly on both the HR and
 employee sides.
 
-**Not yet run on the live database.** `0024` behaves exactly like every
-earlier migration here — written, proven locally, never applied by this
-session. Two things are true until Adarsh runs it: the "Compute from
-attendance" button will read back `monthlySalary: null` for everyone (it
-already does in the demo — Sneha Kulkarni is seeded that way on purpose to
-show what the refusal looks like), and nobody's actual monthly salary
-exists anywhere in this system yet. Filling it in per person is a one-time
-task on the Edit employee form, same shape as "office branches: 0" was.
+**CONFIRMED live on the real database, 2026-09-17.** Adarsh ran `0024`
+directly in the Supabase SQL editor (screenshot, not fetched by this
+session) and its own proof query came back correct: `employees.monthly_salary
+column (must be 1)` → 1, `salary_records payslip-email columns (must be 2)`
+→ 2. Its data rows read `employees priced so far` → 0 and `employees total`
+→ 1 — the column exists and works, nobody has used it yet. That last number
+is a live-database fact worth double-checking with Adarsh separately: it is
+lower than the headcount this file's earlier rounds describe (six seeded in
+the demo, several named directly in Round 2/3 notes), so either the company
+code most people signed up with is not this one, or most of the team simply
+has no `employees` row yet — checking rather than assuming, same discipline
+as everywhere else in this file.
 
 ## WHAT YOU DO NEXT
 
-1. **Run `0024`** — one paste, adds the two columns Round 4 needs:
-   ```bash
-   pbcopy < /Users/apple/metrol-crm/supabase/migrations/0024_monthly_salary.sql
-   ```
-   Paste into Supabase → SQL Editor → Run, and send back the last few rows
-   it prints (it tells you whether both columns landed).
-2. **Set everyone's monthly salary once** — Employees → open each person →
+1. **Set everyone's monthly salary once** — Employees → open each person →
    Edit → "Monthly salary (₹)". Until this is filled in, "Compute from
-   attendance" will refuse to run for that person, on purpose.
-3. **Try a real payslip** — Salary → pick someone who is now priced → Add
+   attendance" will refuse to run for that person, on purpose. Worth first
+   confirming how many employees the live directory actually shows — the
+   migration's own proof query read `employees total: 1`, which is fewer
+   than expected; if the directory in the app also shows just one person,
+   that is worth understanding before pricing anybody.
+2. **Try a real payslip** — Salary → pick someone who is now priced → Add
    payslip → Compute from attendance → check the numbers → save. Then try
    "Email payslip" on it and confirm it actually lands in an inbox (Resend's
    own dashboard shows delivery status if it doesn't).
-4. **Read the Terms & Conditions page** (HR sidebar, or any employee's
+3. **Read the Terms & Conditions page** (HR sidebar, or any employee's
    Profile → Terms) and tell me if the three "switched off" items — period
    leave, probation, same-day-unpaid — should actually be turned ON in
    Attendance Settings, or stay off as they are now.
