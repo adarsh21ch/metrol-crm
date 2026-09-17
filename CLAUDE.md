@@ -4662,3 +4662,54 @@ as everywhere else in this file.
    Profile → Terms) and tell me if the three "switched off" items — period
    leave, probation, same-day-unpaid — should actually be turned ON in
    Attendance Settings, or stay off as they are now.
+
+---
+
+# UI polish round: calendar redesign, Joining merge, camera speed, Request leave (2026-09-17)
+
+Same day as Rounds 4–5, a separate string of asks from Adarsh after payroll
+shipped. All pushed to main; Vercel deploys each commit automatically.
+
+- **Refresh-persistence fixed everywhere.** Every "which tab am I on" —
+  App.tsx's route, HrPage's section/profile-tab/open-employee,
+  ProjectShell's section, Member's section/profile-tab — used to reset to
+  the default on a page refresh. `lib/usePersistedState.ts` (sessionStorage,
+  not the URL) fixes this app-wide.
+- **Employee's own attendance month redesigned**, through several rounds of
+  feedback: ended on ONE horizontal strip (not a multi-row grid), full
+  calendar month (1st–30th/31st, not clipped to today), cells stretch edge
+  to edge, each cell shows its own weekday letter + a soft gradient fill per
+  status, today gets the app's gold accent ring.
+- **Applications + Onboarding merged into one "Joining" tab** (Applications
+  / Onboarding toggle inside it) — they were never the same data
+  (job_applications vs onboarding_tasks), but looked like duplicate
+  tracking of the same person. Sidebar: 10 tabs → 9.
+- **Camera scanning sped up.** GPS was already pre-warmed on page load; the
+  camera was not — `PunchCard` now warms and reuses ONE camera stream for
+  the whole visit (only once permission was already granted before, never
+  as a first-visit surprise), and asks for 640×480 instead of the camera's
+  default resolution. `QrScanner` accepts a borrowed stream and never stops
+  one it doesn't own.
+- **"Request leave" now also lives on the Attendance tab itself** (same
+  modal Profile → Leave already used), not one tab away.
+- **HR's Leave tab shows a pending count** in the sidebar ("Leave (2)"),
+  same pattern as Joining's applications count.
+
+## NOT done — explicitly deferred, not forgotten
+
+1. **Merge HR's Attendance and Leave tabs into one, with a toggle** —
+   Adarsh's own idea, same shape as the Joining merge. NOT started: unlike
+   Applications/Onboarding (two simple lists), HR Attendance is a large
+   dedicated screen (day table, QR poster management, branch settings) and
+   Leave is a whole workflow (approve/reject, close-the-month payout math,
+   holidays) — a real redesign, not a quick merge. Needs its own session.
+2. **A more visible "somebody just applied for leave" alert for HR** —
+   Adarsh asked for something like a red pop-up so new requests don't sit
+   unnoticed. The sidebar count above is the cheap version that shipped;
+   an actual live notification (toast on arrival, not just a count you see
+   after opening the app) is bigger — realtime is already wired on
+   `leave_requests` for the board itself, but a global "just landed" alert
+   independent of which screen HR is on has not been designed or built.
+3. **Camera speed fix not yet confirmed working** by Adarsh directly on the
+   live site — built and pushed, verified in the browser here, but the
+   actual "does Scan code feel faster now" answer is his to give.
