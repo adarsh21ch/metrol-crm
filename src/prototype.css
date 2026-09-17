@@ -1535,40 +1535,54 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
    right) as long as it can stay at least MIN_CELL wide; only once thirty-one
    of those no longer fit — a phone — does the row stop growing and scroll
    sideways instead, which is what keeps it a small tap-target there rather
-   than shrinking past readable. Status is the cell's own fill now, not a
-   dot or a coloured number, with white text where a dark fill needs it for
-   contrast. Holiday gets a diagonal hatch instead of a colour, because it is
-   not a status anybody earned — a day the office was shut looks "cut", not
-   red or green. */
+   than shrinking past readable. Each cell carries its own weekday letter
+   above the date, so the strip reads without cross-referencing a header row
+   that would not line up with it anyway (a linear strip is not week-aligned
+   the way a grid is). Status is a soft gradient fill, not a flat crayon
+   colour — the same restrained jewel-tone family a finance app reaches for —
+   with white text where a dark fill needs it for contrast. Holiday gets a
+   diagonal hatch instead of a colour, because it is not a status anybody
+   earned — a day the office was shut looks "cut", not red or green. */
+:root{
+  --cal-present:#0E9F6E; --cal-present-2:#057A55;
+  --cal-late:#D97706;    --cal-late-2:#B45309;
+  --cal-leave:#4F46E5;   --cal-leave-2:#4338CA;
+  --cal-absent:#E11D48;  --cal-absent-2:#BE123C;
+}
 .cal-strip{
-  display:flex;gap:1px;overflow-x:auto;-webkit-overflow-scrolling:touch;
-  background:var(--line);border:1px solid var(--line);
-  border-radius:var(--r);width:100%;margin-bottom:12px;
+  display:flex;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:var(--r);padding:3px;width:100%;margin-bottom:12px;
 }
 .cal-cell{
-  flex:1 1 0;min-width:30px;aspect-ratio:1;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--surface);
+  flex:1 1 0;min-width:32px;aspect-ratio:.88;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:var(--surface);border-radius:7px;
   font-size:12px;font-weight:700;color:var(--ink-2);
   font-variant-numeric:tabular-nums;line-height:1;
+  transition:transform .12s ease;
+}
+.cal-cell .dw{
+  font-size:8px;font-weight:600;letter-spacing:.03em;line-height:1;
+  opacity:.65;text-transform:uppercase;
 }
 .cal-cell .d{line-height:1}
-/* Today — a ring rather than a second fill, so it still reads on top of
-   whatever colour the day's own status already gave the cell. */
-.cal-cell--today{box-shadow:inset 0 0 0 2px var(--ink);z-index:1}
+.cal-cell:hover{transform:translateY(-1px)}
+/* Today — a bright accent ring rather than a second fill, so it still reads
+   on top of whatever colour the day's own status already gave the cell. The
+   same gold the rest of the app already uses to mark "the one you're on". */
+.cal-cell--today{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent);z-index:1}
 
-/* Fixed, saturated fills rather than the theme's own --good/--warn/--bad/
-   --info — those four flip to PALE versions in dark mode (they are tuned to
-   be readable TEXT on a dark card, not a solid tile), which would have put a
-   washed-out mint or coral behind white text exactly where this needed the
-   most contrast. A calendar square is small and looked at for one second;
-   it gets one fixed colour in both themes instead. */
-.cal--present{background:#16A34A;color:#fff}
-.cal--absent{background:#DC2626;color:#fff}
-.cal--leave{background:#2563EB;color:#fff}
+/* A soft diagonal gradient between two shades of the same colour, instead of
+   one flat fill — the difference between a crayon box and a card in a
+   banking app. */
+.cal--present{background:linear-gradient(155deg,var(--cal-present),var(--cal-present-2));color:#fff}
+.cal--absent{background:linear-gradient(155deg,var(--cal-absent),var(--cal-absent-2));color:#fff}
+.cal--leave{background:linear-gradient(155deg,var(--cal-leave),var(--cal-leave-2));color:#fff}
 /* Amber holds enough contrast on its own — white on top of it is the one
    combination that reads worse, not better. */
-.cal--late,.cal--half{background:#F59E0B;color:#3A2A06}
+.cal--late,.cal--half{background:linear-gradient(155deg,var(--cal-late),var(--cal-late-2));color:#2B1C02}
+.cal--present .dw,.cal--absent .dw,.cal--leave .dw,.cal--late .dw,.cal--half .dw{opacity:.8;color:inherit}
 /* Not a colour — a "closed" hatch, so a holiday cannot be mistaken for
    somebody's own good or bad day. */
 .cal--holiday{
@@ -1580,14 +1594,15 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 
 .cal-key{display:flex;gap:11px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-bottom:14px}
 .cal-key span{display:inline-flex;align-items:center;gap:5px}
-.cal-key i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.cal-key i{width:9px;height:9px;border-radius:3px;display:inline-block}
 .cal-key-holiday{
   background:var(--surface-2);border:1px solid var(--line);
   background-image:repeating-linear-gradient(135deg,transparent,transparent 2px,var(--line) 2px,var(--line) 3px);
 }
 
 @media (max-width:560px){
-  .cal-cell{min-width:26px;font-size:11px}
+  .cal-cell{min-width:27px;font-size:11px}
+  .cal-cell .dw{font-size:7px}
 }
 
 /* The table. On a phone all five columns FIT — Adarsh was right that a

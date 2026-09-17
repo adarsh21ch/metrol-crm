@@ -680,15 +680,16 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                                      + (d.date === officeToday(tz) ? ' cal-cell--today' : '')}
                                    key={d.date}
                                    title={`${fmtDate(d.date)} — ${[DAY_KIND[d.kind].label || 'Nothing recorded', d.remark].filter(Boolean).join(' · ')}`}>
+                                <span className="dw">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d.date + 'T00:00:00Z').getUTCDay()]}</span>
                                 <span className="d">{Number(d.date.slice(8, 10))}</span>
                               </div>
                             ))}
                           </div>
                           <div className="cal-key">
-                            <span><i style={{ background: '#16A34A' }} />Present</span>
-                            <span><i style={{ background: '#F59E0B' }} />Late / half day</span>
-                            <span><i style={{ background: '#2563EB' }} />Leave</span>
-                            <span><i style={{ background: '#DC2626' }} />Absent</span>
+                            <span><i style={{ background: 'var(--cal-present)' }} />Present</span>
+                            <span><i style={{ background: 'var(--cal-late)' }} />Late / half day</span>
+                            <span><i style={{ background: 'var(--cal-leave)' }} />Leave</span>
+                            <span><i style={{ background: 'var(--cal-absent)' }} />Absent</span>
                             <span><i className="cal-key-holiday" />Holiday or weekly off</span>
                           </div>
                         </div>
