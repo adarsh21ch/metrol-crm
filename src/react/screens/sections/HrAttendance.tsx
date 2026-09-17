@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Chip, Kpi } from '@/components/bits'
 import { AttendanceSettingsModal } from '@/modals/AttendanceSettingsModal'
@@ -29,11 +29,16 @@ interface DayRow {
  * is on their own record page, where the rest of their history already lives.
  */
 export function HrAttendance({
-  att, employees, toast, leave = [], onOpenLeave,
+  att, employees, toast, leave = [], onOpenLeave, viewToggle,
 }: {
   att: Attendance
   employees: Employee[]
   toast: (m: string) => void
+  /** The Day/Leave switch, handed in so it can sit in THIS screen's own
+   *  .section-tools rather than in a band above the heading. Every page-level
+   *  control in this app belongs on the heading line, top right — the rule
+   *  Adarsh named after seeing this one break it. */
+  viewToggle?: ReactNode
   /* Every leave request in the company. Attendance without it lists somebody
      on approved leave as "not in", which is the one absence nobody needs to
      chase — Adarsh asked for who is in AND who is on leave on this screen. */
@@ -205,6 +210,7 @@ export function HrAttendance({
             {showBranches ? 'Hide branches' : 'Branches'}
           </button>
           <button className="btn btn--sm" onClick={() => setSettingsOpen(true)}>Settings</button>
+          {viewToggle}
         </div>
       </div>
 

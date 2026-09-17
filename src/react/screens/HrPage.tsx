@@ -295,6 +295,19 @@ export function HrPage({
      one Attendance tab, same as Joining does for pending applications, and
      the Day/Leave toggle inside the tab decides which of the two you see. */
   const pendingLeave = leave.rows.filter((r) => r.status === 'pending')
+
+  /* One switch, rendered into whichever half is showing — NOT two copies, and
+     not a band of its own above the heading. Both halves are full screens with
+     their own <h1>, so each keeps its heading and the control sits top-right on
+     it, exactly where Joining's Applications/Onboarding switch already sat. */
+  const attToggle = (
+    <div className="seg">
+      <button className={attView === 'day' ? 'is-on' : ''} onClick={() => setAttView('day')}>Day</button>
+      <button className={attView === 'leave' ? 'is-on' : ''} onClick={() => setAttView('leave')}>
+        Leave{pendingLeave.length > 0 ? ` (${pendingLeave.length})` : ''}
+      </button>
+    </div>
+  )
   const railItems: RailItem[] = [
     { key: 'dashboard', label: 'Dashboard', icon: DASH_ICON, onClick: () => { setSection('dashboard'); setOpenId(null) } },
     {
@@ -548,7 +561,10 @@ export function HrPage({
 
         <div className="workspace">
 
-          <div className="wrap">
+          {/* key + .view-in is the whole tab animation: a section swap remounts
+              this wrapper, which replays the keyframe. Keyed on the profile too,
+              so opening somebody's record arrives the same way a tab does. */}
+          <div className="wrap view-in" key={`${section}:${attView}:${joiningView}:${openId ?? ''}`}>
             {hr.error && <div className="auth-err" style={{ marginBottom: 14 }}>{hr.error}</div>}
 
             {/* ------------------------------------------------ one person */}
@@ -1230,16 +1246,9 @@ export function HrPage({
                 Joining's Applications/Onboarding switch. */}
             {!open && section === 'attendance' && (
               <>
-                <div className="seg" style={{ marginBottom: 14 }}>
-                  <button className={attView === 'day' ? 'is-on' : ''} onClick={() => setAttView('day')}>Day</button>
-                  <button className={attView === 'leave' ? 'is-on' : ''} onClick={() => setAttView('leave')}>
-                    Leave{pendingLeave.length > 0 ? ` (${pendingLeave.length})` : ''}
-                  </button>
-                </div>
-
                 {attView === 'day' ? (
                   <HrAttendance att={att} employees={hr.rows} toast={toast} leave={leave.rows}
-                                onOpenLeave={() => setAttView('leave')} />
+                                onOpenLeave={() => setAttView('leave')} viewToggle={attToggle} />
                 ) : (
               <>
                 <div className="page-head">
@@ -1251,6 +1260,7 @@ export function HrPage({
                       {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
                     </select>
                     <button className="btn btn--sm btn--primary" disabled={!logEmpId} onClick={() => setLoggingFor(logEmpId)}>Log leave</button>
+                    {attToggle}
                   </div>
                 </div>
 

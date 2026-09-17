@@ -132,17 +132,33 @@ input,select{font:inherit;color:inherit}
 .screen--app.is-active{display:flex;flex-direction:column;height:100dvh}
 
 /* --------------------------------------------------------------- buttons */
+/* 2026-09-17. Adarsh: "the buttons are too small… it looks mechanic. Make it
+   heavy, make it premium." Three things were making it read thin — 34px with a
+   500 weight is a WEB button, not a product one; nothing had any elevation, so
+   every control sat perfectly flat on its own background; and hover only
+   changed a colour, so nothing ever felt like it moved under the cursor.
+   Height, weight and a two-layer shadow fix all three without adding a single
+   new colour to the palette. */
 .btn{
   display:inline-flex;align-items:center;gap:7px;justify-content:center;
-  height:34px;padding:0 14px;border-radius:var(--r);
+  height:38px;padding:0 16px;border-radius:var(--r);
   border:1px solid var(--line);background:var(--surface);color:var(--ink);
-  font-size:13px;font-weight:500;white-space:nowrap;
-  transition:background .14s ease, border-color .14s ease, transform .14s ease;
+  font-size:13.5px;font-weight:600;letter-spacing:-.005em;white-space:nowrap;
+  box-shadow:0 1px 1px rgba(0,0,0,.04);
+  transition:background .15s ease, border-color .15s ease, transform .15s ease, box-shadow .15s ease;
 }
-.btn:hover{background:var(--surface-3);border-color:var(--ink-3)}
-.btn:active{transform:translateY(.5px)}
-.btn--primary{background:var(--pri);border-color:var(--pri);color:var(--pri-on)}
-.btn--primary:hover{background:var(--pri-hover);border-color:var(--pri-hover)}
+.btn:hover{background:var(--surface-3);border-color:var(--ink-3);transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.09)}
+/* Pressed returns it to the resting plane rather than pushing it below — the
+   travel is hover-up, click-back, which reads as a real key being struck. */
+.btn:active{transform:translateY(0);box-shadow:0 1px 1px rgba(0,0,0,.05);transition-duration:.05s}
+.btn--primary{
+  background:var(--pri);border-color:var(--pri);color:var(--pri-on);
+  box-shadow:0 1px 2px rgba(0,0,0,.20), 0 2px 8px rgba(0,0,0,.10);
+}
+.btn--primary:hover{
+  background:var(--pri-hover);border-color:var(--pri-hover);
+  box-shadow:0 3px 10px rgba(0,0,0,.24), 0 1px 3px rgba(0,0,0,.18);
+}
 .btn--ghost{background:transparent;border-color:transparent;color:var(--ink-2)}
 .btn--ghost:hover{background:var(--surface-3);border-color:transparent;color:var(--ink)}
 /* The app's first genuinely irreversible button (delete an employee, delete
@@ -150,8 +166,10 @@ input,select{font:inherit;color:inherit}
    "this is serious" red the app already uses rather than a new one. */
 .btn--danger{background:var(--bad-soft);border-color:var(--bad-line);color:var(--bad)}
 .btn--danger:hover{background:var(--bad);border-color:var(--bad);color:var(--pri-on)}
-.btn--sm{height:28px;padding:0 10px;font-size:12px}
-.btn--lg{height:42px;padding:0 20px;font-size:14px}
+/* 28px was flagged in this file's own Phase 7 notes as under a comfortable
+   touch target, measured at 28x59 on a phone. 32 is the floor now. */
+.btn--sm{height:32px;padding:0 12px;font-size:12.5px}
+.btn--lg{height:46px;padding:0 22px;font-size:14.5px}
 .btn--block{width:100%}
 
 .field{display:flex;flex-direction:column;gap:6px}
@@ -178,12 +196,20 @@ textarea.input{
 /* The asterisk on a required field's label. */
 .req{color:var(--bad);font-weight:700;margin-left:2px}
 
-.seg{display:inline-flex;background:var(--surface-3);border-radius:var(--r);padding:2px;gap:2px}
-.seg button{
-  height:26px;padding:0 10px;border:0;border-radius:5px;background:transparent;
-  font-size:12px;font-weight:500;color:var(--ink-3);
+.seg{
+  display:inline-flex;background:var(--surface-3);border-radius:var(--r);
+  padding:3px;gap:2px;border:1px solid var(--line);
 }
-.seg button.is-on{background:var(--accent);color:var(--accent-on);box-shadow:var(--shadow-sm);font-weight:600}
+.seg button{
+  height:30px;padding:0 13px;border:0;border-radius:6px;background:transparent;
+  font-size:12.5px;font-weight:600;color:var(--ink-3);
+  transition:background .16s ease, color .16s ease, box-shadow .16s ease;
+}
+.seg button:hover{color:var(--ink)}
+.seg button.is-on{
+  background:var(--accent);color:var(--accent-on);font-weight:600;
+  box-shadow:0 1px 2px rgba(0,0,0,.18), 0 1px 5px rgba(0,0,0,.10);
+}
 
 /* The same control as a FORM choice rather than a view switch: full width,
    equal thirds, and a touch target somebody can actually hit on a phone. 26px
@@ -612,14 +638,18 @@ textarea.input{
 .tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{
-  flex:none;height:32px;padding:0 14px;border-radius:20px;
+  flex:none;height:36px;padding:0 16px;border-radius:20px;
   border:1px solid var(--line);background:var(--surface);
-  font-size:13px;font-weight:500;color:var(--ink-2);white-space:nowrap;
+  font-size:13.5px;font-weight:600;color:var(--ink-2);white-space:nowrap;
   display:inline-flex;align-items:center;gap:7px;
-  transition:background .13s ease,color .13s ease,border-color .13s ease;
+  box-shadow:0 1px 1px rgba(0,0,0,.04);
+  transition:background .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease;
 }
-.tabs button:hover{background:var(--surface-3);color:var(--ink);border-color:var(--ink-3)}
-.tabs button.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-on);font-weight:600}
+.tabs button:hover{background:var(--surface-3);color:var(--ink);border-color:var(--ink-3);transform:translateY(-1px)}
+.tabs button.is-on{
+  background:var(--accent);border-color:var(--accent);color:var(--accent-on);font-weight:600;
+  box-shadow:0 2px 8px rgba(0,0,0,.16), 0 1px 2px rgba(0,0,0,.14);
+}
 .tabs .count{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .tabs button.is-on .count{color:rgba(0,0,0,.62)}
 .search{position:relative;display:flex;align-items:center}
@@ -1762,3 +1792,48 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   border-radius:var(--r); padding:9px 13px; margin:0 0 14px; font-size:13px; font-weight:600;
 }
 .pb-ok::before{ content:"✓"; font-weight:800 }
+
+/* ========================================================================
+   UNIFORMITY AND MOTION — 2026-09-17
+   ------------------------------------------------------------------------
+   Adarsh, with two screenshots side by side: "you are not maintaining the
+   uniformity… in one tab you put the todos on the right side, and in another
+   tab, Attendance, you put it in the top-left corner. If you are putting the
+   todos in the top-right corner, put them in the top-right corner in every
+   tab." He was exactly right, and it was structural rather than cosmetic:
+   Joining's view switch lived INSIDE .page-head > .section-tools (which is
+   margin-left:auto, so top-right), and Attendance's lived in a bare .seg
+   block ABOVE the page head (so top-left, on a row of its own).
+
+   The rule now, and it is the one to check before adding any screen: every
+   page-level control belongs in .section-tools on the heading line. Nothing
+   gets its own band above the <h1>.
+   ==================================================================== */
+
+/* A toolbar is one line of controls, so they are one height. Mixed heights in
+   a row — a 30px search beside a 32px button beside a 26px segment — is a
+   large part of what reads as "mechanic". */
+.section-tools .btn,
+.section-tools .input,
+.section-tools .search .input,
+.section-tools .seg{ height:36px }
+.section-tools .seg{ padding:3px }
+.section-tools .seg button{ height:28px }
+
+/* ------------------------------------------------------------- the motion */
+/* "When clicking it and switching the tab, add a good animation, like
+   smoothness." A section swap is a new screen arriving, so it rises a few
+   pixels as it fades — short enough (0.24s) that somebody clicking through
+   four tabs never waits for it, which is the failure mode of animated tabs. */
+@keyframes viewIn{
+  from{ opacity:0; transform:translateY(7px) }
+  to  { opacity:1; transform:none }
+}
+.view-in{ animation:viewIn .24s cubic-bezier(.22,.61,.36,1) both }
+
+/* Modals and the leave alert get the same easing so the app has ONE motion
+   vocabulary rather than a different feel per component. */
+@media (prefers-reduced-motion:reduce){
+  .view-in{ animation:none }
+  .btn:hover,.tabs button:hover{ transform:none }
+}

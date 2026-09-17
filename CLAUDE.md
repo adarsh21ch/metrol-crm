@@ -4763,3 +4763,91 @@ employee submitting a request, one as HR watching it land.
    HR side without refreshing. This is the one thing I could not verify
    myself in this session (demo mode has no live database to push a real
    insert through), so it's worth an actual test before calling it done.
+
+---
+
+# Uniformity, weight, and motion (2026-09-17)
+
+Adarsh, with two screenshots side by side: *"you are not maintaining the
+uniformity of the UI/UX and premiumness… in one tab you put the todos on the
+right side, and in another tab, Attendance, you put it in the top-left corner.
+If you are putting the todos in the top-right corner, put them in the top-right
+corner in every tab."* Then: the buttons are too small, it *"looks mechanic"*,
+and switching tabs should have an animation.
+
+He was right on every count, and the first one was structural rather than
+cosmetic — worth recording precisely, because it is the kind of thing that
+creeps back in the moment somebody adds a screen.
+
+## 1. The inconsistency was real, and here is exactly what it was
+
+- **Joining's** Applications/Onboarding switch lived INSIDE
+  `.page-head > .section-tools`, which is `margin-left:auto` — so top right, on
+  the heading line.
+- **Attendance's** Day/Leave switch lived in a bare `.seg` block **above** the
+  page head — so top left, on a row of its own.
+
+Same control, same job, two different corners. Fixed by handing the switch into
+each half (`HrAttendance` takes a `viewToggle` node) rather than rendering it
+above them, so both halves keep their own `<h1>` and the control sits where
+Joining's already did.
+
+**Then a second pass, because "inside the right-aligned group" is not the same
+as "in the corner".** First attempt put the switch FIRST in `.section-tools`,
+which measured 670px from the right edge on the Day view (four other controls
+after it) and 0px on Joining. It goes **last** now. Measured after: `gapRight`
+is **0 on all three** — Attendance-Day, Attendance-Leave, Joining.
+
+**The rule, and check it before adding any screen:** every page-level control
+belongs in `.section-tools` on the heading line, and a view switch goes last so
+it lands in the same corner every time. Nothing gets its own band above the
+`<h1>`.
+
+## 2. "Looks mechanic" — three causes, all measurable
+
+- **34px at font-weight 500 is a web button, not a product one.** `.btn` is now
+  38px / 13.5px / 600. `.btn--sm` 28 → **32** (this file's own Phase 7 notes had
+  already flagged 28px as under a comfortable touch target and nothing was done
+  about it). `.btn--lg` 42 → 46.
+- **Nothing had elevation.** Every control sat perfectly flat on its own
+  background. A two-layer shadow on the primary button, a one-layer hint on the
+  rest — no new colours, the palette is untouched.
+- **Hover only changed a colour**, so nothing ever moved under the cursor.
+  Hover now lifts 1px and deepens the shadow; **pressing returns it to the
+  resting plane** rather than pushing it below, so the travel is up-then-back,
+  which reads as a key being struck.
+- **A toolbar was three different heights** — a 30px search beside a 32px button
+  beside a 26px segment. `.section-tools` normalises every child to **36px**.
+  Measured after: the set of control heights on a page head is exactly `[36]`.
+
+`.seg` and `.tabs` were raised to match (30px / 36px, weight 600, the active
+state carrying a real shadow instead of a flat fill).
+
+## 3. The tab animation
+
+`key` + `.view-in` on HrPage's `.wrap`: a section swap remounts the wrapper,
+which replays a keyframe — 7px rise and a fade over **0.24s** on a
+`cubic-bezier(.22,.61,.36,1)`. Short on purpose: somebody clicking through four
+tabs must never wait for the animation, which is the failure mode of animated
+tabs. Keyed on the open profile too, so opening a record arrives like a tab
+does. `prefers-reduced-motion` switches it, and the hover lifts, off.
+
+## Verified in Chromium, `?demo=1&as=hr`
+
+1440px: the switch measures 0px from the right edge on Attendance-Day,
+Attendance-Leave and Joining; toolbar control heights are a single value (36);
+`animation-name` on the wrap reads `viewIn`; no page scroll. 375px: the switch
+still renders, `scrollWidth` equals the viewport. `typecheck` and `build` clean.
+
+## NOT done — and he asked for more than this
+
+His question was *"what are the things you can improve for me so you can do
+that?"*, which is broader than the three items above. **Only HR's screens went
+through this pass.** `Projects`, `ProjectShell`, `TeamPage` and the
+salesperson's `Member` screen have NOT been checked against the same rule, and
+they almost certainly break it somewhere — that is the next session's work, and
+the three questions to ask of each screen are:
+
+1. Is any page-level control NOT in `.section-tools` on the heading line?
+2. Is anything on screen daily that is only read once?
+3. Does any block sit narrower than the screen for no reason?
