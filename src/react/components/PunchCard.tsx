@@ -258,7 +258,14 @@ export function PunchCard({
           ) : !row.punchOutAt ? (
             <>
               {showButton && (
-                <button className="btn btn--lg" disabled={busy !== null} onClick={() => setConfirming(true)}>
+                // A full day (or longer) punches out directly — the brief's
+                // own words were "after 9 hours, accept silently". Short of
+                // it, the modal still asks, because THAT is the case somebody
+                // benefits from a second thought on. The QR path (below) has
+                // never asked either way, by Phase 6b's own design — a poster
+                // scan is meant to be one tap, not a form.
+                <button className="btn btn--lg" disabled={busy !== null}
+                        onClick={() => (shortBy > 0 ? setConfirming(true) : void go('out'))}>
                   {busy === 'out' ? (phase === 'saving' ? 'Recording…' : 'Finding you…') : 'Punch out'}
                 </button>
               )}
