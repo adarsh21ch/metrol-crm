@@ -20,6 +20,7 @@ import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
 import { useExitTasks } from '@/data/useExitTasks'
 import { useAttendance } from '@/data/useAttendance'
 import { PunchCard } from '@/components/PunchCard'
+import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
 import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod } from '@/lib/hr'
@@ -51,12 +52,13 @@ const HEAD: Record<MemberSec, { title: string; sub: string }> = {
    screen, and all four are the same subject: me. They are one tab now, with
    these inside it — which is what takes the phone's tab bar down to five and
    removes the More sheet for everybody who is not a team lead. */
-type MeTab = 'leave' | 'salary' | 'onboarding' | 'exit'
+type MeTab = 'leave' | 'salary' | 'onboarding' | 'exit' | 'terms'
 const ME_TABS: { key: MeTab; label: string }[] = [
   { key: 'leave', label: 'Leave' },
   { key: 'salary', label: 'Salary' },
   { key: 'onboarding', label: 'Onboarding' },
   { key: 'exit', label: 'Exit' },
+  { key: 'terms', label: 'Terms' },
 ]
 
 /* The attendance table's cells. The year and the am/pm sit in their own spans
@@ -574,6 +576,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   </div>
                 )}
               </>
+            )}
+
+            {shownSec === 'profile' && shownMeTab === 'terms' && (
+              <TermsAndConditions settings={att.settings} />
             )}
 
             {shownSec === 'attendance' && (
