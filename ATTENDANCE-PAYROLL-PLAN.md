@@ -52,7 +52,7 @@ What an employee sees about themselves, on a phone, in one screen.
 - [x] Holidays and Sundays render as H automatically — they already exist in
       the DB, they just have to be joined into the row list
 
-## Round 2 — the rules engine (migration)  ✓ DONE (410503f). NOT yet live — see below.
+## Round 2 — the rules engine (migration)  ✓ DONE AND LIVE (410503f, confirmed on the real database 2026-09-17)
 
 Nothing visible; everything after this depends on it.
 
@@ -70,10 +70,12 @@ Nothing visible; everything after this depends on it.
       full-day hours, lates-before-half-day, monthly paid leave). Adarsh was
       explicit: the owner must be able to change the criteria, not just read it.
 
-**Migration `0022_leave_rules_engine.sql`. As of 2026-09-17, install state on
-the LIVE database is unconfirmed** — CLAUDE.md's own Round 2 entry said it was
-not installed as of 2026-09-16, and nothing since has proven otherwise. Run
-`WHATS-INSTALLED.sql` (updated this round to check it) to get a real answer.
+**Migration `0022_leave_rules_engine.sql` — CONFIRMED live on the real
+database, 2026-09-17.** Adarsh ran the extended `WHATS-INSTALLED.sql` and
+pasted back all 29 rows: `leave_months`, `leave_month_summary()`,
+`leave_month_board()` and `close_leave_month()` all read 1, both guard rows
+(`employees DELETE policy`, `old office columns GONE`) correctly read 0.
+Real leave numbers, not demo ones, are live on company.metrol.in now.
 
 ### Round 2 — ANSWERS, settled by Adarsh on 2026-09-16. Do NOT re-ask.
 

@@ -4553,11 +4553,13 @@ installed: the column, the guard function, the trigger, all present, mode
 still said "0023 has NOT been run" as of the commit that added it — the log
 was simply written before he ran it.
 
-**`0022` (the leave rules engine) has no such confirmation.** Its own Round 2
-entry says plainly it was not live as of 2026-09-16, and nothing since proves
-otherwise either way. `WHATS-INSTALLED.sql` now checks both migrations in one
-query (`leave_months`, all three RPC functions, `punch_methods`, the guard
-function, the trigger) so the next check is one paste, not two.
+**Correction, minutes later: `0022` IS confirmed live too.** Adarsh ran the
+extended `WHATS-INSTALLED.sql` and pasted back all 29 rows — every 0022 and
+0023 row reads 1, both guard rows (`employees DELETE policy`, `old office
+columns GONE`) correctly read 0. Both migrations are fully installed. The
+caution above was right to ask for evidence rather than assume it, and wrong
+for about five minutes; recorded here rather than quietly edited away, same
+as every other stale claim this file has caught.
 
 **Round 3 is HALF done, corrected in `ATTENDANCE-PAYROLL-PLAN.md` rather than
 left reading as finished.** Read the actual code before ticking anything:
