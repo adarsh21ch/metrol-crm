@@ -58,11 +58,6 @@ const SALARY_ICON = (
     <circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5a2.5 2.5 0 0 1 2.5-1h.3a2.2 2.2 0 0 1 0 4.4h-.6a2.2 2.2 0 0 0 0 4.4h.3a2.5 2.5 0 0 0 2.5-1" />
   </svg>
 )
-const ONBOARD_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-  </svg>
-)
 const DASH_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
@@ -139,7 +134,13 @@ export function HrPage({
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications' | 'terms'>('hr-section', 'dashboard')
+  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'joining' | 'exit' | 'terms'>('hr-section', 'dashboard')
+  /* Applications (the public joining form's inbox) and Onboarding (the
+     checklist for somebody an application just turned into) used to be two
+     separate sidebar tabs, even though the moment one is approved the SAME
+     person shows up as a second row on the second screen — one pipeline
+     reading as two unrelated ones. One tab, two views. */
+  const [joiningView, setJoiningView] = usePersistedState<'applications' | 'onboarding'>('hr-joiningView', 'applications')
   /* Which tab of somebody's profile is open. Reset by openEmployee below, so
      opening a second person never lands you on the first one's Salary tab. */
   const [profTab, setProfTab] = usePersistedState<ProfileTab>('hr-profTab', 'overview')
@@ -249,8 +250,8 @@ export function HrPage({
       ? 'Month closed — the unused days go on their salary.'
       : 'Month closed — the unused days carry into next month.'))
   }
-  const onboarding = useOnboardingTasks(section === 'onboarding' || inProfile('onboarding'))
-  const docs = useEmployeeDocuments(section === 'onboarding' || inProfile('onboarding'))
+  const onboarding = useOnboardingTasks((section === 'joining' && joiningView === 'onboarding') || inProfile('onboarding'))
+  const docs = useEmployeeDocuments((section === 'joining' && joiningView === 'onboarding') || inProfile('onboarding'))
   const exitTasks = useExitTasks(section === 'exit' || inProfile('exit'))
   const exitRecords = useExitRecords(inProfile('exit'))
 
@@ -286,29 +287,28 @@ export function HrPage({
     { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
     { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
-    { key: 'onboarding', label: 'Onboarding', icon: ONBOARD_ICON, onClick: () => { setSection('onboarding'); setOpenId(null) } },
     { key: 'exit', label: 'Exit', icon: EXIT_ICON, onClick: () => { setSection('exit'); setOpenId(null) } },
     {
-      key: 'applications', label: pendingApps.length ? `Applications (${pendingApps.length})` : 'Applications',
-      icon: APPLY_ICON, onClick: () => { setSection('applications'); setOpenId(null) },
+      key: 'joining', label: pendingApps.length ? `Joining (${pendingApps.length})` : 'Joining',
+      icon: APPLY_ICON, onClick: () => { setSection('joining'); setOpenId(null) },
     },
     { key: 'terms', label: 'Terms & Conditions', icon: TERMS_ICON, onClick: () => { setSection('terms'); setOpenId(null) } },
   ]
 
-  /* The phone's tab bar carries the same nine sections in the same order — a
-     sidebar can list them all, five tabs cannot, so the first four become
+  /* The phone's tab bar carries the same eight sections in the same order —
+     a sidebar can list them all, five tabs cannot, so the first four become
      tabs and the rest live behind More. Labels are shortened for a 75px tab,
-     and Applications' count moves out of the words and onto the icon where a
-     tab bar puts it. */
+     and Joining's count moves out of the words and onto the icon where a tab
+     bar puts it. */
   const NAV_SHORT: Record<string, string> = {
     dashboard: 'Dashboard', attendance: 'Attendance', departments: 'Departments', directory: 'Employees',
-    leave: 'Leave', salary: 'Salary', onboarding: 'Onboarding', exit: 'Exit', applications: 'Applied', terms: 'Terms',
+    leave: 'Leave', salary: 'Salary', exit: 'Exit', joining: 'Joining', terms: 'Terms',
   }
   const navItems: BottomNavItem[] = railItems.map((it) => ({
     ...it,
-    label: it.key === 'applications' ? 'Applications' : it.label,
+    label: it.key === 'joining' ? 'Joining' : it.label,
     short: NAV_SHORT[it.key],
-    badge: it.key === 'applications' ? pendingApps.length : undefined,
+    badge: it.key === 'joining' ? pendingApps.length : undefined,
   }))
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -896,9 +896,9 @@ export function HrPage({
                         </button>
                       )}
                       {pendingApps.length > 5 && (
-                        <button className="ov-row" onClick={() => { setSection('applications'); setOpenId(null) }}>
+                        <button className="ov-row" onClick={() => { setSection('joining'); setJoiningView('applications'); setOpenId(null) }}>
                           <span className="ov-l">{pendingApps.length - 5} more application(s)</span>
-                          <span className="ov-cta">Open Applications →</span>
+                          <span className="ov-cta">Open Joining →</span>
                         </button>
                       )}
                     </div>
@@ -1043,42 +1043,87 @@ export function HrPage({
             )}
 
             {/* --------------------------------------------- applications */}
-            {!open && section === 'applications' && (
+            {/* ------------------------------------------------- joining */}
+            {/* Applications (the public joining form) and Onboarding (the
+                checklist for somebody an application just turned into) are
+                one pipeline, not two — this is the tab that used to be split
+                across "Applications" and "Onboarding" in the sidebar. */}
+            {!open && section === 'joining' && (
               <>
                 <div className="page-head">
-                  <h1>Applications</h1>
+                  <h1>Joining</h1>
                   <div className="sub">
-                    Submitted from the public joining form. Approving one creates their login and emails
-                    a link to set a password — nothing exists on their record until then.
+                    {joiningView === 'applications'
+                      ? 'Submitted from the public joining form. Approving one creates their login and emails a link to set a password — nothing exists on their record until then.'
+                      : 'Offer, checklist and documents — open a person\'s own record to manage theirs.'}
+                  </div>
+                  <div className="section-tools">
+                    <div className="seg">
+                      <button className={joiningView === 'applications' ? 'is-on' : ''} onClick={() => setJoiningView('applications')}>
+                        Applications{pendingApps.length > 0 ? ` (${pendingApps.length})` : ''}
+                      </button>
+                      <button className={joiningView === 'onboarding' ? 'is-on' : ''} onClick={() => setJoiningView('onboarding')}>
+                        Onboarding
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="kpis">
-                  <Kpi accent label="New" value={pendingApps.length} sub="waiting on a decision" />
-                  <Kpi label="Approved" value={applications.rows.filter((a) => a.status === 'approved').length} sub="became employees" />
-                  <Kpi label="Rejected" value={applications.rows.filter((a) => a.status === 'rejected').length} sub="not taken forward" />
-                </div>
-
-                <div className="section">
-                  <div className="section-head"><h3>Every application</h3></div>
-                  {applications.rows.length === 0 ? (
-                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>
-                      Nobody has applied yet. Share the joining form's link when you have a role open.
-                    </p>
-                  ) : (
-                    <div className="ov-actions">
-                      {applications.rows.map((a) => (
-                        <button className="ov-row" key={a.id} onClick={() => setReviewingApp(a)}>
-                          <span className="ov-n">{initials(a.fullName)}</span>
-                          <span className="ov-l">{a.fullName} — {a.positionInterest || 'no position given'}</span>
-                          <span className="ov-cta">
-                            <Chip cls={APP_STATUS[a.status].cls}>{APP_STATUS[a.status].label}</Chip> {fmtDate(a.createdAt)} →
-                          </span>
-                        </button>
-                      ))}
+                {joiningView === 'applications' ? (
+                  <>
+                    <div className="kpis">
+                      <Kpi accent label="New" value={pendingApps.length} sub="waiting on a decision" />
+                      <Kpi label="Approved" value={applications.rows.filter((a) => a.status === 'approved').length} sub="became employees" />
+                      <Kpi label="Rejected" value={applications.rows.filter((a) => a.status === 'rejected').length} sub="not taken forward" />
                     </div>
-                  )}
-                </div>
+
+                    <div className="section">
+                      <div className="section-head"><h3>Every application</h3></div>
+                      {applications.rows.length === 0 ? (
+                        <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>
+                          Nobody has applied yet. Share the joining form's link when you have a role open.
+                        </p>
+                      ) : (
+                        <div className="ov-actions">
+                          {applications.rows.map((a) => (
+                            <button className="ov-row" key={a.id} onClick={() => setReviewingApp(a)}>
+                              <span className="ov-n">{initials(a.fullName)}</span>
+                              <span className="ov-l">{a.fullName} — {a.positionInterest || 'no position given'}</span>
+                              <span className="ov-cta">
+                                <Chip cls={APP_STATUS[a.status].cls}>{APP_STATUS[a.status].label}</Chip> {fmtDate(a.createdAt)} →
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="kpis">
+                      <Kpi accent label="Still in progress" value={inProgress.length} sub="at least one task left" />
+                      <Kpi label="Documents on file" value={docs.rows.length} sub="across the company" />
+                      <Kpi label="Checklist items" value={onboarding.rows.length} sub={count(onboarding.rows.filter((t) => t.done).length, 'done', 'done')} />
+                    </div>
+
+                    <div className="section">
+                      <div className="section-head"><h3>Everybody</h3></div>
+                      <div className="ov-actions">
+                        {hr.rows.filter((e) => e.status !== 'resigned').map((e) => {
+                          const tasks = tasksFor(e.id)
+                          const done = tasks.filter((t) => t.done).length
+                          return (
+                            <button className="ov-row" key={e.id} onClick={() => { openEmployee(e.id); setSection('directory') }}>
+                              <span className="ov-n">{initials(e.fullName)}</span>
+                              <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
+                              <span className="ov-cta">{done}/{tasks.length} tasks · {count(docsFor(e.id).length, 'document')} →</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
 
@@ -1332,39 +1377,6 @@ export function HrPage({
                             storageKey="hr-salary"
                             empty="No payslips yet."
                             foot={<div className="grid-foot"><span>{count(salary.rows.length, 'payslip')}</span></div>} />
-                </div>
-              </>
-            )}
-
-            {/* ---------------------------------------------- onboarding */}
-            {!open && section === 'onboarding' && (
-              <>
-                <div className="page-head">
-                  <h1>Onboarding</h1>
-                  <div className="sub">Offer, checklist and documents — open a person's own record to manage theirs.</div>
-                </div>
-
-                <div className="kpis">
-                  <Kpi accent label="Still in progress" value={inProgress.length} sub="at least one task left" />
-                  <Kpi label="Documents on file" value={docs.rows.length} sub="across the company" />
-                  <Kpi label="Checklist items" value={onboarding.rows.length} sub={count(onboarding.rows.filter((t) => t.done).length, 'done', 'done')} />
-                </div>
-
-                <div className="section">
-                  <div className="section-head"><h3>Everybody</h3></div>
-                  <div className="ov-actions">
-                    {hr.rows.filter((e) => e.status !== 'resigned').map((e) => {
-                      const tasks = tasksFor(e.id)
-                      const done = tasks.filter((t) => t.done).length
-                      return (
-                        <button className="ov-row" key={e.id} onClick={() => { openEmployee(e.id); setSection('directory') }}>
-                          <span className="ov-n">{initials(e.fullName)}</span>
-                          <span className="ov-l">{e.fullName} — {e.designation || 'no designation'}</span>
-                          <span className="ov-cta">{done}/{tasks.length} tasks · {count(docsFor(e.id).length, 'document')} →</span>
-                        </button>
-                      )
-                    })}
-                  </div>
                 </div>
               </>
             )}
