@@ -139,6 +139,31 @@ pay-out vs carry-forward — and adds rules the brief never mentioned.
 - [ ] **Payslip emailed** by HR — Resend is already wired for invites, so the
       sending path exists
 
+### Round 4 — ANSWERS, settled by Adarsh on 2026-09-17. Do NOT re-ask.
+
+1. **"Two pay periods" = ONE payslip, shown as two halves (1st–15th,
+   16th–end) — not two separate payments.** His words: "anything we can
+   upgrade later, so go with one payslip, simple as that." A real mid-month
+   advance + month-end balance is a bigger, different build — explicitly
+   deferred, not chosen.
+2. **`employees` needs a persisted monthly salary — nothing stores this
+   today.** HR currently retypes a fresh gross/net by hand every month
+   (`salary_records`); Round 4 needs one base number to compute FROM. Add
+   it, HR sets it once per employee, editable on a raise.
+3. **HR still reviews and can adjust every computed figure before marking a
+   payslip paid.** Nothing pays itself — this only removes the retyping, not
+   the human check.
+4. **Reuse `leave_month_summary()` (0022) for every deduction number —
+   do not reinvent absence/half-day/leave-payout math.** Its `unpaid_days`
+   field is already exactly "how many days' salary this person loses" and
+   its `payout_days` (once a month is closed) is already exactly "how much
+   unused leave becomes money." Round 4 is a thin layer on top of Round 2,
+   not a new rules engine.
+5. **Reuse `salary_records` (0010) as the payslip table — no new table.**
+   Round 4 pre-fills its gross/net from the computation above; the existing
+   Salary rail page, the employee's own read-only Salary tab, and Mark
+   paid/Edit all keep working unchanged.
+
 ## Round 5 — Terms & Conditions in-app
 
 - [ ] The T&C already exists as a generated PDF in `public/` (built from the
