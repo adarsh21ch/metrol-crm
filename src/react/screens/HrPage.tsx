@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Rail, type RailItem } from '@/components/Rail'
 import { BottomNav, type BottomNavItem } from '@/components/BottomNav'
@@ -66,11 +66,6 @@ const ATT_ICON = (
   </svg>
 )
 
-const EXIT_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-  </svg>
-)
 
 const APPLY_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -144,7 +139,12 @@ export function HrPage({
      separate sidebar tabs, even though the moment one is approved the SAME
      person shows up as a second row on the second screen — one pipeline
      reading as two unrelated ones. One tab, two views. */
-  const [joiningView, setJoiningView] = usePersistedState<'applications' | 'onboarding'>('hr-joiningView', 'applications')
+  /* Joining now carries the whole arrival-to-departure arc: Applications,
+     Onboarding and Exit. Adarsh's reasoning, and it is the same one that
+     merged Attendance/Leave — "Exit is not something HR is going to open on a
+     regular basis", so it does not deserve a permanent slot in a nav somebody
+     reads every morning. It keeps its own full screen behind the switch. */
+  const [joiningView, setJoiningView] = usePersistedState<'applications' | 'onboarding' | 'exit'>('hr-joiningView', 'applications')
   /* Same idea, for Attendance and Leave: two screens that both answer "how is
      the team doing right now", split only because one grew as a day table and
      the other as an approval workflow. One tab, two views — Day keeps the QR
@@ -262,7 +262,15 @@ export function HrPage({
   }
   const onboarding = useOnboardingTasks((section === 'joining' && joiningView === 'onboarding') || inProfile('onboarding'))
   const docs = useEmployeeDocuments((section === 'joining' && joiningView === 'onboarding') || inProfile('onboarding'))
-  const exitTasks = useExitTasks(section === 'exit' || inProfile('exit'))
+  /* A browser that stored section 'exit' before this merge would otherwise
+     render nothing at all — the tab it names no longer exists. Send it to the
+     view that replaced it, once, on mount. */
+  useEffect(() => {
+    if (section === 'exit') { setSection('joining'); setJoiningView('exit') }
+  }, [section, setSection, setJoiningView])
+
+  const onExitView = section === 'joining' && joiningView === 'exit'
+  const exitTasks = useExitTasks(onExitView || inProfile('exit'))
   const exitRecords = useExitRecords(inProfile('exit'))
 
   const shown = useMemo(() => {
@@ -300,6 +308,23 @@ export function HrPage({
      not a band of its own above the heading. Both halves are full screens with
      their own <h1>, so each keeps its heading and the control sits top-right on
      it, exactly where Joining's Applications/Onboarding switch already sat. */
+  /* Only people mid-exit are worth a badge — somebody who resigned in March is
+     history, not a task. */
+  const onNotice = hr.rows.filter((e) => e.status === 'notice').length
+  const joiningToggle = (
+    <div className="seg">
+      <button className={joiningView === 'applications' ? 'is-on' : ''} onClick={() => setJoiningView('applications')}>
+        Applications{pendingApps.length > 0 ? ` (${pendingApps.length})` : ''}
+      </button>
+      <button className={joiningView === 'onboarding' ? 'is-on' : ''} onClick={() => setJoiningView('onboarding')}>
+        Onboarding
+      </button>
+      <button className={joiningView === 'exit' ? 'is-on' : ''} onClick={() => setJoiningView('exit')}>
+        Exit{onNotice > 0 ? ` (${onNotice})` : ''}
+      </button>
+    </div>
+  )
+
   const attToggle = (
     <div className="seg">
       <button className={attView === 'day' ? 'is-on' : ''} onClick={() => setAttView('day')}>Day</button>
@@ -317,9 +342,8 @@ export function HrPage({
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
-    { key: 'exit', label: 'Exit', icon: EXIT_ICON, onClick: () => { setSection('exit'); setOpenId(null) } },
     {
-      key: 'joining', label: pendingApps.length ? `Joining (${pendingApps.length})` : 'Joining',
+      key: 'joining', label: pendingApps.length ? `Joining & Exit (${pendingApps.length})` : 'Joining & Exit',
       icon: APPLY_ICON, onClick: () => { setSection('joining'); setOpenId(null) },
     },
     { key: 'terms', label: 'Terms & Conditions', icon: TERMS_ICON, onClick: () => { setSection('terms'); setOpenId(null) } },
@@ -980,7 +1004,7 @@ export function HrPage({
                   <div className="ov-card">
                     <div className="ov-head">
                       <h4>On the way out</h4>
-                      <button className="btn btn--sm" style={{ marginLeft: 'auto' }} onClick={() => { setSection('exit'); setOpenId(null) }}>Open Exit →</button>
+                      <button className="btn btn--sm" style={{ marginLeft: 'auto' }} onClick={() => { setSection('joining'); setJoiningView('exit'); setOpenId(null) }}>Open Exit →</button>
                     </div>
                     <div className="ov-actions">
                       {leaving.slice(0, 5).map((e) => (
@@ -1081,7 +1105,7 @@ export function HrPage({
                 checklist for somebody an application just turned into) are
                 one pipeline, not two — this is the tab that used to be split
                 across "Applications" and "Onboarding" in the sidebar. */}
-            {!open && section === 'joining' && (
+            {!open && section === 'joining' && joiningView !== 'exit' && (
               <>
                 <div className="page-head">
                   <h1>Joining</h1>
@@ -1090,16 +1114,7 @@ export function HrPage({
                       ? 'Submitted from the public joining form. Approving one creates their login and emails a link to set a password — nothing exists on their record until then.'
                       : 'Offer, checklist and documents — open a person\'s own record to manage theirs.'}
                   </div>
-                  <div className="section-tools">
-                    <div className="seg">
-                      <button className={joiningView === 'applications' ? 'is-on' : ''} onClick={() => setJoiningView('applications')}>
-                        Applications{pendingApps.length > 0 ? ` (${pendingApps.length})` : ''}
-                      </button>
-                      <button className={joiningView === 'onboarding' ? 'is-on' : ''} onClick={() => setJoiningView('onboarding')}>
-                        Onboarding
-                      </button>
-                    </div>
-                  </div>
+                  <div className="section-tools">{joiningToggle}</div>
                 </div>
 
                 {joiningView === 'applications' ? (
@@ -1424,11 +1439,12 @@ export function HrPage({
             )}
 
             {/* --------------------------------------------------- exit */}
-            {!open && section === 'exit' && (
+            {!open && onExitView && (
               <>
                 <div className="page-head">
                   <h1>Exit</h1>
                   <div className="sub">Everybody on notice or already gone. Open their record to manage the checklist.</div>
+                  <div className="section-tools">{joiningToggle}</div>
                 </div>
 
                 <div className="kpis">

@@ -4851,3 +4851,64 @@ the three questions to ask of each screen are:
 1. Is any page-level control NOT in `.section-tools` on the heading line?
 2. Is anything on screen daily that is only read once?
 3. Does any block sit narrower than the screen for no reason?
+
+---
+
+# Exit folds into Joining — the arrival-to-departure arc in one tab (2026-09-17)
+
+Adarsh: *"we can also merge the joining and exit tabs… In the joining tab, we
+make one option there: the exit or leave employee section. Exit is not something
+HR is going to open on a regular basis, right?"*
+
+Right, and it is the same argument that merged Attendance/Leave: a screen opened
+a few times a year does not deserve a permanent slot in a nav somebody reads
+every morning. Joining now holds **Applications · Onboarding · Exit** — the
+whole arc from somebody applying to somebody leaving.
+
+**The rail is 7 items, down from 8.** Measured: `Dashboard, Attendance (2),
+Departments, Employees, Salary, Joining & Exit (1), Terms & Conditions`.
+
+## The tab is renamed, and that was not asked for
+
+A tab labelled "Joining" that contains the Exit screen is a label that lies, and
+mislabelled navigation is exactly the class of thing this project keeps finding
+late. It reads **"Joining & Exit"**. One string to change back if he disagrees.
+
+## Done WITHOUT moving any JSX
+
+This file's own Round 9 rule — *never delete or move code by slicing between two
+markers* — was followed literally. The Exit block stays exactly where it sits in
+the tree; only its **condition** changed, from `section === 'exit'` to
+`onExitView`. Both blocks are siblings under `.wrap` and only one section ever
+renders, so nothing had to be cut and re-pasted. Everything else was an
+exact-match edit:
+
+- `joiningView` gains `'exit'`; the Joining block now renders when
+  `joiningView !== 'exit'` and the Exit block when it is.
+- The switch is built once as `joiningToggle` and dropped into BOTH page heads'
+  `.section-tools`. **Exit's page head had no `.section-tools` at all** — it does
+  now, which is what makes the switch reachable from inside Exit and keeps the
+  corner rule from this morning intact. Measured `gapRight: 0`.
+- `useExitTasks` follows `onExitView` instead of a section that no longer exists.
+- The Dashboard's "Open Exit →" button sets the section AND the view.
+- The Exit badge counts people **on notice only** — somebody who resigned in
+  March is history, not a task.
+
+**A stored section of `'exit'` would have rendered nothing** for anybody whose
+browser persisted it before this change, since the tab it names is gone. A mount
+effect sends them to the view that replaced it. Worth remembering: every one of
+these merges leaves a stale `usePersistedState` value behind in real browsers.
+
+## Verified in Chromium, `?demo=1&as=hr`
+
+Rail 7 items; Joining's switch reads `Applications (1) · Onboarding · Exit (1)`;
+clicking Exit swaps the heading to "Exit" and the switch is still on screen (3
+buttons, 0px from the right edge); no page scroll. `typecheck` and `build` clean.
+Two now-dead things removed rather than left: the `EXIT_ICON` rail icon and an
+invalid `short` prop `RailItem` does not have.
+
+## Still not swept
+
+`Projects`, `ProjectShell`, `TeamPage` and the salesperson's `Member` screen
+have **still** not been through the uniformity pass. Unchanged from this
+morning's note.
