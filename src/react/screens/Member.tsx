@@ -685,11 +685,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             ))}
                           </div>
                           <div className="cal-key">
-                            <span><i style={{ background: 'var(--good)' }} />Present</span>
-                            <span><i style={{ background: 'var(--warn)' }} />Late / half day</span>
-                            <span><i style={{ background: 'var(--info)' }} />Leave</span>
-                            <span><i style={{ background: 'var(--bad)' }} />Absent</span>
-                            <span><i style={{ background: 'var(--ink-3)' }} />Holiday or weekly off</span>
+                            <span><i style={{ background: '#16A34A' }} />Present</span>
+                            <span><i style={{ background: '#F59E0B' }} />Late / half day</span>
+                            <span><i style={{ background: '#2563EB' }} />Leave</span>
+                            <span><i style={{ background: '#DC2626' }} />Absent</span>
+                            <span><i className="cal-key-holiday" />Holiday or weekly off</span>
                           </div>
                         </div>
                       )}
