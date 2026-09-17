@@ -660,40 +660,28 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           "how is my month going" is the question somebody opens
                           this screen with, not "how many half days do I have".
 
-                          A real calendar grid, Apple Calendar's own shape: every
-                          cell is a plain square, the lines between them are
-                          hairlines (one shared background showing through a 1px
-                          gap, not a border on each tile), and colour is not the
-                          cell's fill any more — it is one small dot under the
-                          date, so an ordinary month reads calm and only today
-                          and the exceptions ask for a second look. Today gets
-                          its own filled circle behind the number, the one thing
-                          allowed to stand out on sight. Trailing pad cells
-                          finish the last row into a full rectangle, same as the
-                          leading ones already did for the first. */}
+                          One strip, one row, small square cells — not a five-row
+                          block. Every day of the month sits side by side, square
+                          corners, a hairline between each one (Apple Calendar's
+                          own trick: cells are the surface colour, the strip under
+                          them is the line colour, and the 1px gap between cells
+                          is what draws a dead-straight line without a border
+                          fighting its neighbour's border). Colour lives on the
+                          date NUMBER itself, not a filled tile, so the strip stays
+                          calm at a glance; today is the one cell that gets a
+                          filled circle. It scrolls sideways on a narrow phone
+                          rather than wrapping into a second, taller shape — the
+                          strip is always this one shape, on every screen. */}
                       {calendar.length > 0 && (
                         <div className="cal-wrap">
-                          <div className="cal-grid">
-                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                              <div className="cal-dow" key={i}>{d}</div>
-                            ))}
-                            {Array.from({ length: new Date(calendar[0].date + 'T00:00:00Z').getUTCDay() }).map((_, i) => (
-                              <div className="cal-cell cal--pad" key={'pad-lead-' + i} />
-                            ))}
+                          <div className="cal-strip">
                             {calendar.map((d) => (
                               <div className={'cal-cell ' + DAY_KIND[d.kind].cls
                                      + (d.date === officeToday(tz) ? ' cal-cell--today' : '')}
                                    key={d.date}
                                    title={`${fmtDate(d.date)} — ${[DAY_KIND[d.kind].label || 'Nothing recorded', d.remark].filter(Boolean).join(' · ')}`}>
                                 <span className="d">{Number(d.date.slice(8, 10))}</span>
-                                {d.kind !== 'future' && d.kind !== 'outside' && <span className="dot" />}
-                                {(d.kind === 'holiday' || d.kind === 'week_off') && <span className="m">H</span>}
-                                {d.kind === 'leave' && <span className="m">L</span>}
-                                {d.kind === 'half_day' && <span className="m">½</span>}
                               </div>
-                            ))}
-                            {Array.from({ length: (6 - new Date(calendar[calendar.length - 1].date + 'T00:00:00Z').getUTCDay()) % 7 }).map((_, i) => (
-                              <div className="cal-cell cal--pad" key={'pad-trail-' + i} />
                             ))}
                           </div>
                           <div className="cal-key">
@@ -701,7 +689,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             <span><i style={{ background: 'var(--warn)' }} />Late / half day</span>
                             <span><i style={{ background: 'var(--info)' }} />Leave</span>
                             <span><i style={{ background: 'var(--bad)' }} />Absent</span>
-                            <span><i style={{ background: 'var(--ink-3)' }} />H — holiday or weekly off</span>
+                            <span><i style={{ background: 'var(--ink-3)' }} />Holiday or weekly off</span>
                           </div>
                         </div>
                       )}

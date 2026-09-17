@@ -1530,68 +1530,54 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .range-bar .input{height:34px}
 .range-quick{display:flex;gap:6px;flex-wrap:wrap}
 
-/* The month grid — Apple Calendar's own construction: the WRAPPER is the
-   line colour, every cell is the surface colour, and the 1px gap between
-   them is what draws the grid. That is the whole trick behind dead-straight
-   hairlines instead of a border fighting its neighbour's border — and it is
-   also what keeps every cell a true square with square corners, not a
-   rounded chip. Colour used to be the cell's own background; now it is
-   exactly one small dot under the date, so an ordinary month stays calm and
-   only today and the exceptions ask for a second look. */
-.cal-grid{
-  display:grid;grid-template-columns:repeat(7,1fr);gap:1px;
+/* The month strip — ONE row, small square cells, not a five-row block. Every
+   day sits side by side; the strip scrolls sideways on a narrow screen
+   rather than ever wrapping into a taller shape, so it is always this one
+   compact shape everywhere. Square corners, a hairline between each cell —
+   the strip itself carries the line colour, every cell carries the surface
+   colour, and the 1px gap between them is what draws a dead-straight line
+   without a border fighting its neighbour's border. Colour lives on the date
+   NUMBER, not a filled tile, so a calm month stays calm and only today and
+   the exceptions ask for a second look. */
+.cal-strip{
+  display:flex;gap:1px;overflow-x:auto;-webkit-overflow-scrolling:touch;
   background:var(--line);border:1px solid var(--line);
-  border-radius:var(--r);overflow:hidden;margin-bottom:12px;
-  max-width:520px;
-}
-.cal-dow{
-  background:var(--surface-2);
-  font-size:10px;font-weight:600;color:var(--ink-3);text-align:center;
-  padding:8px 0 7px;text-transform:uppercase;letter-spacing:.06em;
+  border-radius:var(--r);width:max-content;max-width:100%;margin-bottom:12px;
 }
 .cal-cell{
-  aspect-ratio:1;border-radius:0;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  background:var(--surface);border:none;
-  font-size:13px;font-weight:600;color:var(--ink-2);
+  flex:0 0 30px;width:30px;aspect-ratio:1;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);
+  font-size:12px;font-weight:600;color:var(--ink-2);
   font-variant-numeric:tabular-nums;line-height:1;
-  position:relative;
 }
 .cal-cell .d{line-height:1}
 /* Today — the one cell allowed to stand out on sight, a filled circle behind
    the number, the same language a phone's own calendar app uses. */
 .cal-cell--today .d{
   background:var(--ink);color:var(--surface);
-  width:24px;height:24px;border-radius:50%;
+  width:20px;height:20px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
 }
-/* The small deliberate mark under the number — his "proper checkbox kind of
-   thing". A 4px dot carries the status without repainting the whole tile. */
-.cal-cell .m{
-  font-size:8.5px;font-weight:700;line-height:1;letter-spacing:.04em;
-  opacity:.9;height:8px;display:flex;align-items:center;
-}
-.cal-cell .dot{width:4px;height:4px;border-radius:50%;background:currentColor}
 
 .cal--present{color:var(--good)}
 .cal--late{color:var(--warn)}
-/* Half day shares late's colour but its dot is cut in half, so the two stay
-   separable by SHAPE and not only by two neighbouring ambers. */
-.cal--half .dot{
-  background:transparent;
-  background-image:linear-gradient(90deg,currentColor 50%,transparent 50%);
-}
+.cal--half{color:var(--warn)}
 .cal--leave{color:var(--info)}
 .cal--absent{color:var(--bad)}
 /* A holiday is not an event. It stays plain so the working days stand out. */
-.cal--holiday{color:var(--ink-3)}
+.cal--holiday{color:var(--ink-3);background:var(--surface-2)}
 .cal--open{color:var(--ink-2)}
 .cal--future{color:var(--ink-3);opacity:.35}
-.cal--pad{background:var(--surface-2)}
 
 .cal-key{display:flex;gap:11px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-bottom:14px}
 .cal-key span{display:inline-flex;align-items:center;gap:5px}
 .cal-key i{width:6px;height:6px;border-radius:50%;display:inline-block}
+
+@media (max-width:560px){
+  .cal-cell{flex-basis:26px;width:26px;font-size:11px}
+  .cal-cell--today .d{width:18px;height:18px}
+}
 
 /* The table. On a phone all five columns FIT — Adarsh was right that a
    horizontal scroll to read your own attendance is a bad trade, and right
@@ -1636,9 +1622,6 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   .att-table td.rmk{white-space:normal;line-height:1.5}
   .att-table .att-note{display:inline-block;margin-left:0;margin-top:2px}
   .att-table .chip{height:21px;padding:0 7px;gap:5px;font-size:11px;margin-right:4px}
-  .cal-grid{gap:1px}
-  .cal-cell{font-size:11.5px}
-  .cal-cell--today .d{width:20px;height:20px}
 }
 /* ========================================================================
    THE ATTENDANCE REDESIGN — 2026-09-17
