@@ -30,6 +30,7 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
   noticePeriodDays: null,
   shiftId: null,
   officeId: null,
+  monthlySalary: null,
   ...prefill,
 })
 
@@ -277,6 +278,13 @@ export function EmployeeModal({
               <option key={s.id} value={s.id}>{s.name} — {fmtShift(s.startsAt)}</option>
             ))}
           </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="emSalary">Monthly salary (₹)</label>
+          <input className="input" id="emSalary" type="number" min={0} placeholder="Not set — payroll cannot run without this"
+                 value={f.monthlySalary ?? ''}
+                 onChange={(e) => set('monthlySalary', e.target.value === '' ? null : Number(e.target.value))} />
         </div>
 
         <div className="field">

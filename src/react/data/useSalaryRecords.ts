@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { demoSalaryRecords, isDemo } from '@/data/demo'
 import type { SalaryRecord, SalaryStatus } from '@/lib/hr'
 
@@ -18,6 +18,8 @@ const toSalaryRecord = (r: Row): SalaryRecord => ({
   paidBy: (r.paid_by as string | null) ?? null,
   notes: str(r.notes),
   createdAt: str(r.created_at),
+  payslipSentCount: Number(r.payslip_sent_count) || 0,
+  payslipSentAt: (r.payslip_sent_at as string | null) ?? null,
 })
 
 export interface SalaryDraft {
@@ -89,6 +91,8 @@ export function useSalaryRecords(enabled = true) {
         paidBy: null,
         notes: draft.notes,
         createdAt: new Date().toISOString(),
+        payslipSentCount: 0,
+        payslipSentAt: null,
       }, ...p])
       return null
     }
@@ -145,7 +149,26 @@ export function useSalaryRecords(enabled = true) {
     return null
   }, [])
 
-  return { rows, loading, error, reload: () => load(true), create, update, markPaid, clearError: () => setError(null) }
+  /** Round 4: email one payslip via the `send-payslip-email` Edge Function —
+   *  same shape as approve-job-application's invite email. The function
+   *  re-checks HR/owner itself (it has to: it uses the service role to send
+   *  through Resend), so this is a thin call, not a second permission check. */
+  const emailPayslip = useCallback(async (id: string): Promise<string | null> => {
+    if (isDemo()) {
+      setRows((p) => p.map((r) => (r.id === id ? { ...r } : r)))
+      return null
+    }
+    const { data, error: err } = await supabase.functions.invoke('send-payslip-email', { body: { salaryRecordId: id } })
+    const message = err ? await functionErrorMessage(err) : data?.error ? String(data.error) : null
+    if (message) return message
+    // Re-read the one row rather than trusting the function's own count —
+    // same reasoning as markPaid: the database is what actually changed.
+    const { data: fresh } = await supabase.from('salary_records').select('*').eq('id', id).single()
+    if (fresh) setRows((p) => p.map((r) => (r.id === id ? toSalaryRecord(fresh as Row) : r)))
+    return null
+  }, [])
+
+  return { rows, loading, error, reload: () => load(true), create, update, markPaid, emailPayslip, clearError: () => setError(null) }
 }
 
 export type SalaryRecords = ReturnType<typeof useSalaryRecords>

@@ -11,6 +11,7 @@ import { count, initials, money } from '@/lib/format'
 import { ProfileModal } from '@/modals/ProfileModal'
 import { EmployeeModal } from '@/modals/EmployeeModal'
 import { HrAttendance } from '@/screens/sections/HrAttendance'
+import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
@@ -86,6 +87,13 @@ const APPLY_ICON = (
   </svg>
 )
 
+const TERMS_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+    <path d="M8 13h8M8 17h5" />
+  </svg>
+)
+
 /** The tabs inside one person's profile. Everything here already existed as a
  *  section stacked on one very long page; this is the container, not new
  *  content. Exit only appears once somebody is actually leaving. */
@@ -130,7 +138,7 @@ export function HrPage({
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = useState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications'>('dashboard')
+  const [section, setSection] = useState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications' | 'terms'>('dashboard')
   /* Which tab of somebody's profile is open. Reset by openEmployee below, so
      opening a second person never lands you on the first one's Salary tab. */
   const [profTab, setProfTab] = useState<ProfileTab>('overview')
@@ -154,6 +162,7 @@ export function HrPage({
   const [addingSalaryFor, setAddingSalaryFor] = useState<string | null>(null)
   const [editingSalary, setEditingSalary] = useState<SalaryRecord | null>(null)
   const [salaryEmpId, setSalaryEmpId] = useState('')
+  const [emailingSalary, setEmailingSalary] = useState<string | null>(null)
   const [newTaskLabel, setNewTaskLabel] = useState('')
   const [uploadingFor, setUploadingFor] = useState<string | null>(null)
 
@@ -280,6 +289,7 @@ export function HrPage({
       key: 'applications', label: pendingApps.length ? `Applications (${pendingApps.length})` : 'Applications',
       icon: APPLY_ICON, onClick: () => { setSection('applications'); setOpenId(null) },
     },
+    { key: 'terms', label: 'Terms & Conditions', icon: TERMS_ICON, onClick: () => { setSection('terms'); setOpenId(null) } },
   ]
 
   /* The phone's tab bar carries the same nine sections in the same order — a
@@ -289,7 +299,7 @@ export function HrPage({
      tab bar puts it. */
   const NAV_SHORT: Record<string, string> = {
     dashboard: 'Dashboard', attendance: 'Attendance', departments: 'Departments', directory: 'Employees',
-    leave: 'Leave', salary: 'Salary', onboarding: 'Onboarding', exit: 'Exit', applications: 'Applied',
+    leave: 'Leave', salary: 'Salary', onboarding: 'Onboarding', exit: 'Exit', applications: 'Applied', terms: 'Terms',
   }
   const navItems: BottomNavItem[] = railItems.map((it) => ({
     ...it,
@@ -342,7 +352,11 @@ export function HrPage({
     { key: 'net', label: 'Net', width: 120, render: (r) => <span className="cell-money">{money(r.netAmount)}</span> },
     { key: 'status', label: 'Status', width: 110, render: (r) => <Chip cls={SALARY_STATUS[r.status].cls}>{SALARY_STATUS[r.status].label}</Chip> },
     {
-      key: 'act', label: '', width: 190,
+      key: 'sent', label: 'Emailed', width: 100,
+      render: (r) => (r.payslipSentCount > 0 ? <Chip cls="chip--good">Sent</Chip> : <Chip cls="chip--mute">Not sent</Chip>),
+    },
+    {
+      key: 'act', label: '', width: 260,
       render: (r) => (
         <div style={{ display: 'flex', gap: 6 }}>
           {r.status === 'pending' && (
@@ -351,6 +365,15 @@ export function HrPage({
             </button>
           )}
           <button className="btn btn--sm" onClick={() => setEditingSalary(r)}>Edit</button>
+          <button className="btn btn--sm" disabled={emailingSalary === r.id}
+                  onClick={() => {
+                    setEmailingSalary(r.id)
+                    void salary.emailPayslip(r.id)
+                      .then((m) => toast(m ?? (r.payslipSentCount > 0 ? 'Payslip re-sent.' : 'Payslip emailed.')))
+                      .finally(() => setEmailingSalary(null))
+                  }}>
+            {emailingSalary === r.id ? 'Sending…' : r.payslipSentCount > 0 ? 'Resend' : 'Email payslip'}
+          </button>
         </div>
       ),
     },
@@ -1384,6 +1407,9 @@ export function HrPage({
                 )}
               </>
             )}
+
+            {/* -------------------------------------------------- terms */}
+            {!open && section === 'terms' && <TermsAndConditions settings={att.settings} />}
           </div>
         </div>
       </div>
@@ -1404,10 +1430,12 @@ export function HrPage({
       )}
 
       {addingSalaryFor && (
-        <SalaryRecordModal employeeId={addingSalaryFor} record={null} onClose={() => setAddingSalaryFor(null)} onSave={saveSalaryNew} />
+        <SalaryRecordModal employeeId={addingSalaryFor} employee={hr.rows.find((e) => e.id === addingSalaryFor) ?? null}
+                            record={null} onClose={() => setAddingSalaryFor(null)} onSave={saveSalaryNew} />
       )}
       {editingSalary && (
-        <SalaryRecordModal employeeId={editingSalary.employeeId} record={editingSalary} onClose={() => setEditingSalary(null)} onSave={saveSalaryEdit} />
+        <SalaryRecordModal employeeId={editingSalary.employeeId} employee={hr.rows.find((e) => e.id === editingSalary.employeeId) ?? null}
+                            record={editingSalary} onClose={() => setEditingSalary(null)} onSave={saveSalaryEdit} />
       )}
 
       {uploadingFor && (

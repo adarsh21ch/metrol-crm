@@ -171,7 +171,7 @@ export const demoEmployees: Employee[] = [
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
     status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), shiftId: 'sh1', officeId: 'off1',
     offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
-    resignationDate: null, noticePeriodDays: null,
+    resignationDate: null, noticePeriodDays: null, monthlySalary: 45000,
   },
   ...demoMembers.map((m, i) => ({
     id: 'e' + (i + 1),
@@ -206,6 +206,9 @@ export const demoEmployees: Employee[] = [
     // 09:30 person and a 10:30 person being "late" actually mean.
     shiftId: 'sh' + ((i % 3) + 1),
     officeId: i < 2 ? 'off1' : 'off2',
+    // Round 4: everybody in the demo is priced except the newest starter —
+    // that one row shows what "Set a monthly salary first" looks like.
+    monthlySalary: i === 3 ? null : 25000 + i * 6000,
   })),
 ]
 
@@ -297,10 +300,12 @@ export const demoSalaryRecords: SalaryRecord[] = demoEmployees.flatMap((e, i) =>
     {
       id: 'sl-' + e.id + '-1', employeeId: e.id, period: monthsAgo(1), grossAmount: gross, netAmount: net,
       status: 'paid' as const, paidAt: iso(20), paidBy: HR_PERSON.id, notes: '', createdAt: iso(25),
+      payslipSentCount: 1, payslipSentAt: iso(20),
     },
     {
       id: 'sl-' + e.id + '-0', employeeId: e.id, period: monthsAgo(0), grossAmount: gross, netAmount: net,
       status: 'pending' as const, paidAt: null, paidBy: null, notes: '', createdAt: iso(1),
+      payslipSentCount: 0, payslipSentAt: null,
     },
   ]
 })

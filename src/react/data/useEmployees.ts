@@ -35,6 +35,7 @@ const toEmployee = (r: Row): Employee => ({
   offerAcceptedOn: (r.offer_accepted_on as string | null) || null,
   resignationDate: (r.resignation_date as string | null) || null,
   noticePeriodDays: r.notice_period_days == null ? null : Number(r.notice_period_days),
+  monthlySalary: r.monthly_salary == null ? null : Number(r.monthly_salary),
 })
 
 export type EmployeeDraft = Omit<Employee, 'id' | 'employeeCode' | 'createdAt'>
@@ -69,6 +70,7 @@ const toRow = (p: Partial<EmployeeDraft>): Row => {
   if (p.noticePeriodDays !== undefined) r.notice_period_days = p.noticePeriodDays
   if (p.shiftId !== undefined) r.shift_id = orNull(p.shiftId)
   if (p.officeId !== undefined) r.office_id = orNull(p.officeId)
+  if (p.monthlySalary !== undefined) r.monthly_salary = p.monthlySalary
   return r
 }
 

@@ -45,6 +45,10 @@ export interface Employee {
    *  has scheduled them yet — they can still punch, and the day is recorded,
    *  but nothing is judged late against a start time that does not exist. */
   shiftId: string | null
+  /** Round 4 (0024). Gross monthly salary, HR's number, set once and edited
+   *  on a raise. Null means nobody has priced this person yet — the payslip
+   *  generator refuses to compute from a number nobody entered. */
+  monthlySalary: number | null
 }
 
 export const EMPLOYMENT: Record<EmploymentType, string> = {
@@ -172,6 +176,10 @@ export interface SalaryRecord {
   paidBy: string | null
   notes: string
   createdAt: string
+  /** Round 4 (0024) — same shape as JobApplication's invite tracking. 0/null
+   *  means never emailed; a resend just increments the count again. */
+  payslipSentCount: number
+  payslipSentAt: string | null
 }
 
 export const SALARY_STATUS: Record<SalaryStatus, { label: string; cls: string }> = {
