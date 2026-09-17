@@ -4912,3 +4912,61 @@ invalid `short` prop `RailItem` does not have.
 `Projects`, `ProjectShell`, `TeamPage` and the salesperson's `Member` screen
 have **still** not been through the uniformity pass. Unchanged from this
 morning's note.
+
+---
+
+# The front door, rebuilt around the real logo (2026-09-17)
+
+Adarsh sent the finished Metrol Media logo — a rendered plate, black ground,
+gold rim light, the M mark beside the stacked wordmark — and asked for it on the
+landing page, "upgraded to look premium and aesthetic".
+
+## The one decision everything else follows from
+
+**The landing page is now pinned DARK and does not follow the light/dark
+toggle.** Two reasons, the first deciding it:
+
+1. **The logo is a rendered plate, not a transparent mark.** Its own black
+   background and gold lighting are baked into the pixels. On the old white
+   card it read as a screenshot of a logo pasted onto a page. On black it reads
+   as the logo — the plate's ground and the page's ground are the same colour,
+   so the mark floats free of any visible edge.
+2. Black/white/gold **is** the brand. A front door should state that rather
+   than inherit whatever the viewer's laptop was set to last night.
+
+So every colour in this block is **literal, not a token** — a token would flip
+under the theme toggle and undo the whole point. This is the only screen in the
+app written that way, and the comment in `prototype.css` says so.
+
+## What is on it
+
+A transparent top bar with a ghost Sign in (it must not compete with the one
+real CTA) · the logo with **no plate, no border, no card** — the render carries
+its own environment and a box around it is a second frame inside the first · a
+gold radial glow behind it, picking up the same gold the render already throws
+onto its own floor · a gold eyebrow · the headline with **the company's name in
+gold, one accent in one place, which is what keeps it meaning something** · the
+sub copy · a gold CTA with a warm shadow · the access note demoted out of the
+paragraph to its own small line under the button · a muted footer.
+
+The `public/logo.png` mechanism is unchanged and still the switch: the file's
+presence swaps the lockup for the image, `onError` swaps it back. **The
+"Placeholder — drop your logo" line is gone** — the fallback lockup is now
+styled to look deliberate rather than unfinished, because it is what shows on
+the live site until the file is committed.
+
+## Verified in Chromium
+
+1440px with a stand-in image at the real logo's aspect ratio (**generated, used
+to check the layout, and deleted before the commit — a fake logo must never
+ship**), and again with no file at all so the fallback path was seen as Adarsh
+will see it. 375px: no horizontal scroll, `scrollWidth` equals the viewport, the
+CTA goes full width capped at 340px. `typecheck` and `build` clean.
+
+## THE FILE IS NOT IN THE REPO
+
+**A pasted image does not reach the file system** — this session could see the
+logo and could not save it. `public/logo.png` does not exist. Until Adarsh drops
+it there and pushes, the live site shows the fallback lockup, which is correct
+behaviour and not a bug. Do not record this round as finished on the live site
+until he confirms the file is in.

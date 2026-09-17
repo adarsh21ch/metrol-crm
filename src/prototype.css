@@ -1837,3 +1837,122 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   .view-in{ animation:none }
   .btn:hover,.tabs button:hover{ transform:none }
 }
+
+/* ========================================================================
+   THE FRONT DOOR — 2026-09-17
+   ------------------------------------------------------------------------
+   company.metrol.in is the one page in this whole app an outsider might see,
+   so it is the only screen designed as a brand surface rather than product
+   chrome — and the only one that does NOT follow the light/dark toggle.
+
+   Why it is pinned dark: the supplied logo is a rendered plate with its own
+   black ground and gold rim light baked into the pixels, not a transparent
+   mark. On the old white card it read as a screenshot of a logo pasted onto a
+   page. On black it reads as the logo. Black/white/gold is also simply what
+   the brand IS, and a front door should say so rather than inherit whatever
+   the viewer's laptop happened to be set to.
+
+   Every colour here is therefore literal, not a token: a token would flip
+   under the theme toggle and undo the whole point.
+   ==================================================================== */
+
+.landing--hero{
+  --lh-gold:#F5C518;
+  min-height:100dvh; display:flex; flex-direction:column;
+  background:
+    radial-gradient(120% 80% at 50% 0%, #17160f 0%, #0b0b0c 46%, #070708 100%);
+  color:#F4F4F5;
+}
+
+/* ------------------------------------------------------------- the bar */
+.landing--hero .lh-bar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:20px clamp(18px,5vw,44px);
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.landing--hero .lh-brand{ display:flex; align-items:center; gap:11px }
+.landing--hero .lh-mono{
+  display:grid; place-items:center; width:30px; height:30px; border-radius:7px;
+  background:var(--lh-gold); color:#101010;
+  font-family:var(--display); font-weight:800; font-size:16px; line-height:1;
+}
+.landing--hero .lh-brandname{ font-family:var(--display); font-weight:600; font-size:15px; letter-spacing:-.01em }
+/* A ghost button on black: the bar must not compete with the one real CTA. */
+.landing--hero .lh-ghost{
+  height:36px; background:transparent; color:#F4F4F5;
+  border-color:rgba(255,255,255,.18); box-shadow:none;
+}
+.landing--hero .lh-ghost:hover{ background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.34) }
+
+/* ------------------------------------------------------------ the hero */
+.landing--hero .lh-main{
+  position:relative; flex:1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:clamp(40px,7vh,84px) clamp(18px,5vw,44px) clamp(36px,6vh,64px);
+}
+.landing--hero .lh-glow{
+  position:absolute; top:6%; left:50%; transform:translateX(-50%);
+  width:min(760px,92vw); height:min(360px,42vh); pointer-events:none;
+  background:radial-gradient(60% 60% at 50% 50%, rgba(245,197,24,.16) 0%, rgba(245,197,24,0) 70%);
+  filter:blur(8px);
+}
+.landing--hero .lh-logo{ position:relative; margin-bottom:clamp(26px,4vh,44px) }
+/* No plate, no border, no card. The render carries its own environment — a box
+   around it would be a second frame inside the first. */
+.landing--hero .lh-logo-img{
+  display:block; width:min(560px,86vw); height:auto;
+  border-radius:12px;
+}
+.landing--hero .lh-lockup{ display:flex; align-items:center; gap:16px }
+.landing--hero .lh-mono--lg{ width:58px; height:58px; border-radius:12px; font-size:30px }
+.landing--hero .lh-word{
+  font-family:var(--display); font-weight:800; font-size:clamp(26px,5vw,40px);
+  letter-spacing:.02em; color:#fff;
+}
+
+.landing--hero .lh-eyebrow{
+  margin:0 0 14px; font-size:11.5px; font-weight:700;
+  letter-spacing:.20em; text-transform:uppercase; color:var(--lh-gold);
+}
+.landing--hero .lh-title{
+  margin:0; max-width:19ch;
+  font-family:var(--display); font-weight:700;
+  font-size:clamp(28px,4.6vw,50px); line-height:1.1; letter-spacing:-.025em; color:#fff;
+}
+/* The company's own name in gold: one accent in one place, which is what keeps
+   it meaning something. */
+.landing--hero .lh-em{ color:var(--lh-gold) }
+.landing--hero .lh-sub{
+  margin:20px 0 0; max-width:56ch;
+  font-size:15px; line-height:1.65; color:rgba(244,244,245,.62);
+}
+
+.landing--hero .lh-cta{
+  margin-top:clamp(26px,4vh,38px); height:50px; padding:0 30px;
+  background:var(--lh-gold); border-color:var(--lh-gold); color:#101010;
+  font-size:14.5px; font-weight:700;
+  box-shadow:0 6px 22px rgba(245,197,24,.26), 0 2px 6px rgba(0,0,0,.4);
+}
+.landing--hero .lh-cta:hover{
+  background:#ffd42e; border-color:#ffd42e;
+  box-shadow:0 10px 30px rgba(245,197,24,.34), 0 3px 8px rgba(0,0,0,.45);
+}
+.landing--hero .lh-note{
+  margin:16px 0 0; font-size:12.5px; color:rgba(244,244,245,.42);
+}
+
+/* ----------------------------------------------------------- the footer */
+.landing--hero .lh-foot{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+  padding:18px clamp(18px,5vw,44px);
+  border-top:1px solid rgba(255,255,255,.07);
+  font-size:12.5px; color:rgba(244,244,245,.42);
+}
+.landing--hero .lh-links{ display:flex; gap:20px }
+.landing--hero .lh-foot a{ color:inherit; text-decoration:none }
+.landing--hero .lh-foot a:hover{ color:rgba(244,244,245,.78) }
+
+@media (max-width:600px){
+  .landing--hero .lh-foot{ justify-content:center; text-align:center }
+  .landing--hero .lh-cta{ width:100%; max-width:340px }
+}
