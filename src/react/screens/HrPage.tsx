@@ -285,7 +285,11 @@ export function HrPage({
     { key: 'attendance', label: 'Attendance', icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) } },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
-    { key: 'leave', label: 'Leave', icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) } },
+    {
+      key: 'leave',
+      label: (() => { const n = leave.rows.filter((r) => r.status === 'pending').length; return n ? `Leave (${n})` : 'Leave' })(),
+      icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) },
+    },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
     { key: 'exit', label: 'Exit', icon: EXIT_ICON, onClick: () => { setSection('exit'); setOpenId(null) } },
     {

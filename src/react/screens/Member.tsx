@@ -618,6 +618,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                         </div>
                         <div className="emp-meta" style={{ color: 'var(--ink-3)' }}>{myEmployee.workEmail || me?.email}</div>
                       </div>
+                      {/* Asking for leave used to live only on Profile → Leave,
+                          a tab away from the screen somebody actually opens
+                          every day. It belongs beside the thing it's about. */}
+                      <button className="btn btn--sm btn--primary" style={{ marginLeft: 'auto' }} onClick={() => setRequestingLeave(true)}>
+                        Request leave
+                      </button>
                     </div>
 
                     <PunchCard att={att} myEmployeeId={myEmployee.id}

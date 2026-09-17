@@ -116,6 +116,42 @@ export function PunchCard({
   }
   useEffect(() => { warm() }, [])
 
+  /** The camera, same idea as `warm()` above but for the OTHER thing that made
+   *  a scan feel slow: opening `<QrScanner>` used to call getUserMedia fresh
+   *  every single time, and a camera's own hardware negotiation — not our
+   *  code, not jsQR — is what ate the second or more somebody felt between
+   *  tapping "Scan code" and seeing the viewfinder. A stream, once open, is
+   *  kept and reused for every later scan in this visit instead.
+   *
+   *  Only ever opened quietly if the browser has already granted it before
+   *  (SETUP_KEY) — never on a first visit, and never before somebody has
+   *  chosen to allow it once. A held stream also means the phone's camera
+   *  light stays on for as long as this screen is open; that trade is only
+   *  made once permission was already a settled, past decision. */
+  const camStreamRef = useRef<MediaStream | null>(null)
+  const camWarmingRef = useRef<Promise<MediaStream> | null>(null)
+  const camLive = () => {
+    const s = camStreamRef.current
+    return !!s && s.getVideoTracks().some((t) => t.readyState === 'live')
+  }
+  function warmCamera() {
+    if (isDemo() || !showScan || camLive() || camWarmingRef.current) return
+    let granted = false
+    try { granted = localStorage.getItem(SETUP_KEY) === '1' } catch { /* private mode */ }
+    if (!granted) return
+    const p = navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
+    })
+    camWarmingRef.current = p
+    p.then((s) => { camStreamRef.current = s }).catch(() => {}).finally(() => { camWarmingRef.current = null })
+  }
+  useEffect(() => {
+    warmCamera()
+    return () => { camStreamRef.current?.getTracks().forEach((t) => t.stop()); camStreamRef.current = null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   /** Both browser permissions, in the one moment the person chose. */
   async function allowBoth() {
     setPermBusy(true)
@@ -125,6 +161,7 @@ export function PunchCard({
       const denied = [r.camera === 'denied' ? 'camera' : null, r.location === 'denied' ? 'location' : null].filter(Boolean)
       setPermNote(denied.length ? `The ${denied.join(' and ')} is still blocked. ` + howToAllow() : 'Done — you should not be asked again.')
       if (!denied.length) { try { localStorage.setItem(SETUP_KEY, '1') } catch { /* private mode */ } }
+      warmCamera()
     } finally {
       setPermBusy(false)
     }
@@ -154,7 +191,7 @@ export function PunchCard({
         : await takeFix()
       setPhase('saving')
       const res = await att.punchByQr(code, fix, myEmployeeId ?? undefined)
-      if (res.ok) { toast(res.message); setOkMsg(res.message); warm() }
+      if (res.ok) { toast(res.message); setOkMsg(res.message); warm(); warmCamera() }
       else setProblem(res.message)
     } catch (e) {
       setProblem(e instanceof Error ? e.message : 'Could not read your location.')
@@ -174,7 +211,7 @@ export function PunchCard({
         : await takeFix()
       setPhase('saving')
       const res = kind === 'in' ? await att.punchIn(fix, myEmployeeId ?? undefined) : await att.punchOut(fix, myEmployeeId ?? undefined)
-      if (res.ok) { toast(res.message); setOkMsg(res.message); warm() }
+      if (res.ok) { toast(res.message); setOkMsg(res.message); warm(); warmCamera() }
       else setProblem(res.message)
     } catch (e) {
       setProblem(e instanceof Error ? e.message : 'Could not read your location.')
@@ -285,7 +322,10 @@ export function PunchCard({
       {okMsg && <p className="pb-ok">{okMsg}</p>}
       {problem && <p className="punch-err">{problem}</p>}
 
-      {scanning && <QrScanner onClose={() => setScanning(false)} onCode={(c) => void scanned(c)} />}
+      {scanning && (
+        <QrScanner onClose={() => setScanning(false)} onCode={(c) => void scanned(c)}
+                   sharedStream={camLive() ? camStreamRef.current : null} />
+      )}
 
       {/* First visit only. The explanation AND both permissions in one moment,
           so neither ever interrupts an ordinary morning again. */}
