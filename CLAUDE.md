@@ -4406,3 +4406,56 @@ else on the site is affected; attendance, payroll and the rest are untouched.
 `ATTENDANCE-PAYROLL-PLAN.md` carries them: QR-only mode, payroll from
 attendance with two pay periods, and the T&C as an in-app page. Round 4 is now
 unblocked — it reads the closed months this round produces.
+
+---
+
+# The attendance screen, redesigned (2026-09-17)
+
+Adarsh, bluntly: the typography is bad, the right half of a desktop is blank,
+and three paragraphs of rules sit under a button somebody presses twice a day.
+
+**The principle the whole round follows: what stays on screen daily is what
+CHANGES daily.** Anything identical every morning — how far you have to stand,
+why the camera is needed — is read once and then gets out of the way.
+
+## What moved
+
+- **Identity first.** The photo/name/ID block was stranded between the punch
+  card and the month; it is the page's header, so it is at the top and slim.
+- **Today is one horizontal strip**, not a narrow card against a blank right
+  half. Date and branch · the clock · In/Out · the buttons, across the full
+  width. **Measured at 1440px: 1248px wide and 74px tall**, where the old card
+  was a fraction of the width and several hundred pixels tall.
+- **The month is the first thing under it, and on a laptop it is ONE line** —
+  every day of the month as a small column carrying its own weekday letter.
+  Measured: 17 days, 17 columns, 78px tall. On a phone the same cells fall back
+  to seven-per-row weeks (measured: 7 columns, the S M T W T F S header back on,
+  pad cells back on) because 31 columns on a 375px screen is four pixels a day.
+  **One markup, two shapes, no second copy to keep in step.**
+- **The rules left the screen.** `.punch-note` count on the attendance screen is
+  now **0**. They live in a **one-time popup on the first visit** — which is also
+  where both browser permissions are asked for, together, once — and behind an
+  **ⓘ button** on the strip for anybody who wants them again. The standing
+  "Allow camera & location (once)" line is gone with them.
+- **The range controls sit on the "My attendance" heading line**, not on a band
+  of their own.
+- **The profile's sub-tabs and its month stepper share one line** — the stepper
+  is a filter for the tab it sits in, and it had a whole strip of white to
+  itself for two arrows.
+- Tiles tightened: 20px numbers, 8px padding.
+
+## Verified in Chromium, `?demo=1&as=member`
+
+1440px: strip 1248x74, month one row of 17, zero permanent notes, no page
+scroll. 375px: month back to 7 columns with its header, strip stacks to 219px,
+`scrollWidth` equals the 375px viewport. `typecheck` and `build` clean.
+
+## NOT done — the wider sweep
+
+Adarsh asked for an audit of **every** page with the same eye. This round did
+the two screens he named in detail (his Attendance, and the Profile tab's
+stepper line). **HR's own screens, Projects, the project shell and the
+salesperson's other tabs have NOT been through this pass yet** — do not claim
+otherwise. The same three questions apply to each: is anything here read only
+once, is any block narrower than the screen for no reason, and does any control
+have a row to itself that belongs on a heading line.

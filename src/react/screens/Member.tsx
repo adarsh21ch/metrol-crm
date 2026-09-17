@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
@@ -468,6 +468,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 around inside Profile, so unlike the section strip above it has
                 to survive on a phone. */}
             {shownSec === 'profile' && (
+              <div className="prof-tabrow">
               <div className="tabs prof-tabs">
                 {ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => (
                   <button key={t.key} className={shownMeTab === t.key ? 'is-on' : ''} onClick={() => setMeTab(t.key)}>
@@ -477,6 +478,19 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                     )}
                   </button>
                 ))}
+              </div>
+              {/* The month stepper belongs ON this line. It is a filter for the
+                  tab it sits in, and giving it a band of its own underneath was
+                  a whole strip of white for two arrows. */}
+              {shownMeTab === 'leave' && myEmployee && (
+                <div className="month-step">
+                  <button className="btn btn--sm" aria-label="Previous month"
+                          onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
+                  <strong>{monthName(leaveMonth)}</strong>
+                  <button className="btn btn--sm" aria-label="Next month" disabled={leaveMonth >= thisMonth}
+                          onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
+                </div>
+              )}
               </div>
             )}
 
@@ -574,17 +588,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   </div>
                 ) : (
                   <>
-                    <div style={{ marginBottom: 16 }}>
-                      <PunchCard att={att} myEmployeeId={myEmployee.id}
-                                 shiftStart={att.shifts.find((s) => s.id === myEmployee.shiftId)?.startsAt ?? null}
-                                 myOfficeId={myEmployee.officeId} toast={toast} />
-                    </div>
-
-                    {/* Who this is. The passport photo has existed in
-                        employee-documents since the day HR approved the
-                        joining form — it was collected, copied, and then
-                        never once shown to the person it belongs to. */}
-                    <div className="emp-head">
+                    {/* Identity first — it is the header of the page, not a
+                        block stranded between the punch strip and the month.
+                        The passport photo has existed in employee-documents
+                        since HR approved the joining form and was never once
+                        shown to the person it belongs to. */}
+                    <div className="emp-head emp-head--slim">
                       {photoUrl
                         ? <img className="emp-photo" src={photoUrl} alt="" />
                         : <div className="emp-photo emp-photo--none">{initials(myEmployee.fullName)}</div>}
@@ -600,12 +609,17 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                       </div>
                     </div>
 
-                    <div className="section">
-                      <div className="section-head"><h3>My attendance</h3></div>
+                    <PunchCard att={att} myEmployeeId={myEmployee.id}
+                               shiftStart={att.shifts.find((s) => s.id === myEmployee.shiftId)?.startsAt ?? null}
+                               myOfficeId={myEmployee.officeId} toast={toast} />
 
-                      {/* "From where to where" — his words. Typed dates for a
-                          specific window, and the three ranges anybody
-                          actually asks for next to them. */}
+                    <div className="section">
+                      {/* The range controls sit ON the heading line, not on a
+                          row of their own under it — they are one control, and
+                          a whole band of white above the month is exactly the
+                          space this screen was wasting. */}
+                      <div className="section-head section-head--wrap">
+                        <h3>My attendance</h3>
                       <div className="range-bar">
                         <div className="field">
                           <label htmlFor="attFrom">From</label>
@@ -630,23 +644,23 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           }}>Last 30 days</button>
                         </div>
                       </div>
-
-                      <div className="att-sum">
-                        <div className="att-sum-tile"><div className="n">{totals.present}</div><div className="l">Present</div></div>
-                        <div className="att-sum-tile"><div className="n">{totals.late}</div><div className="l">Late coming</div></div>
-                        <div className="att-sum-tile"><div className="n">{totals.halfDay}</div><div className="l">Half days</div></div>
-                        <div className="att-sum-tile"><div className="n">{totals.leave}</div><div className="l">Leave</div></div>
-                        <div className="att-sum-tile"><div className="n">{totals.absent}</div><div className="l">Absent</div></div>
-                        <div className="att-sum-tile"><div className="n">{fmtDuration(totals.workedMinutes)}</div><div className="l">Worked</div></div>
                       </div>
 
-                      {/* The month at a glance. Seven columns, so a row IS a
-                          week and Sundays line up under each other — a grid
-                          that just wraps at seven without padding the first
-                          week would put every month's Sundays somewhere
-                          different. */}
+                      {/* The month, and it is the FIRST thing on the page —
+                          "how is my month going" is the question somebody opens
+                          this screen with, not "how many half days do I have".
+
+                          On a laptop every day of the month is ONE row of small
+                          columns, each carrying its own weekday letter, so a
+                          month reads as a single premium strip instead of a
+                          little block in the corner of a wide screen. On a phone
+                          the same cells fall back to seven-per-row weeks, where
+                          padding the first week is what keeps every month's
+                          Sundays under each other. One markup, two shapes, no
+                          second copy to keep in step. */}
                       {calendar.length > 0 && (
-                        <>
+                        <div className={'cal-wrap' + (calendar.length <= 31 ? ' cal-wrap--strip' : '')}
+                             style={{ '--days': calendar.length } as CSSProperties}>
                           <div className="cal-grid">
                             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
                               <div className="cal-dow" key={i}>{d}</div>
@@ -657,6 +671,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             {calendar.map((d) => (
                               <div className={'cal-cell ' + DAY_KIND[d.kind].cls} key={d.date}
                                    title={`${fmtDate(d.date)} — ${[DAY_KIND[d.kind].label || 'Nothing recorded', d.remark].filter(Boolean).join(' · ')}`}>
+                                <span className="dw">{['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(d.date + 'T00:00:00Z').getUTCDay()]}</span>
                                 <span className="d">{Number(d.date.slice(8, 10))}</span>
                                 {(d.kind === 'holiday' || d.kind === 'week_off') && <span className="m">H</span>}
                                 {d.kind === 'leave' && <span className="m">L</span>}
@@ -671,8 +686,17 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             <span><i style={{ background: 'var(--bad-soft)', borderColor: 'var(--bad-line)' }} />Absent</span>
                             <span><i style={{ background: 'var(--surface-2)', borderColor: 'var(--line)' }} />H — holiday or weekly off</span>
                           </div>
-                        </>
+                        </div>
                       )}
+
+                      <div className="att-sum">
+                        <div className="att-sum-tile"><div className="n">{totals.present}</div><div className="l">Present</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.late}</div><div className="l">Late coming</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.halfDay}</div><div className="l">Half days</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.leave}</div><div className="l">Leave</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.absent}</div><div className="l">Absent</div></div>
+                        <div className="att-sum-tile"><div className="n">{fmtDuration(totals.workedMinutes)}</div><div className="l">Worked</div></div>
+                      </div>
 
                       {/* The same days again, with the actual times on them.
                           Every date in the range has a row — a Sunday, a
@@ -738,13 +762,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   </div>
                 ) : (
                   <>
-                    <div className="section-tools" style={{ marginBottom: 12, justifyContent: 'flex-start' }}>
-                      <button className="btn btn--sm" onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>← Previous</button>
-                      <strong style={{ alignSelf: 'center' }}>{monthName(leaveMonth)}</strong>
-                      <button className="btn btn--sm" disabled={leaveMonth >= thisMonth}
-                              onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>Next →</button>
-                    </div>
-
                     <div className="kpis">
                       {/* Available is what CAN be spent — last month's leftover
                           plus this month's accrual — not a yearly allowance. */}

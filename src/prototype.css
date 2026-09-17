@@ -1629,3 +1629,107 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   .cal-grid{padding:10px;gap:5px}
   .cal-cell{font-size:11.5px;border-radius:8px}
 }
+/* ========================================================================
+   THE ATTENDANCE REDESIGN — 2026-09-17
+   ------------------------------------------------------------------------
+   Adarsh, on the employee's own Attendance screen: the typography is bad, the
+   right half of a desktop is blank, and three paragraphs of rules sit under a
+   button somebody presses twice a day, every day, for years.
+
+   The principle applied throughout: what is on screen daily is what CHANGES
+   daily. Anything that is the same every morning — how far you have to be, why
+   the camera is needed — is read once, on the first visit, and then lives
+   behind an ⓘ. Everything else earns its vertical space or loses it.
+   ==================================================================== */
+
+/* The identity block is a page header now, not a card between two things. */
+.emp-head--slim{ padding:10px 14px; gap:12px; margin-bottom:12px; align-items:center }
+.emp-head--slim .emp-photo{ width:46px; height:46px }
+.emp-head--slim h2{ font-size:17px; margin:0 }
+.emp-head--slim .emp-meta{ font-size:12px; margin-top:2px }
+
+/* --------------------------------------------------- today, in one strip */
+.punch-bar{
+  display:grid; grid-template-columns:1.15fr .85fr 1fr auto;
+  align-items:center; gap:18px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  padding:12px 16px; margin-bottom:14px;
+}
+.punch-bar .punch-date{ font-size:14px }
+.punch-bar .punch-big{ font-size:26px }
+.punch-bar .punch-cap{ margin-top:1px }
+.pb-clock{ text-align:center }
+.pb-times{ display:flex; gap:8px }
+.pb-times > div{
+  flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--line);
+  border-radius:8px; padding:5px 9px; display:flex; flex-direction:column; gap:1px;
+}
+.pb-times span{ font-size:10px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em }
+.pb-times strong{ font-family:var(--mono); font-size:13px; color:var(--ink); font-weight:600 }
+.pb-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end }
+.pb-actions .btn{ height:38px; padding:0 14px }
+/* The ⓘ that replaced three permanent paragraphs. */
+.pb-info{
+  width:26px; height:26px; flex:none; border-radius:50%; border:1px solid var(--line);
+  background:var(--surface-2); color:var(--ink-3); cursor:pointer;
+  font-family:var(--display); font-weight:700; font-size:13px; line-height:1;
+}
+.pb-info:hover{ color:var(--ink); border-color:var(--ink-3) }
+
+@media (max-width:860px){
+  /* A phone gets the same information in the same order, stacked — the clock
+     beside its caption rather than centred over it, because a phone is tall
+     and narrow and centring wastes the width it does have. */
+  .punch-bar{ grid-template-columns:1fr; gap:10px; padding:12px 13px }
+  .pb-clock{ text-align:left; display:flex; align-items:baseline; gap:9px }
+  .punch-bar .punch-big{ font-size:30px }
+  .pb-actions{ justify-content:stretch }
+  .pb-actions .btn{ flex:1; height:44px }
+  .pb-actions .chip{ order:-1 }
+}
+
+/* ------------------------------------------ the month as one premium line */
+.cal-wrap{ margin-bottom:14px }
+.cal-wrap--strip .cal-grid{
+  grid-template-columns:repeat(var(--days),minmax(0,1fr));
+  gap:3px;
+}
+/* In strip form every cell carries its own weekday letter, so the shared
+   S M T W T F S header and the leading pad cells have nothing to do. */
+.cal-wrap--strip .cal-dow,
+.cal-wrap--strip .cal--pad{ display:none }
+.cal-cell .dw{ display:none }
+.cal-wrap--strip .cal-cell{ padding:5px 0 }
+.cal-wrap--strip .cal-cell .dw{
+  display:block; font-size:9px; line-height:1; opacity:.55; margin-bottom:3px;
+}
+.cal-wrap--strip .cal-cell .d{ font-size:12px }
+
+@media (max-width:860px){
+  /* Thirty-one columns on a 375px screen is four pixels a day. The same cells
+     go back to seven-per-row weeks, where the pad cells matter again. */
+  .cal-wrap--strip .cal-grid{ grid-template-columns:repeat(7,1fr); gap:5px }
+  .cal-wrap--strip .cal-dow,
+  .cal-wrap--strip .cal--pad{ display:block }
+  .cal-wrap--strip .cal-cell .dw{ display:none }
+  .cal-wrap--strip .cal-cell{ padding:0 }
+}
+
+/* --------------------------------------------------------- tighter tiles */
+.att-sum{ gap:8px; margin-bottom:14px }
+.att-sum-tile{ padding:8px 11px }
+.att-sum-tile .n{ font-size:20px }
+.att-sum-tile .l{ font-size:10.5px }
+
+/* ------------------------------ controls on the heading line, not under it */
+.section-head--wrap{ flex-wrap:wrap; gap:10px 14px; align-items:center }
+.section-head--wrap .range-bar{ margin:0; flex:1; justify-content:flex-end }
+
+/* The profile's sub-tabs and its month stepper share one line. */
+.prof-tabrow{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px }
+.prof-tabrow .prof-tabs{ margin-bottom:0 }
+.month-step{ display:flex; align-items:center; gap:8px; margin-left:auto }
+.month-step strong{ font-family:var(--display); font-size:13.5px; white-space:nowrap }
+@media (max-width:860px){
+  .month-step{ margin-left:0; width:100%; justify-content:space-between }
+}
