@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoAttendance, demoAttendanceSettings, demoEmployees, demoHolidays, demoOffices, demoShifts, isDemo } from '@/data/demo'
-import { officeDate, officeToday, type AttendanceRow, type AttendanceSettings, type AttendanceStatus, type Holiday, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
+import { officeDate, officeToday, type AttendanceRow, type PunchMethods, type AttendanceSettings, type AttendanceStatus, type Holiday, type OfficeLocation, type PunchMethod, type Shift } from '@/lib/attendance'
 
 type Row = Record<string, unknown>
 
@@ -43,6 +43,10 @@ const toSettings = (r: Row): AttendanceSettings => ({
   weekOffs: Array.isArray(r.week_offs) ? (r.week_offs as number[]).map(Number) : [0],
   timezone: str(r.timezone) || 'Asia/Kolkata',
   allowAnyBranch: r.allow_any_branch !== false,
+  // 0023. Absent column = not installed yet, and 'both' is what the app then
+  // behaves as — which is exactly what it did before the setting existed.
+  punchMethods: (r.punch_methods === 'button' || r.punch_methods === 'qr' ? r.punch_methods : 'both') as PunchMethods,
+  punchMethodsInstalled: r.punch_methods !== undefined,
   // 0022. The defaults are 0022's own, so a bundle that ships before the
   // migration runs still reads sensible numbers rather than zeros.
   freeLatesPerMonth: r.free_lates_per_month == null ? 4 : Number(r.free_lates_per_month),
@@ -103,6 +107,7 @@ export interface SettingsDraft {
   halfDayMinutes: number
   maxAccuracyMeters: number
   allowAnyBranch: boolean
+  punchMethods: PunchMethods
   freeLatesPerMonth: number
   paidLeavePerMonth: number
   probationMonths: number
@@ -383,6 +388,7 @@ export function useAttendance(enabled = true) {
         half_day_minutes: draft.halfDayMinutes,
         max_accuracy_meters: draft.maxAccuracyMeters,
         allow_any_branch: draft.allowAnyBranch,
+        ...(settingsRef.current?.punchMethodsInstalled ? { punch_methods: draft.punchMethods } : {}),
         // Sent only once 0022 has added the columns — before that, naming
         // them would refuse the WHOLE save, grace minutes included.
         ...(settingsRef.current?.leaveRulesInstalled ? {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
-import type { AttendanceSettings } from '@/lib/attendance'
+import type { AttendanceSettings, PunchMethods } from '@/lib/attendance'
 import type { SettingsDraft } from '@/data/useAttendance'
 
 /** Every number that decides what a day and a month count as — in ONE place,
@@ -18,6 +18,7 @@ export function AttendanceSettingsModal({
   first?: 'attendance' | 'leave'
 }) {
   const [anyBranch, setAnyBranch] = useState(settings.allowAnyBranch)
+  const [methods, setMethods] = useState<PunchMethods>(settings.punchMethods)
   const [grace, setGrace] = useState(String(settings.graceMinutes))
   const [hours, setHours] = useState(String(settings.requiredMinutes / 60))
   const [halfDay, setHalfDay] = useState(String(settings.halfDayMinutes / 60))
@@ -50,7 +51,7 @@ export function AttendanceSettingsModal({
     const message = await onSave({
       graceMinutes: Math.round(g),
       requiredMinutes: Math.round(h * 60), halfDayMinutes: Math.round(hd * 60),
-      maxAccuracyMeters: Math.round(acc), allowAnyBranch: anyBranch,
+      maxAccuracyMeters: Math.round(acc), allowAnyBranch: anyBranch, punchMethods: methods,
       freeLatesPerMonth: fl, paidLeavePerMonth: pl, probationMonths: pr,
       sameDayLeaveUnpaid: sameDay, periodLeavePerMonth: pe, leaveRulesStart: startMonth + '-01',
     })
@@ -63,6 +64,17 @@ export function AttendanceSettingsModal({
     <div key="att">
       <h4 className="rules-h">Attendance</h4>
       <div className="hr-fields">
+        <div className="field">
+          {/* Adarsh: an office that runs on the poster should be able to switch
+              the buttons off outright. 0023 enforces this on the row, so it is
+              a rule and not a preference. */}
+          <label>How people may punch</label>
+          <select className="input" value={methods} onChange={(e) => setMethods(e.target.value as PunchMethods)}>
+            <option value="both">Buttons and QR poster</option>
+            <option value="qr">QR poster only — the buttons disappear</option>
+            <option value="button">Buttons only — scanning is refused</option>
+          </select>
+        </div>
         <div className="field">
           <label>Punching at another branch</label>
           <select className="input" value={anyBranch ? 'y' : 'n'} onChange={(e) => setAnyBranch(e.target.value === 'y')}>

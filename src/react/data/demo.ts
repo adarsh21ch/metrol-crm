@@ -388,6 +388,8 @@ export const demoAttendanceSettings: AttendanceSettings = {
   weekOffs: [0],
   timezone: 'Asia/Kolkata',
   allowAnyBranch: true,
+  punchMethods: 'both',
+  punchMethodsInstalled: true,
   freeLatesPerMonth: 4,
   paidLeavePerMonth: 2,
   probationMonths: 0,

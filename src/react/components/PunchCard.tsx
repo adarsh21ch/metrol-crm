@@ -54,6 +54,12 @@ export function PunchCard({
   const [intro, setIntro] = useState(false)
   const [info, setInfo] = useState(false)
   const [permBusy, setPermBusy] = useState(false)
+  /** 'locating' vs 'saving' — the honest two halves of a punch. The first was
+   *  the whole wait and the button used to just say "Checking…" through it. */
+  const [phase, setPhase] = useState<'locating' | 'saving' | null>(null)
+  /** The green line that says it landed. The toast is easy to miss on a phone
+   *  held at arm's length at the office door. */
+  const [okMsg, setOkMsg] = useState<string | null>(null)
   const [permNote, setPermNote] = useState<string | null>(null)
 
   // First visit on this browser: explain once, ask for both permissions once,
@@ -79,10 +85,36 @@ export function PunchCard({
   const dayOffice = att.offices.find((o) => o.id === row?.officeId) ?? null
   const noOffice = att.offices.filter((o) => o.isActive).length === 0
   const anyBranch = att.settings?.allowAnyBranch !== false
+  const methods = att.settings?.punchMethods ?? 'both'
+  const showButton = methods !== 'qr'
+  const showScan = methods !== 'button'
   const required = att.settings?.requiredMinutes ?? 540
   const shortBy = Math.max(0, required - elapsed)
 
   const pendingFix = useRef<{ at: number; p: Promise<{ lat: number; lng: number; accuracy: number }> } | null>(null)
+
+  /** A fix is asked for the moment this screen opens, not when the button is
+   *  pressed. Getting a high-accuracy position is SECONDS of work for the
+   *  phone — it was the entire reason punching felt slow, and none of it was
+   *  our code. By the time a thumb reaches the button the answer is in hand.
+   *
+   *  30 seconds of maximumAge lets the browser hand back the fix it just took
+   *  instead of powering the GPS up again; 90 seconds is as old as one may be
+   *  when it is actually spent, because somebody may have walked. */
+  function warm() {
+    if (isDemo()) return
+    const p = getFix(15000, 30000)
+    p.catch(() => {})
+    pendingFix.current = { at: Date.now(), p }
+  }
+  async function takeFix() {
+    const w = pendingFix.current
+    if (w && Date.now() - w.at < 90_000) {
+      try { return await w.p } catch { /* fall through to a fresh one */ }
+    }
+    return getFix(15000, 30000)
+  }
+  useEffect(() => { warm() }, [])
 
   /** Both browser permissions, in the one moment the person chose. */
   async function allowBoth() {
@@ -105,26 +137,24 @@ export function PunchCard({
 
   function openScanner() {
     setProblem(null)
-    if (!isDemo()) {
-      const p = getFix()
-      p.catch(() => {})
-      pendingFix.current = { at: Date.now(), p }
-    }
+    setOkMsg(null)
+    warm()
     setScanning(true)
   }
 
   async function scanned(code: string) {
     setScanning(false)
     setProblem(null)
+    setOkMsg(null)
+    setPhase('locating')
     setBusy(row?.punchInAt && !row?.punchOutAt ? 'out' : 'in')
     try {
-      const warm = pendingFix.current
       const fix = isDemo()
         ? { lat: myOffice?.lat ?? 0, lng: myOffice?.lng ?? 0, accuracy: 14 }
-        : warm && Date.now() - warm.at < 90_000 ? await warm.p : await getFix()
-      pendingFix.current = null
+        : await takeFix()
+      setPhase('saving')
       const res = await att.punchByQr(code, fix, myEmployeeId ?? undefined)
-      if (res.ok) toast(res.message)
+      if (res.ok) { toast(res.message); setOkMsg(res.message); warm() }
       else setProblem(res.message)
     } catch (e) {
       setProblem(e instanceof Error ? e.message : 'Could not read your location.')
@@ -135,18 +165,22 @@ export function PunchCard({
 
   async function go(kind: 'in' | 'out') {
     setProblem(null)
+    setOkMsg(null)
+    setPhase('locating')
     setBusy(kind)
     try {
       const fix = isDemo()
         ? { lat: myOffice?.lat ?? att.offices[0]?.lat ?? 0, lng: myOffice?.lng ?? att.offices[0]?.lng ?? 0, accuracy: 14 }
-        : await getFix()
+        : await takeFix()
+      setPhase('saving')
       const res = kind === 'in' ? await att.punchIn(fix, myEmployeeId ?? undefined) : await att.punchOut(fix, myEmployeeId ?? undefined)
-      if (res.ok) toast(res.message)
+      if (res.ok) { toast(res.message); setOkMsg(res.message); warm() }
       else setProblem(res.message)
     } catch (e) {
       setProblem(e instanceof Error ? e.message : 'Could not read your location.')
     } finally {
       setBusy(null)
+      setPhase(null)
       setConfirming(false)
     }
   }
@@ -210,17 +244,29 @@ export function PunchCard({
             <span className="punch-note" style={{ margin: 0 }}>No office set up yet.</span>
           ) : !row?.punchInAt ? (
             <>
-              <button className="btn btn--primary btn--lg" disabled={busy !== null} onClick={() => void go('in')}>
-                {busy === 'in' ? 'Checking…' : 'Punch in'}
-              </button>
-              <button className="btn btn--lg" disabled={busy !== null} onClick={openScanner}>Scan code</button>
+              {showButton && (
+                <button className="btn btn--primary btn--lg" disabled={busy !== null} onClick={() => void go('in')}>
+                  {busy === 'in' ? (phase === 'saving' ? 'Recording…' : 'Finding you…') : 'Punch in'}
+                </button>
+              )}
+              {showScan && (
+                <button className={'btn btn--lg' + (showButton ? '' : ' btn--primary')} disabled={busy !== null} onClick={openScanner}>
+                  {showButton ? 'Scan code' : 'Scan to punch in'}
+                </button>
+              )}
             </>
           ) : !row.punchOutAt ? (
             <>
-              <button className="btn btn--lg" disabled={busy !== null} onClick={() => setConfirming(true)}>
-                {busy === 'out' ? 'Checking…' : 'Punch out'}
-              </button>
-              <button className="btn btn--lg" disabled={busy !== null} onClick={openScanner}>Scan code</button>
+              {showButton && (
+                <button className="btn btn--lg" disabled={busy !== null} onClick={() => setConfirming(true)}>
+                  {busy === 'out' ? (phase === 'saving' ? 'Recording…' : 'Finding you…') : 'Punch out'}
+                </button>
+              )}
+              {showScan && (
+                <button className={'btn btn--lg' + (showButton ? '' : ' btn--primary')} disabled={busy !== null} onClick={openScanner}>
+                  {showButton ? 'Scan code' : 'Scan to punch out'}
+                </button>
+              )}
             </>
           ) : (
             <span className="punch-note" style={{ margin: 0 }}>Today is closed.</span>
@@ -229,6 +275,7 @@ export function PunchCard({
         </div>
       </div>
 
+      {okMsg && <p className="pb-ok">{okMsg}</p>}
       {problem && <p className="punch-err">{problem}</p>}
 
       {scanning && <QrScanner onClose={() => setScanning(false)} onCode={(c) => void scanned(c)} />}
@@ -270,7 +317,7 @@ export function PunchCard({
           foot={<>
             <button className="btn" onClick={() => setConfirming(false)}>Not yet</button>
             <button className="btn btn--primary" disabled={busy !== null} onClick={() => void go('out')}>
-              {busy === 'out' ? 'Checking…' : 'Yes, punch out'}
+              {busy === 'out' ? (phase === 'saving' ? 'Recording…' : 'Finding you…') : 'Yes, punch out'}
             </button>
           </>}
         >

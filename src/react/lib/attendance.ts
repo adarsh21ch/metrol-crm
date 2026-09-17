@@ -52,6 +52,9 @@ export interface AttendanceRow {
 
 export type PunchMethod = 'button' | 'qr' | 'hr'
 
+/** The company-wide choice, not a single punch's method. */
+export type PunchMethods = 'both' | 'button' | 'qr'
+
 /** One office. Metrol has two and will have three; adding the third is a row,
  *  not a migration. Coordinates are required — a branch nobody can punch at is
  *  not a branch — so HR captures the location in the step that creates it. */
@@ -85,6 +88,12 @@ export interface AttendanceSettings {
    *  assigned to. On (the default) lets somebody working out of the other
    *  office that day punch there, and the row records which one it was. */
   allowAnyBranch: boolean
+  /** Which WAY people may punch: both, the buttons only, or the QR only.
+   *  Enforced by 0023's trigger on the row — hiding a button stops nobody. */
+  punchMethods: PunchMethods
+  /** False until 0023 has run; the save then leaves the column out rather
+   *  than refusing the whole settings write over one unknown name. */
+  punchMethodsInstalled: boolean
   /** Round 2 (0022) — the leave rules. Lates 1..N in a month are free; every
    *  late after the Nth is a half day. */
   freeLatesPerMonth: number
@@ -240,7 +249,7 @@ export function summarise(rows: AttendanceRow[]): AttendanceSummary {
  *  evidence that somebody is standing in the office now. */
 export interface Fix { lat: number; lng: number; accuracy: number }
 
-export function getFix(timeoutMs = 15000): Promise<Fix> {
+export function getFix(timeoutMs = 15000, maximumAge = 0): Promise<Fix> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
       reject(new Error('This browser cannot share a location. Try Chrome or Safari on your phone.'))
@@ -259,7 +268,11 @@ export function getFix(timeoutMs = 15000): Promise<Fix> {
           reject(new Error('Getting your location took too long. Try again.'))
         }
       },
-      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 },
+      // maximumAge is 0 by DEFAULT — capturing a branch's centre must never
+      // reuse an old fix. A punch passes a few seconds instead, which lets the
+      // browser hand back the fix it just took rather than powering the GPS up
+      // again: that wait was the whole reason pressing Punch in felt slow.
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge },
     )
   })
 }

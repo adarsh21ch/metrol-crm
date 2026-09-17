@@ -4459,3 +4459,77 @@ salesperson's other tabs have NOT been through this pass yet** — do not claim
 otherwise. The same three questions apply to each: is anything here read only
 once, is any block narrower than the screen for no reason, and does any control
 have a row to itself that belongs on a heading line.
+
+---
+
+# Punching stopped waiting on the GPS, and the method became a rule (2026-09-17)
+
+Two asks in one message: make punching feel instant with a green confirmation,
+and let the owner/HR switch one method off entirely.
+
+## 1. The wait was never our code — it was the fix
+
+`go()` called `getFix()` when the button was pressed. A high-accuracy position
+is **seconds of work for the phone**, and `maximumAge: 0` forbade reusing even
+the fix taken moments earlier. So the button sat on "Checking…" through the
+slowest part of the operation, and the RPC after it — the part we control —
+was already fast.
+
+- **The fix is now warmed the moment the Attendance screen opens**, and again
+  after every successful punch so the punch OUT is warm too. By the time a
+  thumb reaches the button the answer is in hand.
+- **`getFix` gained a `maximumAge` argument, still defaulting to 0.** A punch
+  passes 30 s, which lets the browser hand back the position it just took
+  instead of powering the GPS up again. **The default stays 0 on purpose**:
+  capturing a branch's centre must never reuse an old fix, and that call was
+  deliberately left alone.
+- A warm fix is only spent while it is **under 90 seconds old** — somebody may
+  have walked — otherwise a fresh one is taken.
+- **The button says which half it is in**: "Finding you…" then "Recording…",
+  instead of one static word across two very different waits.
+
+**Nothing was made optimistic here, and that is deliberate.** The database
+decides whether somebody is inside the fence; a green tick before it answers
+would be the app claiming an attendance record that may not exist. What was
+removed is the waiting that bought nothing.
+
+## 2. The green line
+
+`.pb-ok` — a green bar with the database's own sentence, under the strip, where
+the thumb just was. The toast stays, but a toast is easy to miss on a phone held
+at arm's length at the office door. Verified: pressing Punch in produced
+**"✓ Punched in at Noida Sector 6. Have a good day."**, the buttons flipped to
+Punch out, and the clock started at 0h 00m.
+
+## 3. Button, QR, or both — enforced on the row
+
+`0023_punch_methods.sql` adds `attendance_settings.punch_methods`
+(`both` | `button` | `qr`) and a **BEFORE INSERT OR UPDATE trigger on
+`attendance`** that refuses a punch made by a method the company has switched
+off. HR entries (`source = 'hr'`) are never affected.
+
+**Why a trigger and not three rewritten functions:** `punch_in`, `punch_out`
+and `punch_by_qr` are proven live (31 of 31, 2026-09-16), and re-typing their
+bodies to add one check at the top is exactly the kind of edit that silently
+loses a line. The trade is the shape of the refusal — this raises, so the
+client shows the sentence rather than a jsonb `{ok:false}`. The sentences are
+written for the person at the door: *"The punch buttons are switched off here.
+Scan the office QR code instead."*
+
+**Hiding a button stops nobody**, which is why this is not UI-only: a hand-made
+REST call to `punch_in()` gets the same refusal.
+
+HR sets it in **Settings → How people may punch**. The punch strip then shows
+only what is allowed, and in QR-only mode the scan button becomes the primary
+one and reads "Scan to punch in".
+
+The client sends `punch_methods` **only once the column exists**
+(`punchMethodsInstalled`), the same guard 0022 needed — naming an unknown
+column would refuse the whole settings save, grace minutes included.
+
+## Verified
+
+`typecheck` and `build` clean. Demo: punch in → green line → buttons flip →
+clock runs. **0023 has NOT been run on the live database** — until it is, the
+setting is absent, the app behaves as 'both' exactly as it did before, and the
+dropdown's choice will not save.

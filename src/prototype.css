@@ -1733,3 +1733,13 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 @media (max-width:860px){
   .month-step{ margin-left:0; width:100%; justify-content:space-between }
 }
+
+/* The green line that says the punch landed. A toast is easy to miss on a
+   phone held at arm's length at the office door; this sits where the thumb
+   just was. */
+.pb-ok{
+  display:flex; align-items:center; gap:8px;
+  background:var(--good-soft); border:1px solid var(--good-line); color:var(--good);
+  border-radius:var(--r); padding:9px 13px; margin:0 0 14px; font-size:13px; font-weight:600;
+}
+.pb-ok::before{ content:"✓"; font-weight:800 }
