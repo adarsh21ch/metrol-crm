@@ -64,6 +64,20 @@ select '— employees DELETE policy (must stay 0)',
                                     (select count(*) from pg_policies where schemaname = 'public'
                                        and tablename = 'employees' and cmd = 'DELETE')::text
 union all
+select '0022 leave_months',         (select count(*) from have_table where relname = 'leave_months')::text
+union all
+select '0022 leave_month_summary()',(select count(*) from have_fn where proname = 'leave_month_summary')::text
+union all
+select '0022 leave_month_board()',  (select count(*) from have_fn where proname = 'leave_month_board')::text
+union all
+select '0022 close_leave_month()',  (select count(*) from have_fn where proname = 'close_leave_month')::text
+union all
+select '0023 punch_methods column', (select count(*) from have_col where table_name = 'attendance_settings' and column_name = 'punch_methods')::text
+union all
+select '0023 punch_method_allowed()',(select count(*) from have_fn where proname = 'punch_method_allowed')::text
+union all
+select '0023 enforce trigger',      (select count(*) from pg_trigger where tgname = 'attendance_enforce_method' and not tgisinternal)::text
+union all
 -- Row counts only for tables 0013/0014 proved are there by running against
 -- them. leave_requests is deliberately NOT counted here: if it turned out to be
 -- missing, naming it in this query would make the whole query error and tell
@@ -74,4 +88,11 @@ union all
 select '— data: employees on record',(select count(*)::text from public.employees)
 union all
 select '— data: holidays entered',  (select count(*)::text from public.holidays)
+union all
+-- Only meaningful once 0022 above reads back as installed — guarded so this
+-- line cannot itself error the whole query on a database that doesn't have
+-- it yet, which is the exact failure this file exists to avoid.
+select '— data: leave months closed',
+       case when (select count(*) from have_table where relname = 'leave_months') = 1
+            then (select count(*)::text from public.leave_months) else 'n/a — 0022 not installed' end
 order by 1;

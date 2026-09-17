@@ -52,23 +52,28 @@ What an employee sees about themselves, on a phone, in one screen.
 - [x] Holidays and Sundays render as H automatically — they already exist in
       the DB, they just have to be joined into the row list
 
-## Round 2 — the rules engine (migration)  ← NEXT
+## Round 2 — the rules engine (migration)  ✓ DONE (410503f). NOT yet live — see below.
 
 Nothing visible; everything after this depends on it.
 
-- [ ] **Late-coming ladder**: L1–L4 tolerated, the **5th late in a month
+- [x] **Late-coming ladder**: L1–L4 tolerated, the **5th late in a month
       becomes a half day** automatically. Each late day shows its number
       (L1, L2…) on the employee's own table and grid
-- [ ] A half day **costs 0.5 paid leave** (2.0 → 1.5)
-- [ ] **Paid leave accrual: 2 per month**, per employee
-- [ ] **Carry-forward vs encashment** — the employee's choice:
+- [x] A half day **costs 0.5 paid leave** (2.0 → 1.5)
+- [x] **Paid leave accrual: 2 per month**, per employee
+- [x] **Carry-forward vs encashment** — the employee's choice:
       - take the money → 2 unused days are **added to salary**, balance resets
       - carry forward → next month starts at **4**
       - HR records which one the employee chose
-- [ ] Leave applied but **not approved is not leave** — it must not deduct
-- [ ] Owner/HR screen to **see and change** every number above (grace minutes,
+- [x] Leave applied but **not approved is not leave** — it must not deduct
+- [x] Owner/HR screen to **see and change** every number above (grace minutes,
       full-day hours, lates-before-half-day, monthly paid leave). Adarsh was
       explicit: the owner must be able to change the criteria, not just read it.
+
+**Migration `0022_leave_rules_engine.sql`. As of 2026-09-17, install state on
+the LIVE database is unconfirmed** — CLAUDE.md's own Round 2 entry said it was
+not installed as of 2026-09-16, and nothing since has proven otherwise. Run
+`WHATS-INSTALLED.sql` (updated this round to check it) to get a real answer.
 
 ### Round 2 — ANSWERS, settled by Adarsh on 2026-09-16. Do NOT re-ask.
 
@@ -97,15 +102,27 @@ pay-out vs carry-forward — and adds rules the brief never mentioned.
   relaxation — Adarsh's own Phase 6 words. Both are expressible in settings
   already (one 10:30 shift, relaxation 0). Flag to HR; do not change it.
 
-## Round 3 — QR-only mode
+## Round 3 — QR-only mode  ← HALF DONE (36a2bce). Two of four items open.
 
-- [ ] Attendance settings gets **"QR only"**. When on, the punch-in/punch-out
-      buttons disappear **everywhere in the app**, not just on one screen
-- [ ] The member's punch card becomes **one big camera button** —
-      "Scan to check in" / "Scan to check out"
-- [ ] **Check-out confirmation**: after 9 hours, accept silently. Before 9
-      hours, ask — "You have only worked N hours. Check out anyway?"
-- [ ] Manual timing correction stays, but moves to the **owner** rather than HR
+- [x] Attendance settings gets **"QR only"** (`punch_methods`: both/button/qr,
+      migration `0023`). Enforced **in the database** with a trigger, not just
+      hidden in the UI — a hand-made call to `punch_in()` is refused the same
+      as a click. Verified by Adarsh directly against the live database
+      2026-09-17 (`WHATS-INSTALLED.sql`'s 0023 rows all came back present).
+      The buttons disappear on the one screen that has them (`PunchCard.tsx`
+      is the only punch surface in the app, so "everywhere" is satisfied by
+      there being nowhere else to hide).
+- [x] The member's punch card becomes **one big camera button** in QR-only
+      mode — labelled "Scan to punch in" / "Scan to punch out" (brief said
+      "check in/out"; same idea, not worth a re-ask).
+- [ ] **Check-out confirmation is NOT conditional on 9 hours.** Read the code
+      2026-09-17: `onClick={() => setConfirming(true)}` opens the modal on
+      EVERY punch-out — it changes its sentence once inside
+      (`shortBy > 0` vs "Your full day is done"), but the brief asked for it
+      to skip the modal entirely past 9 hours. Small, not built yet.
+- [ ] Manual timing correction has **not** moved to owner-only. `HrAttendance`
+      still opens `AttendanceEditModal` for HR the same as before this round —
+      no gate checked, confirmed by reading the file 2026-09-17.
 
 ## Round 4 — payroll from attendance
 

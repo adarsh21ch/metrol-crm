@@ -4533,3 +4533,54 @@ column would refuse the whole settings save, grace minutes included.
 clock runs. **0023 has NOT been run on the live database** — until it is, the
 setting is absent, the app behaves as 'both' exactly as it did before, and the
 dropdown's choice will not save.
+
+---
+
+# Reconciling two sessions, and what is actually still open in Round 3 (2026-09-17)
+
+Adarsh's other Claude Code account hit its usage limit mid-Round-3 ("$211,
+your most expensive session — stop here for today"); this session picks up
+from the committed result, not from that session's own transcript. Checked
+rather than assumed: `git status` clean, three commits since 0022 was written
+(`410503f` Round 2 reaching both screens, `acd807c` the attendance redesign,
+`36a2bce` the punch-method rule + the GPS-warming fix), and `typecheck`/`build`
+both clean on everything together.
+
+**Adarsh ran `0023`'s own proof query directly against the live database** (a
+Supabase SQL editor screenshot, not fetched by this session) and it came back
+installed: the column, the guard function, the trigger, all present, mode
+`both`. That is stronger evidence than anything in CLAUDE.md's own log, which
+still said "0023 has NOT been run" as of the commit that added it — the log
+was simply written before he ran it.
+
+**`0022` (the leave rules engine) has no such confirmation.** Its own Round 2
+entry says plainly it was not live as of 2026-09-16, and nothing since proves
+otherwise either way. `WHATS-INSTALLED.sql` now checks both migrations in one
+query (`leave_months`, all three RPC functions, `punch_methods`, the guard
+function, the trigger) so the next check is one paste, not two.
+
+**Round 3 is HALF done, corrected in `ATTENDANCE-PAYROLL-PLAN.md` rather than
+left reading as finished.** Read the actual code before ticking anything:
+QR-only mode and the settings switch are real, enforced in the database, not
+just the UI. But the check-out confirmation still opens on every punch-out
+regardless of hours worked (the brief asked for it to skip past 9 hours), and
+manual correction is still open to HR, not moved to the owner. Neither is
+built.
+
+## WHAT YOU DO NEXT
+
+1. **Run the updated install check** — one paste, answers whether 0022 is live
+   (0023 already is):
+   ```bash
+   pbcopy < /Users/apple/metrol-crm/supabase/WHATS-INSTALLED.sql
+   ```
+   Paste into Supabase → SQL Editor → Run, and send back the rows.
+2. **If any `0022` row reads 0**, run the migration itself the same way:
+   ```bash
+   pbcopy < /Users/apple/metrol-crm/supabase/migrations/0022_leave_rules_engine.sql
+   ```
+   Until it runs, every leave figure on the live site shows "the leave rules
+   are not installed yet" instead of a real number — nothing else on the site
+   is affected.
+3. **Everything else keeps building here** — the two open Round 3 items above,
+   then Round 4 (payroll), unless you'd rather redirect.
