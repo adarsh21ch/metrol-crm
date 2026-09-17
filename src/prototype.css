@@ -917,7 +917,12 @@ kbd{
 }
 
 /* ------------------------------------------------------------ team roster */
-.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+/* 240px let auto-fill pack exactly five columns at a typical desktop width —
+   which is also exactly the roster's own size, so every card locked to its
+   narrowest possible share and "163 leads · 30 converted" clipped to "163
+   leads · 3…". 280px keeps the same wrapping behaviour everywhere else but
+   stops that column count from ever being tight enough to truncate. */
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
 .team-card{
   display:flex;align-items:center;gap:12px;text-align:left;
   background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;
@@ -1773,6 +1778,16 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 /* ------------------------------ controls on the heading line, not under it */
 .section-head--wrap{ flex-wrap:wrap; gap:10px 14px; align-items:center }
 .section-head--wrap .range-bar{ margin:0; flex:1; justify-content:flex-end }
+/* .section-head--wrap counted on the range-bar staying one row so
+   align-items:center would land the h3 sensibly beside it — on a phone the
+   range-bar's own fields wrap onto two or three rows instead, and "My
+   attendance" ended up centred partway down that stack instead of sitting
+   above it. Stacking the heading above a full-width range-bar avoids the
+   collision outright. */
+@media (max-width:600px){
+  .section-head--wrap{ flex-direction:column; align-items:flex-start }
+  .section-head--wrap .range-bar{ flex:none; justify-content:flex-start; width:100% }
+}
 
 /* The profile's sub-tabs and its month stepper share one line. */
 .prof-tabrow{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px }
@@ -1864,95 +1879,80 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   color:#F4F4F5;
 }
 
-/* ------------------------------------------------------------- the bar */
-.landing--hero .lh-bar{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:20px clamp(18px,5vw,44px);
-  border-bottom:1px solid rgba(255,255,255,.07);
+/* ------------------------------------------------------------ the hero
+   No top bar. The full logo IS the brand mark — a second, smaller one above
+   it in a header row would just be the same thing said twice.
+
+   The plate is shown WHOLE, at full size, with the copy below it — not
+   cropped into a background. That was tried: the wordmark sits in the middle
+   of the render, so any text laid over the top collided with the logo's own
+   lettering. Showing the plate intact avoids that outright. */
+.landing--hero .lh-main{
+  position:relative; flex:1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:clamp(32px,7vh,64px) clamp(18px,5vw,44px);
 }
-.landing--hero .lh-brand{ display:flex; align-items:center; gap:11px }
+.landing--hero .lh-glow{
+  position:absolute; top:2%; left:50%; transform:translateX(-50%);
+  width:min(900px,94vw); height:min(420px,44vh); pointer-events:none;
+  background:radial-gradient(60% 60% at 50% 50%, rgba(245,197,24,.16) 0%, rgba(245,197,24,0) 70%);
+  filter:blur(8px);
+}
+.landing--hero .lh-logo{ position:relative; width:100%; margin-bottom:clamp(28px,4.5vh,40px) }
+/* No plate, no border, no card. The render carries its own environment — a box
+   around it would be a second frame inside the first. Sized to read as its
+   own full section on desktop, not a thumbnail sitting above the real copy. */
+.landing--hero .lh-logo-img{
+  display:block; width:min(820px,92vw); height:auto; margin:0 auto;
+  border-radius:14px;
+}
+.landing--hero .lh-lockup{ display:flex; align-items:center; justify-content:center; gap:16px }
 .landing--hero .lh-mono{
   display:grid; place-items:center; width:30px; height:30px; border-radius:7px;
   background:var(--lh-gold); color:#101010;
   font-family:var(--display); font-weight:800; font-size:16px; line-height:1;
 }
-.landing--hero .lh-brandname{ font-family:var(--display); font-weight:600; font-size:15px; letter-spacing:-.01em }
-/* A ghost button on black: the bar must not compete with the one real CTA. */
-.landing--hero .lh-ghost{
-  height:36px; background:transparent; color:#F4F4F5;
-  border-color:rgba(255,255,255,.18); box-shadow:none;
-}
-.landing--hero .lh-ghost:hover{ background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.34) }
-
-/* ------------------------------------------------------------ the hero */
-.landing--hero .lh-main{
-  position:relative; flex:1;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; padding:clamp(40px,7vh,84px) clamp(18px,5vw,44px) clamp(36px,6vh,64px);
-}
-.landing--hero .lh-glow{
-  position:absolute; top:6%; left:50%; transform:translateX(-50%);
-  width:min(760px,92vw); height:min(360px,42vh); pointer-events:none;
-  background:radial-gradient(60% 60% at 50% 50%, rgba(245,197,24,.16) 0%, rgba(245,197,24,0) 70%);
-  filter:blur(8px);
-}
-.landing--hero .lh-logo{ position:relative; margin-bottom:clamp(26px,4vh,44px) }
-/* No plate, no border, no card. The render carries its own environment — a box
-   around it would be a second frame inside the first. */
-.landing--hero .lh-logo-img{
-  display:block; width:min(560px,86vw); height:auto;
-  border-radius:12px;
-}
-.landing--hero .lh-lockup{ display:flex; align-items:center; gap:16px }
 .landing--hero .lh-mono--lg{ width:58px; height:58px; border-radius:12px; font-size:30px }
 .landing--hero .lh-word{
   font-family:var(--display); font-weight:800; font-size:clamp(26px,5vw,40px);
   letter-spacing:.02em; color:#fff;
 }
 
-.landing--hero .lh-eyebrow{
-  margin:0 0 14px; font-size:11.5px; font-weight:700;
-  letter-spacing:.20em; text-transform:uppercase; color:var(--lh-gold);
-}
+/* Two lines: a bold headline, then a lighter line of detail under it — the
+   hierarchy the single flat paragraph before it didn't have. */
 .landing--hero .lh-title{
-  margin:0; max-width:19ch;
+  margin:0; max-width:22ch;
   font-family:var(--display); font-weight:700;
-  font-size:clamp(28px,4.6vw,50px); line-height:1.1; letter-spacing:-.025em; color:#fff;
+  font-size:clamp(24px,4vw,36px); line-height:1.2; letter-spacing:-.02em;
+  color:#fff;
 }
 /* The company's own name in gold: one accent in one place, which is what keeps
    it meaning something. */
 .landing--hero .lh-em{ color:var(--lh-gold) }
 .landing--hero .lh-sub{
-  margin:20px 0 0; max-width:56ch;
-  font-size:15px; line-height:1.65; color:rgba(244,244,245,.62);
+  margin:12px 0 0; max-width:48ch;
+  font-size:15px; line-height:1.6; color:rgba(244,244,245,.62);
 }
 
+/* Simple and minimalistic on purpose: an outline, not a slab of gold with a
+   glow under it — the image is already the loud thing on this page. */
 .landing--hero .lh-cta{
-  margin-top:clamp(26px,4vh,38px); height:50px; padding:0 30px;
-  background:var(--lh-gold); border-color:var(--lh-gold); color:#101010;
-  font-size:14.5px; font-weight:700;
-  box-shadow:0 6px 22px rgba(245,197,24,.26), 0 2px 6px rgba(0,0,0,.4);
+  margin-top:clamp(24px,4vh,32px); height:44px; padding:0 28px;
+  background:transparent; border:1px solid rgba(255,255,255,.24); color:#F4F4F5;
+  font-size:14px; font-weight:600; box-shadow:none;
 }
 .landing--hero .lh-cta:hover{
-  background:#ffd42e; border-color:#ffd42e;
-  box-shadow:0 10px 30px rgba(245,197,24,.34), 0 3px 8px rgba(0,0,0,.45);
-}
-.landing--hero .lh-note{
-  margin:16px 0 0; font-size:12.5px; color:rgba(244,244,245,.42);
+  background:rgba(245,197,24,.08); border-color:var(--lh-gold); color:var(--lh-gold);
 }
 
 /* ----------------------------------------------------------- the footer */
 .landing--hero .lh-foot{
-  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
   padding:18px clamp(18px,5vw,44px);
   border-top:1px solid rgba(255,255,255,.07);
   font-size:12.5px; color:rgba(244,244,245,.42);
+  text-align:center;
 }
-.landing--hero .lh-links{ display:flex; gap:20px }
-.landing--hero .lh-foot a{ color:inherit; text-decoration:none }
-.landing--hero .lh-foot a:hover{ color:rgba(244,244,245,.78) }
 
 @media (max-width:600px){
-  .landing--hero .lh-foot{ justify-content:center; text-align:center }
   .landing--hero .lh-cta{ width:100%; max-width:340px }
 }

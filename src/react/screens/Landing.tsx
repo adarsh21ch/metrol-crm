@@ -13,9 +13,16 @@ import { useState } from 'react'
  * white and gold IS the brand, and a front door should state that rather than
  * inherit whatever the viewer's laptop was set to last night.
  *
- * Drop a file at public/logo.png (or .svg) and it replaces the lettering below;
- * until one exists the image fails to load and the monogram lockup stays. No
- * configuration, no build flag — the presence of the file is the switch.
+ * The full plate is shown whole, at full size, with the copy sitting BELOW it
+ * — not cropped into a background. A full-bleed background version of this was
+ * tried and dropped: the logo's own wordmark sits in the middle of the plate,
+ * so any text overlaid on top of it collided with the render's own lettering.
+ * Showing the plate intact avoids that outright.
+ *
+ * Drop a file at public/logo.png (or .svg) and it replaces the lettering
+ * below; until one exists the image fails to load and the monogram lockup
+ * stays. No configuration, no build flag — the presence of the file is the
+ * switch.
  */
 export function Landing({ onSignIn }: { onSignIn: () => void }) {
   const [hasLogo, setHasLogo] = useState(true)
@@ -23,14 +30,6 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
   return (
     <div className="screen is-active">
       <div className="landing landing--hero">
-        <header className="lh-bar">
-          <div className="lh-brand">
-            <span className="lh-mono">M</span>
-            <span className="lh-brandname">Metrol Media</span>
-          </div>
-          <button className="btn lh-ghost" onClick={onSignIn}>Sign in</button>
-        </header>
-
         <main className="lh-main">
           {/* The glow sits BEHIND the logo and picks up the same gold the render
               already throws onto its own floor, so the plate reads as lit by the
@@ -48,25 +47,18 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
             )}
           </div>
 
-          <p className="lh-eyebrow">Internal systems</p>
           <h1 className="lh-title">
-            The workspace where <span className="lh-em">Metrol Media</span> runs its projects.
+            One workspace, every <span className="lh-em">Metrol Media</span> project.
           </h1>
           <p className="lh-sub">
-            Leads, follow-ups, conversions and team performance for every client project — in one
-            place, updated by the people doing the work.
+            Leads, follow-ups, conversions and team performance — tracked live, in one place.
           </p>
 
-          <button className="btn lh-cta" onClick={onSignIn}>Sign in to dashboard</button>
-          <p className="lh-note">Access is limited to Metrol Media staff.</p>
+          <button className="btn lh-cta" onClick={onSignIn}>Sign in</button>
         </main>
 
         <footer className="lh-foot">
-          <span>© {new Date().getFullYear()} Metrol Media · metrol.in</span>
-          <span className="lh-links">
-            <a href="#" onClick={(e) => e.preventDefault()}>Privacy</a>
-            <a href="#" onClick={(e) => e.preventDefault()}>Support</a>
-          </span>
+          <span>© {new Date().getFullYear()} Metrol Media</span>
         </footer>
       </div>
     </div>

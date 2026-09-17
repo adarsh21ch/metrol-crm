@@ -4970,3 +4970,69 @@ logo and could not save it. `public/logo.png` does not exist. Until Adarsh drops
 it there and pushes, the live site shows the fallback lockup, which is correct
 behaviour and not a bug. Do not record this round as finished on the live site
 until he confirms the file is in.
+
+---
+
+# The real logo lands, and the uniformity sweep continues (2026-09-17)
+
+`public/logo.png` arrived (committed as `5a847fa`, a 1774×887 render) and
+Adarsh iterated on the hero live in chat through three shapes before landing
+on one:
+
+1. **The plate boxed, full size, copy below it** — close to the placeholder
+   round's own layout, just with the real image.
+2. **The plate as a full-bleed BACKGROUND**, copy overlaid in the middle. Built
+   and rejected on sight: the render's own wordmark sits in the middle of the
+   plate, so bold overlaid text landed directly on top of "METROL MEDIA"
+   already printed in the image — two sets of letters fighting for the same
+   pixels. No scrim tuning fixes that; the collision is structural.
+3. **Back to (1), with sharper copy.** This is what shipped. `Landing.tsx`
+   shows the full plate — no crop, no background trick — with a bold two-line
+   headline (`One workspace, every `**`Metrol Media`**` project.` / a lighter
+   sub-line under it) and a plain outlined "Sign in" button. The eyebrow tag,
+   the long paragraph and the "Access is limited…" note from the placeholder
+   round are gone; two lines was the ask.
+
+**Verified in Chromium**, 1440px and 375px: full plate visible, no cropping,
+no horizontal scroll, `typecheck` and `build` clean.
+
+## The uniformity pass, continued onto Projects / the project view / Team / Member
+
+The morning's HR pass (three questions: is a page-level control outside
+`.section-tools`, is anything daily-visible only read once, does anything sit
+narrower than the screen for no reason) had explicitly NOT touched these four
+areas. Swept this round, `?demo=1` / `&as=member` / `&as=lead`:
+
+- **Projects, ProjectShell's five sections (Overview/Leads/Sales/Team/Dashboard),
+  TeamPage** — all already conform. Every page-level control lives in
+  `.section-tools`, every control on a page head measures 36px, `gapRight` to
+  the page edge matches the page-head pattern everywhere it was checked.
+  Nothing to fix.
+- **Team roster cards truncated** — `.team-grid`'s `minmax(240px,1fr)` let
+  `auto-fill` pack exactly five columns at a normal desktop width, which is
+  also exactly this roster's size, so every card locked to its narrowest
+  possible share and "163 leads · 30 converted" clipped to "163 leads · 3…".
+  `minmax(280px,1fr)` fixed it (verified: `scrollWidth === clientWidth` on
+  every stat line now) without changing how any other screen's cards wrap.
+- **Member's Attendance tab broke on a phone** — "My attendance" and the
+  From/To range sit on one row on desktop (`.section-head--wrap`,
+  `align-items:center`), which was never wrong there. On a 375px screen the
+  range's own fields wrap onto two or three rows internally, and centering the
+  heading against that whole wrapped stack put "My attendance" floating
+  mid-way down beside the "To" field instead of above everything — the exact
+  "looks mechanic" class of bug from this morning, just one screen over. Fixed
+  with a `max-width:600px` rule that stacks the heading above a full-width
+  range-bar instead of sharing its row. The equivalent rule for `.section-tools`
+  already existed a few lines up in the file for the same reason (HR's
+  directory toolbar collapsing) — this is the same fix for a different control.
+
+**Verified in Chromium** at 1440px and 375px, `?demo=1&as=lead` (Manage team
+tab included) and `&as=member`: both fixes confirmed by measuring
+`scrollWidth` against `clientWidth` directly, not just eyeballing it.
+`typecheck` and `build` clean throughout.
+
+## Not yet committed
+
+Both fixes and the landing-page copy are sitting in the working tree, same as
+every other round in this file — ask before committing, this repo has more
+than one session touching it.
