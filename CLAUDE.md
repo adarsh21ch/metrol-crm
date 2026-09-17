@@ -4697,19 +4697,69 @@ shipped. All pushed to main; Vercel deploys each commit automatically.
 
 ## NOT done — explicitly deferred, not forgotten
 
-1. **Merge HR's Attendance and Leave tabs into one, with a toggle** —
-   Adarsh's own idea, same shape as the Joining merge. NOT started: unlike
-   Applications/Onboarding (two simple lists), HR Attendance is a large
-   dedicated screen (day table, QR poster management, branch settings) and
-   Leave is a whole workflow (approve/reject, close-the-month payout math,
-   holidays) — a real redesign, not a quick merge. Needs its own session.
-2. **A more visible "somebody just applied for leave" alert for HR** —
-   Adarsh asked for something like a red pop-up so new requests don't sit
-   unnoticed. The sidebar count above is the cheap version that shipped;
-   an actual live notification (toast on arrival, not just a count you see
-   after opening the app) is bigger — realtime is already wired on
-   `leave_requests` for the board itself, but a global "just landed" alert
-   independent of which screen HR is on has not been designed or built.
-3. **Camera speed fix not yet confirmed working** by Adarsh directly on the
+1. **Camera speed fix not yet confirmed working** by Adarsh directly on the
    live site — built and pushed, verified in the browser here, but the
    actual "does Scan code feel faster now" answer is his to give.
+
+---
+
+# Attendance/Leave merge + live leave alert (2026-09-17)
+
+Both items deferred at the end of the previous round, built this session.
+
+**Attendance/Leave merge.** One sidebar tab ("Attendance", labelled
+`Attendance (n)` when n requests are pending — same pattern Joining already
+used for pending applications), with a Day/Leave toggle inside it
+(`HrPage.tsx`'s new `attView` state, persisted the same way `joiningView`
+is). Deliberately NOT copy-pasted from the Joining merge: Joining's two
+halves (Applications, Onboarding) are simple lists that share one `<h1>`
+cleanly. Attendance (day table, branch settings, QR poster management) and
+Leave (approve/reject, close-the-month payout math, holidays) are both full
+screens in their own right, so each keeps its own page-head below a shared
+toggle rather than being forced under one heading — reads as two real
+screens with one door, not one screen wearing two hats. Every place that used
+to jump to a standalone Leave tab (`HrAttendance`'s "Open Leave →", the
+Dashboard's "decide →" rows, the "more leave request(s)" overflow line) now
+sets `attView('leave')` on the same Attendance tab instead. `typecheck` and
+`vite build` both clean; verified in Chromium at `?demo` — toggle switches
+correctly, refresh persists whichever half you were on, both desktop sidebar
+and the phone-width bottom tab bar (with its badge) checked.
+
+**Live leave alert.** `leave_requests` was already on the `supabase_realtime`
+publication (migration 0009) but nothing in the app actually subscribed to
+it — the sidebar count was the only signal, and only updated on reload/own
+writes. `useLeaveRequests.ts` now opens a `postgres_changes` INSERT channel
+(same pattern `useWorkspace.ts`'s lead/event channels already use, RLS
+applies exactly as it does to a query — this widens nothing), and skips
+rows this browser's own `create()` just wrote itself (checked via a
+`rowsRef` mirror, not the `toast`-eating "echoed back" comment pattern from
+`useWorkspace`, since re-alerting HR about the leave they just logged
+themselves would be noise, not news). A new `LeaveAlertStack.tsx` renders a
+stacked, dismissible, click-to-open banner top-right, in the app's existing
+`--bad` red (not gold — gold already means "pending" on the chip itself,
+so a gold banner would have read as one more pending chip rather than a
+fresh thing to look at) — deliberately separate from the routine
+save-confirmation `toast`, which is one slot, three seconds, and would
+otherwise silently erase a request nobody has seen yet. It renders once at
+the top of `HrPage`'s JSX, outside the `section` switch, so it is not tied
+to whichever HR sub-screen (Dashboard, Attendance, Salary, Exit…) is open —
+"wherever HR is" means anywhere inside the HR module; leaving the module
+entirely for Projects unmounts it, same as every other HR-only feature on
+this page. `typecheck` and `vite build` both clean. NOT verified against a
+second live browser yet (demo mode has no realtime, so this session's
+`?demo` check only confirmed the banner's own visual design by injecting it
+directly into the DOM) — the real test is two tabs, one logged in as an
+employee submitting a request, one as HR watching it land.
+
+## WHAT YOU DO NEXT
+
+1. **Try Scan code twice in a row on the live site** and tell me if it feels
+   faster — the one open item from last round.
+2. **Try the Attendance/Leave merge live** — Attendance tab, Day/Leave
+   toggle at the top, refresh on either half to confirm it stays put.
+3. **Try the leave alert with two browsers** (or your phone + laptop) — log
+   in as an employee in one, HR/owner in the other, submit a leave request
+   from the employee side, and confirm a red card appears top-right on the
+   HR side without refreshing. This is the one thing I could not verify
+   myself in this session (demo mode has no live database to push a real
+   insert through), so it's worth an actual test before calling it done.

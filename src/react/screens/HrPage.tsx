@@ -23,6 +23,7 @@ import { addMonths, firstOfMonth, fmtDays, type LeaveChoice } from '@/lib/leaveR
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
 import { useJobApplications } from '@/data/useJobApplications'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
+import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
@@ -46,11 +47,6 @@ const PEOPLE_ICON = (
 const DEPT_ICON = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01" />
-  </svg>
-)
-const LEAVE_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 2v4M16 2v4" />
   </svg>
 )
 const SALARY_ICON = (
@@ -130,17 +126,31 @@ export function HrPage({
      "waiting on you" list and its attendance strip all read them on the very
      first screen, so there is nothing to gain by deferring them. */
   const hr = useEmployees()
-  const leave = useLeaveRequests()
+  // A request landing from another browser while this one is open, anywhere
+  // in the HR module — see LeaveAlertStack.tsx. Kept as its own small queue
+  // rather than reusing `toast`: toast is one slot, three seconds, and
+  // already busy with routine "Saved." confirmations that would otherwise
+  // silently erase a request nobody has seen yet.
+  const [leaveAlerts, setLeaveAlerts] = useState<LeaveAlert[]>([])
+  const leave = useLeaveRequests(true, (row) => {
+    setLeaveAlerts((p) => [{ id: row.id, request: row }, ...p])
+  })
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'joining' | 'exit' | 'terms'>('hr-section', 'dashboard')
+  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'salary' | 'joining' | 'exit' | 'terms'>('hr-section', 'dashboard')
   /* Applications (the public joining form's inbox) and Onboarding (the
      checklist for somebody an application just turned into) used to be two
      separate sidebar tabs, even though the moment one is approved the SAME
      person shows up as a second row on the second screen — one pipeline
      reading as two unrelated ones. One tab, two views. */
   const [joiningView, setJoiningView] = usePersistedState<'applications' | 'onboarding'>('hr-joiningView', 'applications')
+  /* Same idea, for Attendance and Leave: two screens that both answer "how is
+     the team doing right now", split only because one grew as a day table and
+     the other as an approval workflow. One tab, two views — Day keeps the QR
+     poster/branch machinery, Leave keeps the approve/reject/close-the-month
+     workflow, neither is simplified to fit inside the other. */
+  const [attView, setAttView] = usePersistedState<'day' | 'leave'>('hr-attView', 'day')
   /* Which tab of somebody's profile is open. Reset by openEmployee below, so
      opening a second person never lands you on the first one's Salary tab. */
   const [profTab, setProfTab] = usePersistedState<ProfileTab>('hr-profTab', 'overview')
@@ -235,7 +245,7 @@ export function HrPage({
     holidays: att.holidays, settings: att.settings, today: todayISO(),
   }), [hr.rows, att.rows, leave.rows, att.holidays, att.settings])
   const lm = useLeaveMonth(inProfile('leave') ? openId : null, leaveMonth, leaveSrc)
-  const board = useLeaveBoard(leaveMonth, leaveSrc, section === 'leave')
+  const board = useLeaveBoard(leaveMonth, leaveSrc, section === 'attendance' && attView === 'leave')
   const thisMonth = firstOfMonth(todayISO())
   const monthName = (m: string) => new Date(m + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
 
@@ -280,16 +290,19 @@ export function HrPage({
      a monthly or occasional job (Leave, Salary, Onboarding, Exit, and the
      applications inbox) sits after them, which on a phone is behind More.
      Salary is deliberately NOT a tab: he swapped it out for Employees. */
+  /* Attendance (the day table) and Leave (the approval workflow) used to be
+     two sidebar entries; a pending leave request now shows as a count on the
+     one Attendance tab, same as Joining does for pending applications, and
+     the Day/Leave toggle inside the tab decides which of the two you see. */
+  const pendingLeave = leave.rows.filter((r) => r.status === 'pending')
   const railItems: RailItem[] = [
     { key: 'dashboard', label: 'Dashboard', icon: DASH_ICON, onClick: () => { setSection('dashboard'); setOpenId(null) } },
-    { key: 'attendance', label: 'Attendance', icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) } },
+    {
+      key: 'attendance', label: pendingLeave.length ? `Attendance (${pendingLeave.length})` : 'Attendance',
+      icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) },
+    },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
-    {
-      key: 'leave',
-      label: (() => { const n = leave.rows.filter((r) => r.status === 'pending').length; return n ? `Leave (${n})` : 'Leave' })(),
-      icon: LEAVE_ICON, onClick: () => { setSection('leave'); setOpenId(null) },
-    },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
     { key: 'exit', label: 'Exit', icon: EXIT_ICON, onClick: () => { setSection('exit'); setOpenId(null) } },
     {
@@ -299,20 +312,20 @@ export function HrPage({
     { key: 'terms', label: 'Terms & Conditions', icon: TERMS_ICON, onClick: () => { setSection('terms'); setOpenId(null) } },
   ]
 
-  /* The phone's tab bar carries the same eight sections in the same order —
+  /* The phone's tab bar carries the same seven sections in the same order —
      a sidebar can list them all, five tabs cannot, so the first four become
      tabs and the rest live behind More. Labels are shortened for a 75px tab,
-     and Joining's count moves out of the words and onto the icon where a tab
-     bar puts it. */
+     and both counted tabs' numbers move out of the words and onto the icon
+     where a tab bar puts them. */
   const NAV_SHORT: Record<string, string> = {
     dashboard: 'Dashboard', attendance: 'Attendance', departments: 'Departments', directory: 'Employees',
-    leave: 'Leave', salary: 'Salary', exit: 'Exit', joining: 'Joining', terms: 'Terms',
+    salary: 'Salary', exit: 'Exit', joining: 'Joining', terms: 'Terms',
   }
   const navItems: BottomNavItem[] = railItems.map((it) => ({
     ...it,
-    label: it.key === 'joining' ? 'Joining' : it.label,
+    label: it.key === 'joining' ? 'Joining' : it.key === 'attendance' ? 'Attendance' : it.label,
     short: NAV_SHORT[it.key],
-    badge: it.key === 'joining' ? pendingApps.length : undefined,
+    badge: it.key === 'joining' ? pendingApps.length : it.key === 'attendance' ? pendingLeave.length : undefined,
   }))
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -877,7 +890,7 @@ export function HrPage({
                   ) : (
                     <div className="ov-actions">
                       {pending.slice(0, 5).map((r) => (
-                        <button className="ov-row" key={r.id} onClick={() => { setSection('leave'); setOpenId(null) }}>
+                        <button className="ov-row" key={r.id} onClick={() => { setSection('attendance'); setAttView('leave'); setOpenId(null) }}>
                           <span className="ov-n">{initials(employeeName(r.employeeId))}</span>
                           <span className="ov-l">
                             {employeeName(r.employeeId)} — {LEAVE_TYPE[r.leaveType].label.toLowerCase()},
@@ -894,7 +907,7 @@ export function HrPage({
                         </button>
                       ))}
                       {pending.length > 5 && (
-                        <button className="ov-row" onClick={() => { setSection('leave'); setOpenId(null) }}>
+                        <button className="ov-row" onClick={() => { setSection('attendance'); setAttView('leave'); setOpenId(null) }}>
                           <span className="ov-l">{pending.length - 5} more leave request(s)</span>
                           <span className="ov-cta">Open Leave →</span>
                         </button>
@@ -912,7 +925,7 @@ export function HrPage({
                 <div className="ov-card">
                   <div className="ov-head">
                     <h4>Today</h4>
-                    <button className="btn btn--sm" style={{ marginLeft: 'auto' }} onClick={() => { setSection('attendance'); setOpenId(null) }}>Open attendance →</button>
+                    <button className="btn btn--sm" style={{ marginLeft: 'auto' }} onClick={() => { setSection('attendance'); setAttView('day'); setOpenId(null) }}>Open attendance →</button>
                   </div>
                   {activeStaff.length === 0 ? (
                     <p style={{ color: 'var(--ink-3)' }}>Nobody is on the directory yet.</p>
@@ -933,7 +946,7 @@ export function HrPage({
                         </button>
                       ))}
                       {notInYet.length > 8 && (
-                        <button className="ov-row" onClick={() => { setSection('attendance'); setOpenId(null) }}>
+                        <button className="ov-row" onClick={() => { setSection('attendance'); setAttView('day'); setOpenId(null) }}>
                           <span className="ov-l">{notInYet.length - 8} more not in yet</span>
                           <span className="ov-cta">Open attendance →</span>
                         </button>
@@ -1206,15 +1219,28 @@ export function HrPage({
               </>
             )}
 
-            {/* ---------------------------------------------- attendance */}
+            {/* ------------------------------------------ attendance + leave */}
+            {/* One sidebar tab, two views — same idea as the Joining merge,
+                but the two halves stay structurally separate rather than
+                sharing one page-head: Attendance is a day table with branch
+                and QR-poster machinery, Leave is an approve/reject workflow
+                with its own month-close and holidays sections, and forcing
+                both under one <h1> made neither read well. The toggle sits
+                above both and remembers the last view per browser, same as
+                Joining's Applications/Onboarding switch. */}
             {!open && section === 'attendance' && (
-              <HrAttendance att={att} employees={hr.rows} toast={toast} leave={leave.rows}
-                            onOpenLeave={() => { setSection('leave'); setOpenId(null) }} />
-            )}
+              <>
+                <div className="seg" style={{ marginBottom: 14 }}>
+                  <button className={attView === 'day' ? 'is-on' : ''} onClick={() => setAttView('day')}>Day</button>
+                  <button className={attView === 'leave' ? 'is-on' : ''} onClick={() => setAttView('leave')}>
+                    Leave{pendingLeave.length > 0 ? ` (${pendingLeave.length})` : ''}
+                  </button>
+                </div>
 
-            {/* --------------------------------------------------- leave */}
-
-            {!open && section === 'leave' && (
+                {attView === 'day' ? (
+                  <HrAttendance att={att} employees={hr.rows} toast={toast} leave={leave.rows}
+                                onOpenLeave={() => setAttView('leave')} />
+                ) : (
               <>
                 <div className="page-head">
                   <h1>Leave</h1>
@@ -1349,6 +1375,8 @@ export function HrPage({
                   )}
                 </div>
               </>
+                )}
+              </>
             )}
 
             {/* -------------------------------------------------- salary */}
@@ -1434,6 +1462,16 @@ export function HrPage({
       </div>
 
       <BottomNav items={navItems} active={open ? 'directory' : section} />
+
+      <LeaveAlertStack
+        alerts={leaveAlerts}
+        employeeName={employeeName}
+        onOpen={(a) => {
+          setSection('attendance'); setAttView('leave'); setOpenId(null)
+          setLeaveAlerts((p) => p.filter((x) => x.id !== a.id))
+        }}
+        onDismiss={(id) => setLeaveAlerts((p) => p.filter((x) => x.id !== id))}
+      />
 
       {tip.node}
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}

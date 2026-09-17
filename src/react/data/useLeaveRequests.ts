@@ -40,11 +40,17 @@ export interface LeaveDraft {
  * Nothing here deletes: the table has no delete policy. A mistaken request is
  * cancelled, which is a status change, not a disappearance.
  */
-export function useLeaveRequests(enabled = true) {
+export function useLeaveRequests(enabled = true, onIncoming?: (row: LeaveRequest) => void) {
   const [rows, setRows] = useState<LeaveRequest[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
   const fetched = useRef(false)
+  // Mirrors `rows` for the realtime handler below, which needs to know
+  // whether an insert is one this client just made itself (already in state
+  // by the time Postgres echoes it back) without becoming a dependency that
+  // would tear the channel down and rebuild it on every request.
+  const rowsRef = useRef<LeaveRequest[]>([])
+  useEffect(() => { rowsRef.current = rows }, [rows])
 
   const load = useCallback(async (force = false) => {
     if (!enabled) { setLoading(false); return }
@@ -77,6 +83,32 @@ export function useLeaveRequests(enabled = true) {
   }, [enabled])
 
   useEffect(() => { void load() }, [load])
+
+  /* Somebody else's request landing while this browser is open — the case
+   * `onIncoming` exists for. 0009 already put this table on the realtime
+   * publication; nothing before this subscribed to it, so a request from
+   * another browser sat invisible until the next reload. RLS applies to this
+   * stream exactly as it does to a query (see useWorkspace's leads channel),
+   * so this widens nothing: HR/owner already see every row, an employee only
+   * their own.
+   *
+   * `known` (via rowsRef, not `rows`) is what tells this client's own insert
+   * apart from somebody else's: `create` below already pushes the new row
+   * into state before this echo can arrive, so a row already present is this
+   * browser's own write coming back, not news. */
+  useEffect(() => {
+    if (!enabled || isDemo()) return
+    const channel = supabase
+      .channel('leave-requests-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leave_requests' }, (p: any) => {
+        const row = toLeaveRequest(p.new as Row)
+        if (rowsRef.current.some((r) => r.id === row.id)) return
+        setRows((prev) => [row, ...prev])
+        onIncoming?.(row)
+      })
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [enabled, onIncoming])
 
   const create = useCallback(async (draft: LeaveDraft): Promise<string | null> => {
     if (isDemo()) {

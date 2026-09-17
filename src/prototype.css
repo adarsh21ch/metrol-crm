@@ -1110,6 +1110,29 @@ table.hist .what{font-weight:500}
 }
 .toast.is-on{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* A leave request landing live, wherever HR is in the module — see
+   LeaveAlertStack.tsx. top-right and stacked, unlike .toast: more than one
+   can be waiting, and none should erase another. */
+.leave-alert-stack{
+  position:fixed;top:16px;right:16px;z-index:130;
+  display:flex;flex-direction:column;gap:8px;max-width:min(360px,calc(100vw - 32px));
+}
+.leave-alert{
+  display:flex;align-items:flex-start;gap:8px;
+  background:var(--surface);border:1px solid var(--bad-line);border-left:3px solid var(--bad);
+  border-radius:var(--r);box-shadow:var(--shadow-lg);padding:10px 8px 10px 12px;
+  animation:leave-alert-in .18s ease;
+}
+.leave-alert-body{display:flex;flex-direction:column;gap:2px;cursor:pointer;flex:1}
+.leave-alert-body strong{font-size:12.5px;color:var(--bad)}
+.leave-alert-body span{font-size:12.5px;color:var(--ink-2);line-height:1.4}
+.leave-alert-x{
+  flex:none;width:20px;height:20px;border:0;background:transparent;color:var(--ink-3);
+  font-size:16px;line-height:1;cursor:pointer;border-radius:4px;
+}
+.leave-alert-x:hover{background:var(--surface-3);color:var(--ink)}
+@keyframes leave-alert-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
 /* --------------------------------------------------------- prototype nav */
 .proto{position:fixed;right:16px;bottom:16px;z-index:100;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
 .proto-panel{
