@@ -14,6 +14,7 @@ import { Member } from '@/screens/Member'
 import { HrPage } from '@/screens/HrPage'
 import { ApplyPage } from '@/screens/ApplyPage'
 import { HR_DEPARTMENT } from '@/lib/hr'
+import { usePersistedState } from '@/lib/usePersistedState'
 
 /** Screen-based, like the prototype: everyone reaches this from one bookmark,
  *  and a router would put the back button in a fight with the sidebar. It can
@@ -71,7 +72,7 @@ function Booting() {
 function SignedIn() {
   const ws = useWorkspace()
   const { toast, node: toastNode } = useToast()
-  const [route, setRoute] = useState<Route>({ name: 'projects' })
+  const [route, setRoute] = usePersistedState<Route>('route', { name: 'projects' })
 
   /* A failed write used to roll the row back in silence: the chip flicked back
      to its old value and nothing said why, which is precisely what makes a

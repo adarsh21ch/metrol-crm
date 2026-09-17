@@ -6,6 +6,7 @@ import { BottomNav } from '@/components/BottomNav'
 import { DensitySlider } from '@/components/DensitySlider'
 import { Chip, IconBtn } from '@/components/bits'
 import { usePanes } from '@/lib/usePanes'
+import { usePersistedState } from '@/lib/usePersistedState'
 import { isConverted, type Lead } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
 import { ImportModal } from '@/modals/ImportModal'
@@ -57,7 +58,7 @@ export function ProjectShell({
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
-  const [sec, setSec] = useState<SecId>('overview')
+  const [sec, setSec] = usePersistedState<SecId>('project-sec:' + projectId, 'overview')
 
   const panes = usePanes()
   const tip = useHoverTip()

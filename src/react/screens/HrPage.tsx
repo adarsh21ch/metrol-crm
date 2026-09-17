@@ -12,6 +12,7 @@ import { ProfileModal } from '@/modals/ProfileModal'
 import { EmployeeModal } from '@/modals/EmployeeModal'
 import { HrAttendance } from '@/screens/sections/HrAttendance'
 import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
+import { usePersistedState } from '@/lib/usePersistedState'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
@@ -138,12 +139,14 @@ export function HrPage({
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = useState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications' | 'terms'>('dashboard')
+  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'leave' | 'salary' | 'onboarding' | 'exit' | 'applications' | 'terms'>('hr-section', 'dashboard')
   /* Which tab of somebody's profile is open. Reset by openEmployee below, so
      opening a second person never lands you on the first one's Salary tab. */
-  const [profTab, setProfTab] = useState<ProfileTab>('overview')
+  const [profTab, setProfTab] = usePersistedState<ProfileTab>('hr-profTab', 'overview')
   const [reviewingApp, setReviewingApp] = useState<JobApplication | null>(null)
-  const [openId, setOpenId] = useState<string | null>(null)
+  // Persisted so a refresh reopens the same employee's profile, same as every
+  // other tab on this screen — not just the section list behind it.
+  const [openId, setOpenId] = usePersistedState<string | null>('hr-openId', null)
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [resigning, setResigning] = useState<Employee | null>(null)

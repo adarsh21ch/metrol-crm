@@ -21,6 +21,7 @@ import { useExitTasks } from '@/data/useExitTasks'
 import { useAttendance } from '@/data/useAttendance'
 import { PunchCard } from '@/components/PunchCard'
 import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
+import { usePersistedState } from '@/lib/usePersistedState'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
 import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod } from '@/lib/hr'
@@ -120,13 +121,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     // Only ever runs once per mount — recording *this* visit, not tracking lastVisitKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [sec, setSec] = useState<MemberSec>('overview')
+  const [sec, setSec] = usePersistedState<MemberSec>('member-sec', 'overview')
   const [edit, setEdit] = useState<{ kind: 'status' | 'quality'; anchor: HTMLElement; lead: Lead } | null>(null)
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
-  const [meTab, setMeTab] = useState<MeTab>('leave')
+  const [meTab, setMeTab] = usePersistedState<MeTab>('member-meTab', 'leave')
   // Board (the card view) is the default open — it's the one built for a
   // phone-in-hand, work-the-queue flow. Whichever view someone actually picks
   // is remembered per-browser via pickView below, so a salesperson who prefers
