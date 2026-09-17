@@ -78,6 +78,12 @@ select '0023 punch_method_allowed()',(select count(*) from have_fn where proname
 union all
 select '0023 enforce trigger',      (select count(*) from pg_trigger where tgname = 'attendance_enforce_method' and not tgisinternal)::text
 union all
+select '0024 employees.monthly_salary', (select count(*) from have_col where table_name = 'employees' and column_name = 'monthly_salary')::text
+union all
+select '0024 salary_records.payslip_sent_count', (select count(*) from have_col where table_name = 'salary_records' and column_name = 'payslip_sent_count')::text
+union all
+select '0024 salary_records.payslip_sent_at', (select count(*) from have_col where table_name = 'salary_records' and column_name = 'payslip_sent_at')::text
+union all
 -- Row counts only for tables 0013/0014 proved are there by running against
 -- them. leave_requests is deliberately NOT counted here: if it turned out to be
 -- missing, naming it in this query would make the whole query error and tell
@@ -86,6 +92,10 @@ union all
 select '— data: office branches',   (select count(*)::text from public.office_locations)
 union all
 select '— data: employees on record',(select count(*)::text from public.employees)
+union all
+select '— data: employees priced (monthly_salary set)',
+       case when (select count(*) from have_col where table_name = 'employees' and column_name = 'monthly_salary') = 1
+            then (select count(*)::text from public.employees where monthly_salary is not null) else 'n/a — 0024 not installed' end
 union all
 select '— data: holidays entered',  (select count(*)::text from public.holidays)
 union all

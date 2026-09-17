@@ -4586,3 +4586,77 @@ built.
    is affected.
 3. **Everything else keeps building here** — the two open Round 3 items above,
    then Round 4 (payroll), unless you'd rather redirect.
+
+---
+
+# Round 4 (payroll) and Round 5 (Terms & Conditions) — both built and pushed (2026-09-17)
+
+Both were fully specified in `ATTENDANCE-PAYROLL-PLAN.md` with Adarsh's own
+answers already recorded, so this session built straight through without
+re-asking anything. Full detail is in that file's own Round 4 and Round 5
+sections; this is the short version.
+
+**Round 4.** `employees.monthly_salary` (new, nullable — nobody is priced
+yet), `lib/payroll.ts` turns it plus `leave_month_summary()`'s own numbers
+into a payslip (gross, net, a 1st–15th/16th–end breakdown), a "Compute from
+attendance" button on the existing payslip form fills those fields for HR to
+review before saving, and `send-payslip-email` (new Edge Function, same
+Resend pattern as the job-application invite) emails one payslip with
+sent/resend tracked on `salary_records`. Migration `0024_monthly_salary.sql`
+is two `ALTER TABLE ADD COLUMN` statements — proven against a throwaway local
+Postgres cluster (a fresh `initdb`, not this repo's real schema, since the
+change itself never touches anything but two new columns): idempotent on a
+second run, the salary check constraint accepts null and a positive number
+and rejects a negative one, `salary_records`' two new columns default to 0
+and null correctly.
+
+**Round 5.** The printed T&C is now a full page — HR's sidebar and every
+employee's own Profile → Terms tab (`screens/sections/TermsAndConditions.tsx`)
+— transcribed by hand from the PDF rather than parsed from it at runtime, with
+a live table comparing every number the T&C states against today's
+`attendance_settings`. As of this session: the late-arrival ladder, paid
+leave count, payout/carry-forward behaviour, the 6-day week, and the 9-hour
+shift all match. Period leave, probation, and same-day-unpaid are switched
+off in the database even though the T&C states them as active policy — not a
+bug, HR's own switches, off by default per Adarsh's 2026-09-16 answer. The
+late-arrival WINDOW (flexible 10:00–10:30 vs. shift-based) and 3.3's
+"double-day deduction" (not automatic — settled the same day) are flagged as
+deliberate differences, not disagreements to fix.
+
+**Typecheck and `vite build` both clean.** Verified in Chromium at `?demo`
+(owner) and `?demo&as=member` (employee): Salary section shows the new
+Emailed column and Email/Resend buttons, Add payslip's "Compute from
+attendance" button correctly shows as disabled ("Not available in demo
+mode") since demo mode never touches the network, a payslip still saves
+correctly with the new fields present, and the Terms & Conditions page
+renders and computes its comparison table correctly on both the HR and
+employee sides.
+
+**Not yet run on the live database.** `0024` behaves exactly like every
+earlier migration here — written, proven locally, never applied by this
+session. Two things are true until Adarsh runs it: the "Compute from
+attendance" button will read back `monthlySalary: null` for everyone (it
+already does in the demo — Sneha Kulkarni is seeded that way on purpose to
+show what the refusal looks like), and nobody's actual monthly salary
+exists anywhere in this system yet. Filling it in per person is a one-time
+task on the Edit employee form, same shape as "office branches: 0" was.
+
+## WHAT YOU DO NEXT
+
+1. **Run `0024`** — one paste, adds the two columns Round 4 needs:
+   ```bash
+   pbcopy < /Users/apple/metrol-crm/supabase/migrations/0024_monthly_salary.sql
+   ```
+   Paste into Supabase → SQL Editor → Run, and send back the last few rows
+   it prints (it tells you whether both columns landed).
+2. **Set everyone's monthly salary once** — Employees → open each person →
+   Edit → "Monthly salary (₹)". Until this is filled in, "Compute from
+   attendance" will refuse to run for that person, on purpose.
+3. **Try a real payslip** — Salary → pick someone who is now priced → Add
+   payslip → Compute from attendance → check the numbers → save. Then try
+   "Email payslip" on it and confirm it actually lands in an inbox (Resend's
+   own dashboard shows delivery status if it doesn't).
+4. **Read the Terms & Conditions page** (HR sidebar, or any employee's
+   Profile → Terms) and tell me if the three "switched off" items — period
+   leave, probation, same-day-unpaid — should actually be turned ON in
+   Attendance Settings, or stay off as they are now.

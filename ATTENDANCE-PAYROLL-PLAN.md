@@ -130,14 +130,34 @@ pay-out vs carry-forward — and adds rules the brief never mentioned.
       change: HR already has this, same as today. If he ever wants it
       narrowed, that is a later, separate ask — not assumed now.
 
-## Round 4 — payroll from attendance
+## Round 4 — payroll from attendance  ✓ DONE (95c34e1, 2026-09-17)
 
-- [ ] Salary computed from the attendance month
-- [ ] **Two pay periods per month** (his "2 histograms")
-- [ ] Unused paid leave → money, per the choice recorded in Round 2
-- [ ] Half days and absences deducted correctly
-- [ ] **Payslip emailed** by HR — Resend is already wired for invites, so the
-      sending path exists
+- [x] Salary computed from the attendance month — `lib/payroll.ts`,
+      "Compute from attendance" on the payslip form
+- [x] **Two pay periods per month** (his "2 histograms") — one net amount,
+      shown as a 1st–15th / 16th–end breakdown in the payslip's notes
+- [x] Unused paid leave → money, per the choice recorded in Round 2 — reads
+      `leave_month_summary()`'s `payout_days` directly, only once a month is
+      closed and pay-out was chosen
+- [x] Half days and absences deducted correctly — reads `unpaid_days`
+      directly, same function
+- [x] **Payslip emailed** by HR — `send-payslip-email` Edge Function, same
+      Resend pattern as `approve-job-application`'s invite email; sent/resend
+      tracked on `salary_records` (`payslip_sent_count`, `payslip_sent_at`)
+
+Migration `0024_monthly_salary.sql` — two ALTER TABLE statements
+(`employees.monthly_salary`, `salary_records.payslip_sent_count` /
+`payslip_sent_at`), proven against a throwaway local Postgres cluster before
+being handed to Adarsh: idempotent, rejects a negative salary, null and a
+real value both accepted, new columns default correctly. **Not yet run on
+the live database — Adarsh has to paste it in.**
+
+**Nobody has a monthly salary set yet.** The field exists and HR can fill it
+in on the Edit employee form, but every current employee reads
+`monthly_salary: null` until someone does — the payslip generator refuses to
+compute from a number nobody entered, on purpose, rather than guessing from
+0. The first real payslip needs this filled in first, same shape as "office
+branches: 0" was after an earlier round.
 
 ### Round 4 — ANSWERS, settled by Adarsh on 2026-09-17. Do NOT re-ask.
 
@@ -164,13 +184,32 @@ pay-out vs carry-forward — and adds rules the brief never mentioned.
    Salary rail page, the employee's own read-only Salary tab, and Mark
    paid/Edit all keep working unchanged.
 
-## Round 5 — Terms & Conditions in-app
+## Round 5 — Terms & Conditions in-app  ✓ DONE (04dfd61, 2026-09-17)
 
-- [ ] The T&C already exists as a generated PDF in `public/` (built from the
+- [x] The T&C already exists as a generated PDF in `public/` (built from the
       printed document during the joining-form round). It needs to be a
-      **readable page in the app**, not only a download on the apply form
-- [ ] The leave/late rules it defines must agree with Round 2's numbers —
-      **if the PDF and the settings disagree, that is a bug in one of them**
+      **readable page in the app**, not only a download on the apply form —
+      `screens/sections/TermsAndConditions.tsx`, on HR's sidebar and every
+      employee's own Profile → Terms tab. The text is transcribed by hand
+      (`pdftotext -layout`, checked by eye), not parsed from the PDF at
+      runtime, so a reprint of the PDF cannot silently change what this page
+      says without someone noticing this file needs the same edit.
+- [x] The leave/late rules it defines must agree with Round 2's numbers —
+      **if the PDF and the settings disagree, that is a bug in one of them.**
+      A live comparison table checks every number the T&C states against
+      today's `attendance_settings` and says plainly which clauses match and
+      which don't, as of 2026-09-17:
+      - **Matches:** 4 free lates before a half day (2.3), 2 paid leaves a
+        month (3.1), pay-out/carry-forward behaviour (3.4/3.5), the 6-day
+        week (2.1), the 9-hour shift including lunch (2.1).
+      - **Switched off, not a bug:** period leave (3.7, `period_leave_per_month`
+        is 0), probation (3.9, `probation_months` is 0), same-day leave unpaid
+        (3.10, `same_day_leave_unpaid` is false) — all three are HR's
+        switches, deliberately off by default per Adarsh's 2026-09-16 answer.
+      - **Deliberately different, not a bug:** the late-arrival window (2.3 —
+        flagged since Round 2, HR's call) and 3.3's "double-day deduction"
+        (settled 2026-09-16: an unapproved absence costs exactly 1 day's
+        salary, not automatically two).
 
 ---
 
