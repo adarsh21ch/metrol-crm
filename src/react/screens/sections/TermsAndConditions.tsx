@@ -128,7 +128,13 @@ export function TermsAndConditions({ settings }: { settings: AttendanceSettings 
 
   return (
     <div className="section" style={{ maxWidth: 820 }}>
-      <div className="section-head">
+      {/* THE LAYOUT LAW normally puts a page's one control on the title's own
+          line — this title is the one place that doesn't fit: "Terms &
+          Conditions of Employment" wraps to two lines well before 375px, so
+          there is no single line left for the button to share. tc-head lets
+          it wrap onto its own line below instead of fighting the title for
+          the same row. */}
+      <div className="section-head tc-head">
         <h1>Terms & Conditions of Employment</h1>
         <a className="btn btn--sm" href="/metrol-media-terms-and-conditions.pdf" target="_blank" rel="noreferrer">
           Download the PDF

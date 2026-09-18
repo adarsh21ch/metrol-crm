@@ -636,11 +636,14 @@ export function HrPage({
                     identity — face, name, employee ID, where they sit — is the
                     header and never scrolls away from under you; everything
                     else is a tab. No section changed, only where it lives. */}
-                <div className="page-head">
-                  <button className="btn btn--sm" onClick={() => setOpenId(null)}>← Employees</button>
-                </div>
-
+                {/* THE LAYOUT LAW: a .page-head holding nothing but "← Employees"
+                    was a whole extra row spent on one control that already has
+                    somewhere to live — the same card the identity sits in. It is
+                    now that card's own first line (flex-basis:100%, so it wraps
+                    above the avatar row rather than crowding it) instead of a
+                    block of its own above it. */}
                 <div className="prof-head">
+                  <button className="btn btn--ghost btn--sm prof-back" onClick={() => setOpenId(null)}>← Employees</button>
                   <Avatar lg>{initials(open.fullName)}</Avatar>
                   <div className="prof-id">
                     <h1>{open.fullName}</h1>
@@ -833,7 +836,13 @@ export function HrPage({
                   {leave.rows.filter((r) => r.employeeId === open.id).length === 0 ? (
                     <p style={{ color: 'var(--ink-3)' }}>No leave requests on record.</p>
                   ) : (
-                    <DataGrid cols={leaveCols} rows={leave.rows.filter((r) => r.employeeId === open.id)} storageKey="hr-employee-leave"
+                    // THE LAYOUT LAW: the heading above already carries the month
+                    // stepper and Log leave — a third control (DataGrid's own
+                    // Cards/List switch) has nowhere left to go at 375px. A leave
+                    // request is a handful of dates and a status, not the kind of
+                    // row that gains anything as a card, so it is pinned to List
+                    // rather than given a switch nobody needed.
+                    <DataGrid cols={leaveCols} rows={leave.rows.filter((r) => r.employeeId === open.id)} storageKey="hr-employee-leave" phoneView="list"
                               foot={<div className="grid-foot"><span>{count(leave.rows.filter((r) => r.employeeId === open.id).length, 'request')}</span></div>} />
                   )}
                 </div>

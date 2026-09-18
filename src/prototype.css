@@ -929,12 +929,10 @@ kbd{
 }
 
 /* ------------------------------------------------------------ team roster */
-/* 240px let auto-fill pack exactly five columns at a typical desktop width —
-   which is also exactly the roster's own size, so every card locked to its
-   narrowest possible share and "163 leads · 30 converted" clipped to "163
-   leads · 3…". 280px keeps the same wrapping behaviour everywhere else but
-   stops that column count from ever being tight enough to truncate. */
-.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+/* The grid itself is .proj-grid now (THE LAYOUT LAW, rule 5) — auto-fill's
+   width-dependent column count meant no odd/even rule could ever be correct
+   at every width, the same problem .dept-card already solved by reusing
+   .proj-grid directly rather than keeping a second grid to maintain. */
 .team-card{
   display:flex;align-items:center;gap:12px;text-align:left;
   background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;
@@ -1325,6 +1323,7 @@ table.hist .what{font-weight:500}
   padding:14px 15px; margin-bottom:14px;
   background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
 }
+.prof-back{ flex-basis:100%; margin-bottom:4px; align-self:flex-start }
 .prof-head .avatar{ width:52px; height:52px; flex:0 0 52px; font-size:17px; }
 .prof-id{ min-width:0; flex:1 1 220px; }
 .prof-id h1{ font-size:21px; line-height:1.2; }
@@ -1351,6 +1350,13 @@ table.hist .what{font-weight:500}
   /* A date picker is the same shape of control as the department picker beside
      it and was the only one still claiming a whole row to itself. */
   .section-tools input.input[type="date"]{ flex:1 1 150px; min-width:150px; }
+
+  /* THE LAYOUT LAW's usual move — put the one control on the title's line —
+     has nowhere to go here: "Terms & Conditions of Employment" wraps to two
+     lines on its own well before this width, so there is no single line for
+     Download the PDF to join. Letting the title take the row and the button
+     wrap below is the exception, not a violation of the rule. */
+  .tc-head h1{ flex-basis:100% }
 }
 
 /* ------------------------------------------------------------- attendance

@@ -58,7 +58,16 @@ function MemberRoster({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) => v
             <h3>{g.name}</h3>
             <div className="sub">{count(g.members.length, 'person', 'people')}</div>
           </div>
-          <div className="team-grid">
+          {/* THE LAYOUT LAW, rule 5 — reused directly from .proj-grid (same as
+              .dept-card already does), not copied, so the two cannot drift
+              apart at a breakpoint. auto-fill's column count was width-
+              dependent, so no :last-child:nth-child(odd) rule could ever be
+              correct at every width; proj-grid's explicit 3/2/1 ladder fixes
+              that outright. At a fixed 3 columns a team card also lands wider
+              on a normal desktop than auto-fill's narrowest-share packing
+              ever gave it, so this does not reopen the truncation this
+              file's own 280px note already fixed once. */}
+          <div className="proj-grid">
             {g.members.map((m) => {
               const mine = ws.leads.filter((l) => l.ownerId === m.id)
               const cv = mine.filter(isConverted)
