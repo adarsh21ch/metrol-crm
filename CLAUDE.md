@@ -5337,3 +5337,75 @@ The unique topic now absorbs the collision risk, so this is waste rather than
 a crash, but it is waste on a screen HR keeps open all day. The fix is the one
 this file already uses for `rows`: mirror `onIncoming` into a ref and drop it
 from the deps. Left alone because it was not this round's ask.
+
+---
+
+# PENDING — mobile UI/UX density pass, requested 2026-09-18 (not started)
+
+Adarsh's own words (voice-dictated, cleaned up below — check against the
+original if any line reads oddly). Scope is the **Member app** first
+(Profile, Attendance, My Sales, Overview), then the **same patterns**
+wherever they repeat for HR, other departments, and the owner's own screens.
+Nothing in this section is built yet — this is the brief, not a log of work
+done.
+
+## Profile tab
+- Give it a real header card at the top, same shape as the identity card
+  already on Attendance: photo/DP on the left, name + ID number + role/
+  department beside it.
+- Section pills (Leave / Salary / Onboarding / Terms) stay below it, as today.
+- **Sign out moves INTO this tab**, as the last item after scrolling — not a
+  top-bar icon anymore.
+- Top bar: remove the sign-out icon. Adarsh also said "remove the logo at
+  the top right" — the brand mark is on the top-LEFT today, so this is most
+  likely the avatar/profile shortcut on the top-right (redundant once Profile
+  is its own bottom-nav tab), not literally the brand logo. **Confirm which he
+  means before removing anything** — don't guess on this one line.
+
+## Attendance tab
+- Move **Refresh** into the top-right of the section's own header row —
+  today it sits on its own line below "Attendance", wasting a row.
+- The line **"Punch in when you reach the office, punch out when you
+  leave"** stops being permanent copy. Replace it with a one-time dismissible
+  notice (an ✕ to close it, and it never shows again once dismissed for that
+  user). Same treatment for any other always-on instructional/disclaimer text
+  found elsewhere in the app — this is meant as a general rule, not just this
+  one line.
+- **Request leave**: move it beside the identity card (horizontal), not
+  full-width below it, so the card block is denser.
+- **"Friday, 18 Sept" and "Noida Sector 6 · shift 10:30"**: one line, not
+  two — branch and shift don't change day to day, so they don't need their
+  own visual row.
+- Check-in/check-out block: centre the typography properly (it currently
+  reads a little uneven around the big hour counter).
+- The **"In office"** pill: right-aligned (top-right of that card), green
+  when active.
+- Date range controls: the three separate buttons (This month / Last month /
+  Last 30 days) plus the always-visible From/To fields collapse into **one
+  dropdown**. Default: "This month". From/To only appear when "Custom" is
+  picked from that dropdown.
+- **Mobile only**: the day-strip calendar wraps to two rows (roughly half
+  the month each) instead of one horizontally-scrolling row — nobody should
+  have to swipe sideways to see the whole month on a phone. Desktop keeps the
+  single strip.
+- The legend row (Present / Late-half day / Leave / Absent dots) stops being
+  permanently visible — replace with a small **(i)** icon that reveals it on
+  tap.
+- Attendance table column order becomes: **Date → Check-in → Check-out →
+  Remark → Hours** (Hours moves from 4th to last, after Remark, since reading
+  check-in/check-out then immediately the hour total was reading confusingly
+  next to Remark in between).
+
+## Everywhere else
+- Same pass — tighter vertical rhythm, no redundant always-on text, top bar
+  kept minimal — applies to **My Sales**, **Overview**, and the equivalent HR/
+  other-department/owner screens wherever the same issues repeat. Not a
+  literal per-screen spec; use judgement screen by screen the way the
+  Attendance spec above demonstrates the intent.
+
+## Not yet decided
+- The exact wording/one-time-notice mechanism (localStorage key vs. a DB
+  column, given other users on other devices) — pick the simplest thing that
+  actually never shows the notice again for that person.
+- The Profile top-bar line above ("logo" vs. avatar) — ask Adarsh before
+  removing either.
