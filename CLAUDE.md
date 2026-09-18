@@ -5301,3 +5301,39 @@ must not be created inside `AccountControls`, `Rail`, or anything else that
 CSS renders twice. `useWorkspace` and `useLeaveRequests` are fine today
 (one call site each), but they use fixed topics too, so the same trap is set
 for whoever mounts them a second time.
+
+# The other two channels, closed off (2026-09-18)
+
+The entry above ends by naming the trap that was still set: `useWorkspace` and
+`useLeaveRequests` also used fixed realtime topics, safe only because each has
+exactly one live call site. Both now get the treatment `useNotifications` got
+— a per-mount topic (`workspace-<n>`, `leave-requests-live-<n>`) so
+`supabase.channel()` can never hand back an already-subscribed channel, and a
+`try`/`catch` around `.on().subscribe()` so a realtime failure costs the live
+updates, not the screen.
+
+Nothing about the app changes. This is the same class of bug being made
+impossible rather than merely improbable: one call site each is no longer what
+stands between a second mount and a white window.
+
+## Verified
+
+Both old topics reproduce the crash character-for-character against the
+installed `@supabase/realtime-js` 2.115.0 —
+
+> cannot add `postgres_changes` callbacks for realtime:workspace after
+> `subscribe()`.
+
+— and both new ones take a second subscriber without throwing, on genuinely
+separate channel objects. `typecheck` and `build` clean.
+
+## Found on the way — NOT fixed
+
+`HrPage.tsx:138` hands `useLeaveRequests` an inline arrow as `onIncoming`, and
+that hook's subscribe effect lists `onIncoming` in its dependencies. A fresh
+function identity on every render means HR tears its realtime channel down and
+builds a new one **on every render** — a websocket join and leave per render.
+The unique topic now absorbs the collision risk, so this is waste rather than
+a crash, but it is waste on a screen HR keeps open all day. The fix is the one
+this file already uses for `rows`: mirror `onIncoming` into a ref and drop it
+from the deps. Left alone because it was not this round's ask.

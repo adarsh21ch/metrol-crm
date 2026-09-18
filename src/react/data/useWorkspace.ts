@@ -82,6 +82,9 @@ const EMPTY: State = {
   loading: true, refreshing: false, error: null,
 }
 
+/** Makes every realtime topic its own — see the subscribe effect below. */
+let channelSeq = 0
+
 /**
  * The single place that knows about the database. Screens read arrays and call
  * intent-shaped functions (assign, setStatus); they never build a query. When a
@@ -240,82 +243,100 @@ export function useWorkspace() {
    */
   useEffect(() => {
     if (isDemo()) return
-    const channel = supabase
-      .channel('workspace')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (p: any) => {
-        setS((prev) => {
-          if (p.eventType === 'DELETE') {
-            return { ...prev, leads: prev.leads.filter((l) => l.id !== p.old?.id) }
-          }
-          const row = toLead(p.new)
-          const known = prev.leads.some((l) => l.id === row.id)
-          return {
-            ...prev,
-            leads: known
-              // Keep isNew: it is a local flag about this session, not a column.
-              ? prev.leads.map((l) => (l.id === row.id ? { ...row, isNew: l.isNew } : l))
-              // A row this client has never seen before is, by definition, new to it.
-              : [{ ...row, isNew: true }, ...prev.leads],
-          }
+    /* The topic is unique per mount, never the bare 'workspace' it used to
+       be. supabase.channel() hands back an EXISTING channel when the topic
+       matches, and .on('postgres_changes') THROWS on a channel that has
+       already subscribed — an uncaught throw in an effect, which unmounts the
+       whole tree and paints the window white. That is the 2026-09-18 crash,
+       and the only reason it was never this channel is that App.tsx calls
+       this hook exactly once. A topic nobody else can collide with makes a
+       second call site harmless, and also settles the unmount/remount race,
+       since removeChannel() is async and the old channel is still in the
+       client's list while it drains. */
+    const channel = supabase.channel(`workspace-${++channelSeq}`)
+    try {
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (p: any) => {
+          setS((prev) => {
+            if (p.eventType === 'DELETE') {
+              return { ...prev, leads: prev.leads.filter((l) => l.id !== p.old?.id) }
+            }
+            const row = toLead(p.new)
+            const known = prev.leads.some((l) => l.id === row.id)
+            return {
+              ...prev,
+              leads: known
+                // Keep isNew: it is a local flag about this session, not a column.
+                ? prev.leads.map((l) => (l.id === row.id ? { ...row, isNew: l.isNew } : l))
+                // A row this client has never seen before is, by definition, new to it.
+                : [{ ...row, isNew: true }, ...prev.leads],
+            }
+          })
         })
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (p: any) => {
-        setS((prev) => {
-          const e = toEvent(p.new)
-          if (prev.events.some((x) => x.id === e.id)) return prev   // our own write, echoed back
-          return { ...prev, events: [...prev.events, e].slice(-200) }
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (p: any) => {
+          setS((prev) => {
+            const e = toEvent(p.new)
+            if (prev.events.some((x) => x.id === e.id)) return prev   // our own write, echoed back
+            return { ...prev, events: [...prev.events, e].slice(-200) }
+          })
+          // See reconcileLead above: the leads stream can silently miss exactly
+          // this write, so every event re-checks its lead directly.
+          void reconcileLead(p.new.lead_id)
         })
-        // See reconcileLead above: the leads stream can silently miss exactly
-        // this write, so every event re-checks its lead directly.
-        void reconcileLead(p.new.lead_id)
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-        void load()   // rarer, and it changes the rail and the cards together
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_members' }, () => {
-        // Assigning a member's first lead in a project upserts their row here —
-        // it's what projects_select needs to let them read the project itself.
-        // Without this listener the project stayed invisible (name blank, not
-        // in the rail) until the member reloaded, even once the lead itself
-        // was showing up live.
-        void load()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, (p: any) => {
-        setS((prev) => {
-          if (p.eventType === 'DELETE') {
-            return { ...prev, departments: prev.departments.filter((d) => d.id !== p.old?.id) }
-          }
-          const row = toDepartment(p.new)
-          const known = prev.departments.some((d) => d.id === row.id)
-          return {
-            ...prev,
-            departments: (known
-              ? prev.departments.map((d) => (d.id === row.id ? row : d))
-              : [...prev.departments, row]
-            ).sort((a, b) => a.sortOrder - b.sortOrder),
-          }
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+          void load()   // rarer, and it changes the rail and the cards together
         })
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (p: any) => {
-        // A new signup should reach the owner's assign dropdown without
-        // anyone reloading, the same way a status change reaches the board.
-        const row = p.new ?? p.old
-        if (!row) return
-        setS((prev) => {
-          if (p.eventType === 'DELETE') {
-            return { ...prev, members: prev.members.filter((m) => m.id !== row.id) }
-          }
-          if (row.role !== 'member' && row.id !== prev.me?.id) return prev
-          const m = toMember(row)
-          const known = prev.members.some((x) => x.id === m.id)
-          return {
-            ...prev,
-            members: known ? prev.members.map((x) => (x.id === m.id ? m : x)) : [...prev.members, m],
-            me: prev.me?.id === m.id ? m : prev.me,
-          }
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_members' }, () => {
+          // Assigning a member's first lead in a project upserts their row here —
+          // it's what projects_select needs to let them read the project itself.
+          // Without this listener the project stayed invisible (name blank, not
+          // in the rail) until the member reloaded, even once the lead itself
+          // was showing up live.
+          void load()
         })
-      })
-      .subscribe()
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, (p: any) => {
+          setS((prev) => {
+            if (p.eventType === 'DELETE') {
+              return { ...prev, departments: prev.departments.filter((d) => d.id !== p.old?.id) }
+            }
+            const row = toDepartment(p.new)
+            const known = prev.departments.some((d) => d.id === row.id)
+            return {
+              ...prev,
+              departments: (known
+                ? prev.departments.map((d) => (d.id === row.id ? row : d))
+                : [...prev.departments, row]
+              ).sort((a, b) => a.sortOrder - b.sortOrder),
+            }
+          })
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (p: any) => {
+          // A new signup should reach the owner's assign dropdown without
+          // anyone reloading, the same way a status change reaches the board.
+          const row = p.new ?? p.old
+          if (!row) return
+          setS((prev) => {
+            if (p.eventType === 'DELETE') {
+              return { ...prev, members: prev.members.filter((m) => m.id !== row.id) }
+            }
+            if (row.role !== 'member' && row.id !== prev.me?.id) return prev
+            const m = toMember(row)
+            const known = prev.members.some((x) => x.id === m.id)
+            return {
+              ...prev,
+              members: known ? prev.members.map((x) => (x.id === m.id ? m : x)) : [...prev.members, m],
+              me: prev.me?.id === m.id ? m : prev.me,
+            }
+          })
+        })
+        .subscribe()
+    } catch (e) {
+      /* The board is already on screen from load() above, and every write
+         reconciles itself. What is lost is other people's changes arriving
+         without a reload — a real loss, but a reloadable one. Losing the
+         subscription must cost the live updates, never the screen. */
+      console.error('[Metrol CRM] workspace realtime unavailable:', e)
+    }
 
     return () => { void supabase.removeChannel(channel) }
   }, [load, reconcileLead])

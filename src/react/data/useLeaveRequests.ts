@@ -8,6 +8,9 @@ type Row = Record<string, unknown>
 
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v))
 
+/** Makes every realtime topic its own — see the subscribe effect below. */
+let channelSeq = 0
+
 const toLeaveRequest = (r: Row): LeaveRequest => ({
   id: str(r.id),
   employeeId: str(r.employee_id),
@@ -98,15 +101,34 @@ export function useLeaveRequests(enabled = true, onIncoming?: (row: LeaveRequest
    * browser's own write coming back, not news. */
   useEffect(() => {
     if (!enabled || isDemo()) return
-    const channel = supabase
-      .channel('leave-requests-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leave_requests' }, (p: any) => {
-        const row = toLeaveRequest(p.new as Row)
-        if (rowsRef.current.some((r) => r.id === row.id)) return
-        setRows((prev) => [row, ...prev])
-        onIncoming?.(row)
-      })
-      .subscribe()
+    /* The topic is unique per mount, never the bare 'leave-requests-live' it
+       used to be. supabase.channel() hands back an EXISTING channel when the
+       topic matches, and .on('postgres_changes') THROWS on a channel that has
+       already subscribed — an uncaught throw in an effect, which unmounts the
+       whole tree and paints the window white. That is the 2026-09-18 crash.
+       Member and HrPage are mutually exclusive routes today, so only one of
+       them ever holds this hook; a topic nobody else can collide with is what
+       keeps that from being load-bearing. It also settles the unmount/remount
+       race — removeChannel() is async, so navigating away and straight back
+       re-enters this effect while the old channel is still in the client's
+       list, and this effect re-runs on every change of `onIncoming`. */
+    const channel = supabase.channel(`leave-requests-live-${++channelSeq}`)
+    try {
+      channel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leave_requests' }, (p: any) => {
+          const row = toLeaveRequest(p.new as Row)
+          if (rowsRef.current.some((r) => r.id === row.id)) return
+          setRows((prev) => [row, ...prev])
+          onIncoming?.(row)
+        })
+        .subscribe()
+    } catch (e) {
+      /* The list itself still loads above and every Refresh re-reads it. What
+         is lost is somebody else's request arriving unprompted — the alert
+         stack stays quiet until the next reload. Losing the subscription must
+         cost the live alert, never the screen. */
+      console.error('[Metrol CRM] leave requests realtime unavailable:', e)
+    }
     return () => { void supabase.removeChannel(channel) }
   }, [enabled, onIncoming])
 
