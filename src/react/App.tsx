@@ -79,9 +79,16 @@ function SignedIn() {
      permission problem look like a sync problem. Surface it. */
   useEffect(() => {
     if (!ws.error || ws.loading) return
+    /* A failed WRITE is what this is for — toast it, clear it, carry on. A
+       failed LOAD is not: the workspace is empty, the "Could not load" screen
+       below owns that case, and clearing the error here would wipe that screen
+       out from under the person and drop them into an app with no data in it.
+       Same condition the screen below tests, so exactly one of the two ever
+       handles any given error. */
+    if (ws.projects.length === 0) return
     toast('Could not save: ' + ws.error)
     ws.clearError()
-  }, [ws.error, ws.loading, toast, ws])
+  }, [ws.error, ws.loading, ws.projects.length, toast, ws])
 
   if (ws.loading) return <Booting />
 

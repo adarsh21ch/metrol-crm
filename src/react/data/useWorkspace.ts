@@ -104,6 +104,20 @@ export function useWorkspace() {
       })
       return
     }
+    /* EVERYTHING BELOW IS INSIDE try/catch, and that is the whole point.
+       It was not, and the cost was the worst failure this app can have: any
+       throw in here — a network exception, a Supabase client error, one
+       malformed row hitting a mapper — rejected this promise with nobody
+       catching it, so `loading` stayed true FOR EVER. The screen sat on
+       "Loading…" with no error, no retry and nothing to read, which is what
+       Adarsh hit on the live site on 2026-09-18 while the same deployment
+       loaded perfectly for everybody signed out.
+
+       A caught failure is a screen that says what went wrong. An uncaught one
+       is a white screen. The error path below (a query that returns an error
+       rather than throwing) already did this correctly; only the throwing
+       path was missing. */
+    try {
     // getSession reads the JWT out of localStorage; getUser posts it to the
     // server to be revalidated. That was a whole network round trip in front of
     // every other query, on every load, for an id we already had.
@@ -161,6 +175,17 @@ export function useWorkspace() {
       refreshing: false,
       error: null,
     })
+    } catch (e) {
+      // Named plainly: whoever reads this is staring at a screen that just
+      // refused to open, and "TypeError: undefined is not an object" is not
+      // something to hand somebody at the office door.
+      setS({
+        ...EMPTY,
+        loading: false,
+        error: (e instanceof Error ? e.message : 'Something went wrong loading your workspace.')
+          + ' — reload the page, and if it keeps happening sign out and sign back in.',
+      })
+    }
   }, [])
 
   /** Wraps `load` with a flag a button can spin on — the visible fallback for
