@@ -5036,3 +5036,93 @@ tab included) and `&as=member`: both fixes confirmed by measuring
 Both fixes and the landing-page copy are sitting in the working tree, same as
 every other round in this file — ask before committing, this repo has more
 than one session touching it.
+
+**Committed as `59be944`** the next morning, on Adarsh's explicit yes.
+
+---
+
+# The permission popup was broken three ways (2026-09-18)
+
+Adarsh, from his iPhone on the live site: *"I am clicking on this multiple
+times, but it is not working. Laptop also, mobile also. Plus I think it is
+opening the camera."* His screenshot showed the "Before you start" popup still
+on screen with "Done — you should not be asked again" already printed inside
+it, and the green camera dot lit in the iOS status bar.
+
+He was right on both counts, and there was a third fault behind them.
+
+1. **The popup never closed on success.** `allowBoth()` set a note and stopped.
+   Nothing ever set `intro` back to false, so after a successful Allow the
+   popup sat there unchanged except for one line of text — and pressing the
+   button again just re-ran an already-granted request to no visible effect.
+   That is the entire "clicking multiple times, not working" report: the
+   button worked perfectly every time and never once looked like it had.
+2. **Granting the permission switched the camera on and left it on.**
+   `allowBoth()` ended with `warmCamera()`, which opened a `getUserMedia`
+   stream and *held* it — camera light on, green iOS recording dot on, for as
+   long as anybody had the Attendance screen open, with no viewfinder anywhere
+   in sight. Introduced as a speed fix ("Scan code" felt slow); the cost was
+   never worth it and `permissions.ts` had already said so in writing: a
+   camera light on while nobody is scanning "is the kind of thing staff notice
+   and distrust."
+3. **`SETUP_KEY` meant two different things** — "has seen the intro" (set by
+   **Skip** too) and "has granted the camera before" (what `warmCamera` read
+   it as). So pressing Skip, which grants nothing, marked the browser as
+   granted and let the camera be opened on that person later.
+
+## The camera pre-warm is gone, deliberately
+
+Not fixed — removed. The warm stream only ever helped a *second* scan minutes
+after the first, and the real day is a scan at 9am and a scan at 6pm, nine
+hours and a page reload apart (a scanner that fails to read keeps looking
+rather than reopening, so that is not a second open either). What it actually
+did on an ordinary day was keep the camera lit for nothing. `QrScanner` now
+owns its camera outright — opens on mount, stops on close, every time — and
+the `sharedStream` borrowing path went with it. Fault 3 dissolved on its own
+once the only consumer of the "granted" meaning was gone.
+
+**The trade, stated plainly so nobody re-adds it:** the first tap on "Scan
+code" now costs about a second of "Opening the camera…", at the one moment a
+person is actually expecting their camera to come on. That is the correct
+place to spend it.
+
+## Verified in Chromium, `?demo&as=member`, both branches
+
+The Browser pane hard-blocks real camera access, which made the **denied**
+branch testable for free: popup correctly stays open and prints the
+platform-specific "here is how to unblock it" instructions. The **granted**
+branch was then exercised by stubbing `getUserMedia` (a canvas
+`captureStream`) and `getCurrentPosition` to succeed — popup closes
+immediately and toasts "Camera and location allowed. You are all set."
+`typecheck` and `build` clean; grepped for leftovers, none.
+
+---
+
+# PARKED — notifications, properly, and the birthday calendar
+
+Adarsh, same message, explicitly asked for this to be **recorded and not built
+yet**: *"whenever we complete all the phases, then we build the notification
+properly. Not first option — second option properly."* He was choosing against
+the cheap in-app-banner version I had offered for the 9-hour shift reminder
+and in favour of real push notifications, because the reminder is not the
+point — a notification SYSTEM is:
+
+- **HR broadcasts.** Any update, any message, holiday announcements. "They
+  will receive a notification like they receive on WhatsApp."
+- **A notification tab in the app** — everybody sees the messages there too,
+  like Telegram/Snapchat's notification section, not only as a push.
+- **Push notifications proper**, arriving when the app is closed. This is the
+  part that needs the real build: a service worker, Web Push subscriptions
+  stored per employee, VAPID keys, and something to send on a schedule — this
+  Supabase plan has no cron, which is the same constraint that made
+  `finalize_open_attendance()` a screen-load job instead of a midnight one.
+- **A birthday calendar**, in the Employees tab. HR sees whose birthday falls
+  on which date, and *today's* birthday surfaces on its own so HR can plan the
+  cake. On the day, everybody gets the happy-birthday notification.
+- The **9-hour shift reminder** that started this conversation folds in here
+  as one more notification type, rather than being built as a one-off banner.
+
+**Do not start this before the current phases are finished** — that was his
+instruction, not an assumption. `employees` has no date-of-birth column yet;
+that is the one schema change this will need and it should land with the rest
+of the feature, not ahead of it.

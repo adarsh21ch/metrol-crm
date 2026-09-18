@@ -15,17 +15,15 @@ import { Modal } from '@/components/Modal'
  * Nothing here decides anything. It reads a string off a printed square and
  * hands it up; whether that string means a punch is the database's answer.
  */
-export function QrScanner({ onClose, onCode, sharedStream }: {
+/* This component owns the camera outright: it opens one when it mounts and
+   stops it when it closes, every time. It used to accept a stream borrowed
+   from PunchCard, warmed in advance so the viewfinder could appear instantly —
+   which also meant the camera stayed powered while nobody was scanning, and a
+   phone showing a live camera indicator on an attendance screen is not a
+   trade worth one second. The camera is on exactly while this window is. */
+export function QrScanner({ onClose, onCode }: {
   onClose: () => void
   onCode: (code: string) => void
-  /** An already-open camera stream, warmed by PunchCard before this component
-   *  ever mounted. When given, no getUserMedia call happens here at all — the
-   *  viewfinder appears the instant this renders, because the camera's own
-   *  hardware negotiation already happened, possibly minutes ago. The stream
-   *  is borrowed, not owned: its tracks are never stopped on close, since
-   *  PunchCard keeps it alive for the NEXT scan too. Null falls back to
-   *  opening (and, on close, properly closing) one here, same as before. */
-  sharedStream?: MediaStream | null
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -46,30 +44,19 @@ export function QrScanner({ onClose, onCode, sharedStream }: {
   const codeRef = useRef(onCode)
   useEffect(() => { codeRef.current = onCode }, [onCode])
 
-  const owned = useRef(false)
-
   useEffect(() => {
     let cancelled = false
 
     async function start() {
       try {
-        let stream: MediaStream
-        if (sharedStream) {
-          // Borrowed — already open, already negotiated. The viewfinder can
-          // appear this same tick instead of waiting on the camera again.
-          stream = sharedStream
-          owned.current = false
-        } else {
-          stream = await navigator.mediaDevices.getUserMedia({
-            // A smaller request lets the camera settle faster — jsQR reads a
-            // 480px-wide frame anyway (see tick() below), so nothing here is
-            // lost by not asking for 1080p in the first place.
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
-            audio: false,
-          })
-          owned.current = true
-        }
-        if (cancelled) { if (owned.current) stream.getTracks().forEach((t) => t.stop()); return }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          // A smaller request lets the camera settle faster — jsQR reads a
+          // 480px-wide frame anyway (see tick() below), so nothing here is
+          // lost by not asking for 1080p in the first place.
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false,
+        })
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return }
         streamRef.current = stream
         const v = videoRef.current
         if (!v) return
@@ -117,14 +104,10 @@ export function QrScanner({ onClose, onCode, sharedStream }: {
     return () => {
       cancelled = true
       if (frameRef.current) cancelAnimationFrame(frameRef.current)
-      // Only stop tracks this component opened itself. A borrowed stream is
-      // PunchCard's to keep alive for the next scan — stopping it here would
-      // undo the entire point of warming it in the first place.
-      if (owned.current) streamRef.current?.getTracks().forEach((t) => t.stop())
+      // Every track, every time — this window closing is what turns the
+      // camera light back off.
+      streamRef.current?.getTracks().forEach((t) => t.stop())
     }
-    // sharedStream is read once per mount, same as onCode via codeRef above —
-    // a new inline value each render must not tear the camera down mid-scan.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
