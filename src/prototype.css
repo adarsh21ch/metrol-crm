@@ -1664,21 +1664,37 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 
 /* Sign out, at the foot of Profile. The gap above it is the point: it is the
    end of the page, not the next thing in a list. */
-.prof-signout{margin-top:22px;padding-top:4px}
+.prof-foot{margin-top:22px;padding-top:4px;display:flex;flex-direction:column;gap:10px}
+/* One row per section, tapped into rather than four pills sharing a line. */
+.prof-menu{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.prof-row{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:13px 14px;color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;
+}
+.prof-row:hover{background:var(--surface-2)}
+.prof-row .l{flex:1;min-width:0}
+.prof-row .go{color:var(--ink-3);font-size:18px;line-height:1}
+/* The header you came in through, with the way back on it. */
+.prof-back{display:flex;align-items:center;gap:10px;margin-bottom:12px;min-width:0}
+.prof-back h3{font-size:16.5px;margin:0;white-space:nowrap}
+/* The stepper shares this line rather than taking one of its own — it shrinks
+   its month label instead of wrapping, which is the whole point of the row. */
+.prof-back .month-step{margin-left:auto;min-width:0}
+.prof-back .month-step strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* One named setting per row: label and description on the left, the control
    on the right, wrapping under it when the phone runs out of width. */
 .prof-set{
   display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
-  padding:12px 14px;margin-bottom:12px;
+  padding:10px 14px;
 }
-.prof-set .t{font-size:13.5px;font-weight:600;color:var(--ink)}
-.prof-set .d{font-size:12px;color:var(--ink-3);margin-top:2px}
-.prof-set .seg{flex:none}
+.prof-set .t{font-size:14px;font-weight:600;color:var(--ink)}
+.prof-set .seg{flex:none;margin-left:auto}
 /* .btn--ghost is transparent border and all — fine for an icon beside other
    buttons, invisible as the only way off this screen. The border brings the
    affordance back without making sign-out the loudest thing on the page. */
-.prof-signout .btn{border-color:var(--line);height:44px}
+.prof-foot > .btn{border-color:var(--line);height:44px}
 
 /* The month strip — ONE row, filled squares, edge to edge. Every cell grows
    to share the full width of the card (flex:1, no gaps left over on the

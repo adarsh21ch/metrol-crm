@@ -48,15 +48,18 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
  */
 type MemberSec = 'overview' | 'attendance' | 'leads' | 'sales' | 'team' | 'profile'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
-  overview: { title: 'Overview', sub: 'Where your leads stand right now' },
+  // Subtitles that only describe the title are read once and then skipped
+  // forever — "why would we be explaining it". Where the sub carries a real
+  // count it survives, in the ternary below.
+  overview: { title: 'Overview', sub: '' },
   // The line that used to live here is a one-time <Tip> inside the section
   // now — see the Attendance block below. Empty, so the page head drops the
   // whole row rather than printing a blank one.
   attendance: { title: 'Attendance', sub: '' },
-  leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
+  leads: { title: 'My leads', sub: '' },
   sales: { title: 'My sales', sub: '' },
-  team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
-  profile: { title: 'Profile', sub: 'Your leave, salary, onboarding and documents' },
+  team: { title: 'Manage team', sub: '' },
+  profile: { title: 'Profile', sub: '' },
 }
 
 /* Leave, Salary, Onboarding and Exit were four of the nine tabs on this
@@ -69,8 +72,11 @@ const ME_TABS: { key: MeTab; label: string }[] = [
   { key: 'salary', label: 'Salary' },
   { key: 'onboarding', label: 'Onboarding' },
   { key: 'exit', label: 'Exit' },
-  { key: 'terms', label: 'Terms' },
 ]
+/* Terms is not in that list on purpose. "The terms and conditions is not
+   something they are openly doing regularly" — it is read once at joining and
+   almost never again, so it sits at the foot of the page with Sign out rather
+   than taking a quarter of the row everything else has to share. */
 
 /* The attendance table's cells. The year and the am/pm sit in their own spans
    so the phone stylesheet can drop what a narrow screen cannot afford, rather
@@ -144,7 +150,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
-  const [meTab, setMeTab] = usePersistedState<MeTab>('member-meTab', 'leave')
+  // null = the menu itself. Profile opens on its list of sections, and one of
+  // them opens over the top; it does not land you inside Leave by default.
+  const [meTab, setMeTab] = usePersistedState<MeTab | null>('member-meTab', null)
   // Board (the card view) is the default open — it's the one built for a
   // phone-in-hand, work-the-queue flow. Whichever view someone actually picks
   // is remembered per-browser via pickView below, so a salesperson who prefers
@@ -287,7 +295,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     [myExitTasks.rows, myEmployee],
   )
   const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
-  const shownMeTab: MeTab = meTab === 'exit' && !isLeaving ? 'leave' : meTab
+  const shownMeTab: MeTab | null = meTab === 'exit' && !isLeaving ? null : meTab
 
   const teamRows = useMemo<TeamRow[]>(() => {
     if (!isLead || !me?.departmentId) return []
@@ -555,33 +563,41 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </div>
             )}
 
-            {/* The profile's own tabs. Not .tabs--nav: this strip is the way
-                around inside Profile, so unlike the section strip above it has
-                to survive on a phone. */}
-            {shownSec === 'profile' && (
-              <div className="prof-tabrow">
-              <div className="tabs prof-tabs">
+            {/* Four pills sharing one row, each opening its section underneath
+                — "I don't know why but it is not looking good". A list you tap
+                into instead, which is what a phone does with settings: one row
+                per section, the section opens over the top of it, and a header
+                with a ← brings you back. */}
+            {shownSec === 'profile' && shownMeTab === null && (
+              <div className="prof-menu">
                 {ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => (
-                  <button key={t.key} className={shownMeTab === t.key ? 'is-on' : ''} onClick={() => setMeTab(t.key)}>
-                    {t.label}
+                  <button className="prof-row" key={t.key} onClick={() => setMeTab(t.key)}>
+                    <span className="l">{t.label}</span>
                     {t.key === 'leave' && myLeave.some((r) => r.status === 'pending') && (
                       <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>
                     )}
+                    <span className="go" aria-hidden="true">›</span>
                   </button>
                 ))}
               </div>
-              {/* The month stepper belongs ON this line. It is a filter for the
-                  tab it sits in, and giving it a band of its own underneath was
-                  a whole strip of white for two arrows. */}
-              {shownMeTab === 'leave' && myEmployee && (
-                <div className="month-step">
-                  <button className="btn btn--sm" aria-label="Previous month"
-                          onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
-                  <strong>{monthName(leaveMonth)}</strong>
-                  <button className="btn btn--sm" aria-label="Next month" disabled={leaveMonth >= thisMonth}
-                          onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
-                </div>
-              )}
+            )}
+
+            {shownSec === 'profile' && shownMeTab !== null && (
+              <div className="prof-back">
+                <button className="btn btn--sm" onClick={() => setMeTab(null)} aria-label="Back to profile">←</button>
+                <h3>{shownMeTab === 'terms' ? 'Terms & Conditions'
+                  : (ME_TABS.find((t) => t.key === shownMeTab)?.label ?? '')}</h3>
+                {/* The month stepper is a filter for Leave, so it rides on
+                    Leave's own header rather than a band of its own. */}
+                {shownMeTab === 'leave' && myEmployee && (
+                  <div className="month-step">
+                    <button className="btn btn--sm" aria-label="Previous month"
+                            onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
+                    <strong>{monthName(leaveMonth)}</strong>
+                    <button className="btn btn--sm" aria-label="Next month" disabled={leaveMonth >= thisMonth}
+                            onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -878,8 +894,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                     )}
                     {lm.data?.provisional && (
                       <p className="punch-note">
-                        Last month has not been closed by HR yet, so the brought-forward figure assumes it was carried.
-                        It changes if they pay it out instead.
+                        {/* Was three lines explaining itself. The fact is that
+                            the figure is provisional; the reasoning behind it
+                            is not something anybody re-reads every month. */}
+                        Brought-forward is provisional — HR has not closed last month yet.
                       </p>
                     )}
                     {!!lm.data?.lateHalfDays && (
@@ -962,23 +980,23 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 beside the other profile blocks because Leave renders after
                 Attendance in this file: anything higher would land in the
                 middle of the page on the Leave tab. */}
-            {shownSec === 'profile' && (
-              <div className="prof-signout">
-                {/* The sun icon that used to ride along on every screen, as a
-                    setting with a name on the one tab that is about you. Auto
-                    keeps the existing third state — follow the phone — rather
-                    than dropping it on the way. */}
+            {/* The foot of the menu: the two things that are settings rather
+                than work, and the way out. "Appearance" needs no sentence
+                under it explaining that it changes how the app looks. */}
+            {shownSec === 'profile' && shownMeTab === null && (
+              <div className="prof-foot">
                 <div className="prof-set">
-                  <div>
-                    <div className="t">Appearance</div>
-                    <div className="d">How the app looks on this device</div>
-                  </div>
+                  <div className="t">Appearance</div>
                   <div className="seg">
                     <button className={theme === 'light' ? 'is-on' : ''} onClick={() => setTheme('light')}>Light</button>
                     <button className={theme === 'dark' ? 'is-on' : ''} onClick={() => setTheme('dark')}>Dark</button>
                     <button className={theme === 'system' ? 'is-on' : ''} onClick={() => setTheme('system')}>Auto</button>
                   </div>
                 </div>
+                <button className="prof-row" onClick={() => setMeTab('terms')}>
+                  <span className="l">Terms &amp; Conditions</span>
+                  <span className="go" aria-hidden="true">›</span>
+                </button>
                 <button className="btn btn--block btn--ghost" onClick={() => void signOut()}>Sign out</button>
               </div>
             )}

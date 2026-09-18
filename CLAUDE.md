@@ -5473,3 +5473,38 @@ row. Verified at 1280px — five equal columns, `grid-column:auto`.
 gives 15/15 and 31 gives 16/15. A fixed 15 would have put a single square on a
 third row for 31-day months; a fixed 16 left 30-day months lopsided. Desktop
 ignores the property entirely and stays one scrolling strip.
+
+## Third pass — Profile rebuilt as a list, and prose deleted app-wide
+
+**Profile's four pills became a list you tap into.** "I don't know why but it
+is not looking good" — four pills sharing one row, each opening its section
+underneath it. It is a phone settings page now: one row per section, the
+section opens over the top, a `←` header brings you back. `meTab` is
+`MeTab | null`, where null IS the menu, so Profile no longer lands you inside
+Leave by default. The month stepper rides on Leave's own back-header rather
+than a band of its own — `.prof-back` is `nowrap` and the month label
+ellipses, because letting it wrap was re-creating the row this removed.
+
+**Terms & Conditions left the section list.** "Not something they are openly
+doing regularly" — it is read once at joining. It sits at the foot with
+Appearance and Sign out, and still opens as a full section.
+
+**Appearance is one line.** Label left, Light/Dark/Auto right, and the
+sentence under it ("How the app looks on this device") is gone: "why you
+giving the description, nobody want description."
+
+**The standing rule, now app-wide: delete prose that explains itself.** Every
+page-head `sub` that only described its own title is `''` — Overview, My
+leads, Manage team, Profile. A sub that carries a real count (My sales' deal
+total, My leads' project count) survives, because that is data, not
+description. The provisional-leave paragraph went from three lines of
+reasoning to one line of fact.
+
+This is the same rule as the one-time `Tip` from the first pass, one level up:
+**if it is read once and skipped forever, it should not be permanently on
+screen.** Apply it to anything added from here — "keep this logic for every
+everything in the app."
+
+### Not done
+The rule has been applied to the Member app only. HR and the owner's screens
+still carry their own page-head subs and standing explanatory text.
