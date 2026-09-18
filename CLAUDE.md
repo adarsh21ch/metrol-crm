@@ -5440,3 +5440,36 @@ passes.
   narrow phone, because "Request leave" is a wide button next to a 46px photo.
   Legible, nothing hidden, but not tidy. Profile's card does not have this —
   its pencil is narrow enough that the meta fits one line.
+
+## Second pass, same day — Adarsh's review of the above
+
+He looked at what shipped and sent six more. All in:
+
+**The identity card is gone from Attendance.** "In the profile we already have
+the same thing" — and he is right: the round above had just put the same
+photo, name, code and designation at the top of Profile, so Attendance was
+printing a card's worth of height twice. Punching in is the first thing on the
+page now, which is what somebody opens it to do.
+
+**Request leave moved onto the page title's line**, top-right, beside
+"Attendance". Not in `.section-tools` — that wrapper is given a full row of
+its own below 860px, which is exactly the row this was meant to save. It is a
+`.head-cta` directly in `.page-head` instead.
+
+**The attendance summary tiles are one line each.** Six boxes each holding a
+numeral over a caption were taller than the month they summarise —
+"unnecessary squares is there in the box". Number and word on one baseline
+now.
+
+**Overview's fifth KPI takes the row.** Five cards in a two-column grid left
+"My sales" alone with a card-sized hole beside it. It spans, and it carries
+the accent border — leads in, money out, the two ends of the funnel.
+**Scoped to `max-width:860px` on purpose**: at five columns the fifth card is
+also `:last-child:nth-child(odd)`, and the rule unscoped wrecks the desktop
+row. Verified at 1280px — five equal columns, `grid-column:auto`.
+
+**The month splits evenly.** `--cal-half` is `Math.ceil(days/2)` set inline on
+`.cal-strip` and read by the phone stylesheet as its column count, so 30 days
+gives 15/15 and 31 gives 16/15. A fixed 15 would have put a single square on a
+third row for 31-day months; a fixed 16 left 30-day months lopsided. Desktop
+ignores the property entirely and stays one scrolling strip.

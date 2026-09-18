@@ -862,6 +862,10 @@ kbd{
 .page-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
 .page-head h1{font-size:23px}
 .page-head .sub{font-size:13px;color:var(--ink-3)}
+/* A single page-level action on the title's own line. Not .section-tools:
+   that wrapper is given a full row of its own on a phone, which is exactly
+   the row a button this small should not be costing. */
+.head-cta{margin-left:auto;flex:none}
 .spin{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .proj-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -1221,6 +1225,11 @@ table.hist .what{font-weight:500}
      plus the home-indicator strip on a notched phone. */
   .wrap{padding:16px 14px calc(80px + env(safe-area-inset-bottom));gap:26px}
   .kpis{grid-template-columns:repeat(2,1fr)}
+  /* An odd number of cards in a two-column grid strands the last one with a
+     card-sized hole beside it. It takes the row instead. Scoped to this
+     breakpoint deliberately: at five columns the fifth card is also
+     :last-child:nth-child(odd), and spanning it there would wreck the row. */
+  .kpis .kpi:last-child:nth-child(odd){ grid-column:1 / -1 }
   .kpi-value{font-size:22px}
   .money-grid{grid-template-columns:1fr 1fr}
   .topbar{padding:0 12px;gap:8px}
@@ -1344,11 +1353,14 @@ table.hist .what{font-weight:500}
 .att-evid{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
 .att-src{font-size:11px;color:var(--ink-3);font-style:italic}
 .att-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-bottom:14px}
+/* One line per tile — the number, then its word beside it. Stacked, each of
+   these six was a tall box holding a 20px numeral and a lot of nothing. */
+.att-sum-tile{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 .att-sum-tile{
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;
 }
-.att-sum-tile .n{font-family:var(--display);font-weight:800;font-size:22px;line-height:1.1;color:var(--ink)}
-.att-sum-tile .l{font-size:11px;color:var(--ink-3);margin-top:3px}
+.att-sum-tile .n{font-family:var(--display);font-weight:800;font-size:19px;line-height:1.1;color:var(--ink)}
+.att-sum-tile .l{font-size:11px;color:var(--ink-3)}
 @media (max-width:520px){
   .punch{max-width:none;border-radius:10px}
   .punch-big{font-size:34px}
@@ -1747,7 +1759,7 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
      in on the 3rd. min-width goes with it: fixed columns are what let the
      cells shrink to fit rather than overflow. Desktop keeps the single strip
      — Adarsh confirmed that one reads fine as it is. */
-  .cal-strip{display:grid;grid-template-columns:repeat(16,1fr);overflow-x:visible}
+  .cal-strip{display:grid;grid-template-columns:repeat(var(--cal-half,16),1fr);overflow-x:visible}
   .cal-cell{min-width:0;font-size:11px}
   .cal-cell .dw{font-size:7px}
 }
@@ -1875,8 +1887,8 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 
 /* --------------------------------------------------------- tighter tiles */
 .att-sum{ gap:8px; margin-bottom:14px }
-.att-sum-tile{ padding:8px 11px }
-.att-sum-tile .n{ font-size:20px }
+.att-sum-tile{ padding:7px 10px }
+.att-sum-tile .n{ font-size:17px }
 .att-sum-tile .l{ font-size:10.5px }
 
 /* ------------------------------ controls on the heading line, not under it */

@@ -489,6 +489,14 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   </div>
                 </div>
               )}
+              {/* Beside the title, not in .section-tools — that wrapper takes a
+                  full row to itself on a phone, which is the row this was
+                  supposed to save. */}
+              {sec === 'attendance' && myEmployee && (
+                <button className="btn btn--sm btn--primary head-cta" onClick={() => setRequestingLeave(true)}>
+                  Request leave
+                </button>
+              )}
             </div>
 
             <div className="tabs tabs--nav">
@@ -682,32 +690,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                       Punch in when you reach the office, punch out when you leave.
                     </Tip>
 
-                    {/* Identity first — it is the header of the page, not a
-                        block stranded between the punch strip and the month.
-                        The passport photo has existed in employee-documents
-                        since HR approved the joining form and was never once
-                        shown to the person it belongs to. */}
-                    <div className="emp-head emp-head--slim">
-                      {photoUrl
-                        ? <img className="emp-photo" src={photoUrl} alt="" />
-                        : <div className="emp-photo emp-photo--none">{initials(myEmployee.fullName)}</div>}
-                      <div className="emp-id">
-                        <h2>{myEmployee.fullName}</h2>
-                        <div className="emp-meta">
-                          <span className="emp-code">{myEmployee.employeeCode || 'No ID'}</span>
-                          <span>{myEmployee.designation || 'No designation'}</span>
-                          <span className="emp-dept">{ws.departmentName(myEmployee.departmentId) ?? 'No department'}</span>
-                        </div>
-                        <div className="emp-meta" style={{ color: 'var(--ink-3)' }}>{myEmployee.workEmail || me?.email}</div>
-                      </div>
-                      {/* Asking for leave used to live only on Profile → Leave,
-                          a tab away from the screen somebody actually opens
-                          every day. It belongs beside the thing it's about. */}
-                      <button className="btn btn--sm btn--primary" onClick={() => setRequestingLeave(true)}>
-                        Request leave
-                      </button>
-                    </div>
-
+                    {/* The identity card that used to sit here is gone: Profile
+                        opens with the same photo, name, code and designation,
+                        and printing them twice was a card's worth of height on
+                        the screen somebody opens every single morning. The one
+                        control that was on it — Request leave — moved up onto
+                        the page title's own line. Punching in is the first
+                        thing on this page now, which is what the page is for. */}
                     <PunchCard att={att} myEmployeeId={myEmployee.id}
                                shiftStart={att.shifts.find((s) => s.id === myEmployee.shiftId)?.startsAt ?? null}
                                myOfficeId={myEmployee.officeId} toast={toast} />
@@ -770,7 +759,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           strip is always this one shape, on every screen. */}
                       {calendar.length > 0 && (
                         <div className="cal-wrap">
-                          <div className="cal-strip">
+                          {/* --cal-half is half the month, rounded up. The phone
+                              stylesheet reads it as its column count so the two
+                              rows come out even; desktop ignores it entirely and
+                              stays one scrolling strip. */}
+                          <div className="cal-strip"
+                               style={{ ['--cal-half' as string]: Math.ceil(calendar.length / 2) }}>
                             {calendar.map((d) => (
                               <div className={'cal-cell ' + DAY_KIND[d.kind].cls
                                      + (d.date === officeToday(tz) ? ' cal-cell--today' : '')}
@@ -1041,7 +1035,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   <Kpi label="Connected" value={mine.filter(isConnected).length} sub={`${pct(mine.filter(isConnected).length, mine.length)} of my leads`} />
                   <Kpi label="Follow-ups" value={mine.filter((l) => l.status === 'follow_up').length} sub="need a next call" />
                   <Kpi label="Converted" value={cv.length} sub={`${pct(cv.length, mine.length)} conversion`} />
-                  <Kpi label="My sales" value={money(sum(cv))} sub={`${cv.filter((l) => !l.verified).length} awaiting verification`} />
+                  {/* Accent at both ends of the funnel: leads in, money out.
+                      This is the card that spans the row on a phone, so it
+                      carries the weight rather than trailing off. */}
+                  <Kpi accent label="My sales" value={money(sum(cv))} sub={`${cv.filter((l) => !l.verified).length} awaiting verification`} />
                 </div>
 
                 {/* The same shape as the owner's Overview, asking the question a
