@@ -215,19 +215,11 @@ branches: 0" was after an earlier round.
 
 ---
 
-## Open question — asked, not assumed
+## RESOLVED — the punch-out QR "bug" was never a bug (2026-09-18)
 
-**The punch-out QR bug.** Adarsh: "I scanned the QR code for punch-out and it
-is not updated in the software." The RPC itself is correct — `punch_by_qr`'s
-punch-out branch is proven live (31/31 geofence run) and the client refreshes
-that day on `ok`. Two candidates, and they need his answer to tell apart:
-
-1. **The 2-minute guard.** Scanning again within 2 minutes of punching in
-   returns `too_soon` by design — "You just punched in. Scan again when you
-   are leaving." If he was testing both scans back to back, this is it, and
-   it is working as intended.
-2. **The scan genuinely never decoded** — his words "not scanned completely"
-   point this way. The camera bug fixed in `537e4bf` (the preview restarting
-   every 30 seconds) would do exactly this.
-
-**Do not "fix" this blind.** Ask which message he saw, if any.
+Adarsh: "I scanned the QR code for punch-out and it is not updated in the
+software." Two candidates were on the table, and asking rather than guessing
+settled it in one round trip: he confirmed he saw **"You just punched in.
+Scan again when you are leaving."** — the 2-minute guard (`too_soon`),
+working exactly as designed, because the two scans were close together. Not
+`537e4bf`'s old camera-restart bug. No code change.
