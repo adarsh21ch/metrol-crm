@@ -1,6 +1,9 @@
 import { Avatar, IconBtn } from '@/components/bits'
+import { NotificationBell } from '@/components/NotificationBell'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useNotifications } from '@/data/useNotifications'
 import { initials } from '@/lib/format'
+import { HR_DEPARTMENT } from '@/lib/hr'
 import { signOut } from '@/lib/supabase'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -40,11 +43,14 @@ export function AccountControls({
   extra?: React.ReactNode
 }) {
   const name = ws.me?.name ?? '—'
+  const isPrivileged = ws.me?.role === 'owner' || ws.departmentName(ws.me?.departmentId ?? null) === HR_DEPARTMENT
+  const n = useNotifications(!!ws.me)
   return (
     <div className={variant === 'rail' ? 'rail-foot'
         : 'topbar-account' + (alwaysShow ? ' topbar-account--always' : '')}>
       <div className="acct-row">
         <ThemeToggle />
+        <NotificationBell ws={ws} n={n} isPrivileged={isPrivileged} />
         {extra}
         <IconBtn title="Sign out" onClick={() => void signOut()}>{SIGN_OUT}</IconBtn>
       </div>

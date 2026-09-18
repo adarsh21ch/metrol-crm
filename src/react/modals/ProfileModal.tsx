@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Avatar } from '@/components/bits'
+import { disablePush, enablePush, pushIsEnabled, pushSupported } from '@/lib/push'
 import type { Workspace } from '@/data/useWorkspace'
 
 /**
@@ -27,6 +28,19 @@ export function ProfileModal({ ws, onClose }: { ws: Workspace; onClose: () => vo
   const [pw2, setPw2] = useState('')
   const [savingPw, setSavingPw] = useState(false)
   const [pwMsg, setPwMsg] = useState<{ text: string; bad?: boolean } | null>(null)
+
+  const [pushOn, setPushOn] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushErr, setPushErr] = useState<string | null>(null)
+  useEffect(() => { void pushIsEnabled().then(setPushOn) }, [])
+
+  async function togglePush() {
+    setPushBusy(true); setPushErr(null)
+    const err = pushOn ? await disablePush() : await enablePush()
+    setPushBusy(false)
+    if (err) { setPushErr(err); return }
+    setPushOn(!pushOn)
+  }
 
   if (!me) return null
 
@@ -107,6 +121,22 @@ export function ProfileModal({ ws, onClose }: { ws: Workspace; onClose: () => vo
             {savingProfile ? 'Saving…' : 'Save changes'}
           </button>
         </form>
+
+        {pushSupported() && (
+          <div className="auth-form" style={{ borderTop: '1px dashed var(--line)', paddingTop: 14 }}>
+            <div className="auth-alt-label">Notifications</div>
+            <div className="field" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+                Broadcasts, birthdays and reminders — pushed to this device even when the app is closed.
+              </span>
+              <button type="button" className={'btn btn--sm' + (pushOn ? ' btn--primary' : '')}
+                      disabled={pushBusy} onClick={() => void togglePush()}>
+                {pushBusy ? '…' : pushOn ? 'On' : 'Enable'}
+              </button>
+            </div>
+            {pushErr && <p className="auth-err" style={{ marginTop: 6 }}>{pushErr}</p>}
+          </div>
+        )}
 
         <form onSubmit={savePassword} className="auth-form" style={{ borderTop: '1px dashed var(--line)', paddingTop: 14 }}>
           <div className="auth-alt-label">Change password</div>

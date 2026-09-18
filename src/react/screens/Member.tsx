@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isDemo } from '@/data/demo'
+import { supabase } from '@/lib/supabase'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
@@ -103,6 +105,13 @@ interface TeamRow {
  *  and the row level security means that is true of the data, not just the UI. */
 export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => void }) {
   const me = ws.me
+  // Same "screen load is the cron tick" trick finalize_open_attendance() and
+  // HrPage's own copy of this call use — this is the screen an ordinary
+  // employee opens daily, so it's the one place that trick actually reaches
+  // everybody, not just HR/owner. check_todays_birthdays() (0025) is
+  // idempotent, so five salespeople opening the app the same morning costs
+  // four no-op queries, not four duplicate notifications.
+  useEffect(() => { if (!isDemo()) void supabase.rpc('check_todays_birthdays') }, [])
   const lastVisitKey = 'metrol-crm-lastvisit-' + (me?.id ?? 'anon')
   // Read the *previous* visit before this one overwrites it, so "N leads
   // assigned to you" can compare against a moment before right now. A member

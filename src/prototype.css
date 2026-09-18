@@ -1550,6 +1550,48 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .topbar-account .acct-row{display:flex;align-items:center;gap:8px}
 @media (max-width:860px){ .topbar-account{display:flex} }
 
+/* ------------------------------------------------------- the notification bell
+   One instance lives inside every AccountControls render (rail foot AND
+   topbar, same as the sign-out button beside it) — CSS hides whichever one
+   the breakpoint doesn't want, exactly like the rest of that component. */
+.bell-wrap{position:relative;display:inline-flex}
+.bell-badge{
+  position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 3px;
+  border-radius:8px;background:var(--bad);color:#fff;
+  font-size:10px;font-weight:700;line-height:15px;text-align:center;
+  border:1.5px solid var(--surface);
+}
+.notif-panel{position:fixed;z-index:130;width:min(360px,calc(100vw - 24px));padding:0}
+.notif-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 12px;border-bottom:1px solid var(--line-2);
+}
+.notif-head strong{font-size:13px}
+.notif-head-actions{display:flex;align-items:center;gap:10px}
+.link-btn{background:none;border:0;padding:0;color:var(--accent-ink);font-size:12px;font-weight:600}
+.link-btn:hover{text-decoration:underline}
+.notif-list{max-height:360px;overflow-y:auto;padding:4px}
+.notif-empty{padding:16px 12px;color:var(--ink-3);font-size:12.5px}
+.notif-row{
+  display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;
+  padding:9px 10px;border-radius:6px;border:0;background:transparent;
+}
+.notif-row:hover{background:var(--surface-3)}
+.notif-row.is-unread{background:var(--accent-soft)}
+.notif-kind{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.notif-title{font-size:12.5px;font-weight:600;color:var(--ink)}
+.notif-body{font-size:12px;color:var(--ink-2);line-height:1.4}
+.notif-when{font-size:11px;color:var(--ink-3);margin-top:1px}
+
+/* --------------------------------------------------------- birthday calendar */
+.bday-row{display:flex;flex-wrap:wrap;gap:10px}
+.bday-card{
+  display:flex;align-items:center;gap:10px;min-width:190px;
+  background:var(--surface-2);border:1px solid var(--line-2);border-radius:var(--r);
+  padding:9px 12px;
+}
+.bday-card.is-today{background:var(--accent-soft);border-color:var(--accent)}
+
 /* ===================================================== the attendance month
    The employee's own month, as Adarsh asked for it: a grid of coloured
    squares you can read in one glance, and an Excel-shaped table under it for

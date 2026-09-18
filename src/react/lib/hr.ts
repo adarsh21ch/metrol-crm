@@ -265,7 +265,7 @@ export interface ExitRecord {
   createdAt: string
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** "02 May 2025". Dates come back from Postgres as YYYY-MM-DD, with no time —
  *  parsing that as UTC and rendering it locally can move it a day, so it is

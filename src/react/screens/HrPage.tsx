@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isDemo } from '@/data/demo'
+import { supabase } from '@/lib/supabase'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Rail, type RailItem } from '@/components/Rail'
 import { BottomNav, type BottomNavItem } from '@/components/BottomNav'
@@ -32,7 +34,7 @@ import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
 import {
-  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
+  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
   type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord,
   HR_DEPARTMENT,
 } from '@/lib/hr'
@@ -121,6 +123,12 @@ export function HrPage({
      "waiting on you" list and its attendance strip all read them on the very
      first screen, so there is nothing to gain by deferring them. */
   const hr = useEmployees()
+  // Same "screen load is the cron tick" trick finalize_open_attendance() uses
+  // a few lines down — no scheduler exists to run this at midnight, so it
+  // runs once whenever HR opens their app instead. check_todays_birthdays()
+  // is idempotent (0025), so a second HR person opening the app an hour
+  // later costs one no-op query, not a duplicate notification.
+  useEffect(() => { if (!isDemo()) void supabase.rpc('check_todays_birthdays') }, [])
   // A request landing from another browser while this one is open, anywhere
   // in the HR module — see LeaveAlertStack.tsx. Kept as its own small queue
   // rather than reusing `toast`: toast is one slot, three seconds, and
@@ -524,6 +532,17 @@ export function HrPage({
     .map((d) => ({ id: d.id, name: d.name, rows: shown.filter((e) => e.departmentId === d.id) }))
     .concat([{ id: '', name: 'No department', rows: shown.filter((e) => !e.departmentId) }])
     .filter((g) => g.rows.length > 0)
+
+  // This month's birthdays, sorted by the day they fall on — not by who has
+  // one first alphabetically. `date_of_birth` is a plain date string
+  // (YYYY-MM-DD); month/day are read as substrings so no timezone shift can
+  // move somebody's birthday to the wrong day the way `new Date(iso)` can.
+  const todayMD = new Date().toISOString().slice(5, 10)
+  const thisMonthBirthdays = hr.rows
+    .filter((e) => e.status === 'active' && e.dateOfBirth)
+    .map((e) => ({ e, md: e.dateOfBirth!.slice(5, 10) }))
+    .filter((x) => x.md.slice(0, 2) === todayMD.slice(0, 2))
+    .sort((a, b) => a.md.localeCompare(b.md))
 
   const saveNew = async (draft: EmployeeDraft) => {
     const message = await hr.create(draft)
@@ -1053,6 +1072,24 @@ export function HrPage({
                   <Kpi label="Resigned" value={hr.rows.filter((e) => e.status === 'resigned').length} sub="kept, never deleted" />
                   <Kpi label="Joined this month" value={hr.rows.filter(joinedThisMonth).length} sub="new starters" />
                 </div>
+
+                {thisMonthBirthdays.length > 0 && (
+                  <div className="section">
+                    <div className="section-head"><h3>Birthdays this month</h3></div>
+                    <div className="bday-row">
+                      {thisMonthBirthdays.map(({ e, md }) => (
+                        <div className={'bday-card' + (md === todayMD ? ' is-today' : '')} key={e.id}>
+                          <Avatar>{initials(e.fullName)}</Avatar>
+                          <div>
+                            <div className="cell-strong">{e.fullName}</div>
+                            <div className="cell-mute">{Number(md.slice(3))} {MONTHS[Number(md.slice(0, 2)) - 1]}</div>
+                          </div>
+                          {md === todayMD && <Chip cls="chip--good">🎂 Today</Chip>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="section">
                   <div className="section-head">

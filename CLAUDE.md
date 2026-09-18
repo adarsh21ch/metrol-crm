@@ -5126,3 +5126,102 @@ point — a notification SYSTEM is:
 instruction, not an assumption. `employees` has no date-of-birth column yet;
 that is the one schema change this will need and it should land with the rest
 of the feature, not ahead of it.
+
+---
+
+# Notifications, built — broadcasts, the feed, real push, birthdays (2026-09-18)
+
+The phases finished (all 5 rounds of the payroll brief, plus the punch-out
+QR "bug" turning out to be the 2-minute guard working correctly) unparked
+this. Built in full, against a plan Adarsh approved first.
+
+**Two things the plan-mode research corrected before any code was written:**
+this app deploys on **Vercel** (`vercel.json`), not Cloudflare — the
+Cloudflare assumption came from `nevorai`, a sibling product, not this repo.
+And `employees.date_of_birth` **already existed** (since `0006`, collected on
+the joining form since `0020`) — the line above saying otherwise was stale;
+no schema change was needed for birthdays, only a screen.
+
+## What shipped
+
+- **`0025_notifications.sql`** — `notifications` (fan-out on write, one row
+  per recipient, same shape as `salary_records`/`employee_documents` rather
+  than a shared row plus a read-tracking table) and `push_subscriptions`,
+  both RLS'd the same way `leave_requests` (0009) already is. Two
+  `security definer` RPCs: `create_broadcast()` (HR/owner only, self-checked
+  the way `finalize_open_attendance()` checks itself) and
+  `check_todays_birthdays()` (idempotent — safe to call on every screen
+  load, which is exactly what happens).
+- **The "cron tick" reused, not reinvented.** This Supabase plan still has
+  no scheduler. `check_todays_birthdays()` gets the identical treatment
+  `finalize_open_attendance()` already proved out: a plain `useEffect`
+  firing once per mount, wired into `HrPage.tsx` and `Member.tsx` — the two
+  screens that get opened daily by *somebody*.
+- **The bell lives in `AccountControls.tsx`**, not a new rail tab — that
+  component is already mounted in every screen's topbar AND rail-foot, so
+  it's the one place "wherever you are" is actually true, and it sidesteps
+  `BottomNav`'s tab budget (Member+team-lead was already at 6, overflowing
+  into More). Clicking it opens a portal panel (`NotificationBell.tsx`) with
+  its own two-axis collision handling — it has to work anchored near the
+  bottom-left (rail) AND the top-right (phone topbar), which plain
+  `right`-based positioning couldn't do; it now mirrors `Menu.tsx`'s
+  left-anchored, clamped, flip-above-when-tight approach on both axes.
+- **HR/owner get a "+ New broadcast" button inside that same panel**
+  (`BroadcastModal.tsx`) rather than a separate composer screen — title,
+  optional message, audience (everyone or one department).
+- **Birthdays surface in HR's existing Employees tab** — a new block above
+  the directory, this month's birthdays sorted by day, today's called out
+  with a chip. Reads `hr.rows` (already loaded), no new query.
+- **Real push**, the part Adarsh specifically distinguished from the cheap
+  version: `public/sw.js` (push + notificationclick, nothing else — no
+  offline cache, that's a different feature), `src/react/lib/push.ts`
+  (subscribe/unsubscribe against the Push API, wired to an "Enable
+  notifications" toggle inside `ProfileModal.tsx` — the one profile surface
+  every role already shares, so this needed no per-screen duplication —
+  deliberately behind an explicit tap, not asked for on load, the same
+  lesson the camera-permission popup fix a day earlier just finished
+  drawing), and `supabase/functions/send-push/index.ts` (same
+  bearer-token → service-role → manual `is_owner()/is_hr()` recheck shape
+  `send-payslip-email` already uses, `npm:web-push@3` for the actual VAPID
+  signing, expired 404/410 subscriptions cleaned up on send rather than
+  retried forever).
+
+## VAPID keys — generated, one half committed, one half needs Adarsh
+
+Generated with `npx web-push generate-vapid-keys` (pure local crypto, no
+account needed). The **public** key is meant to be public and is committed
+plainly in `src/lib/push.ts` and as the fallback in `send-push/index.ts`.
+The **private** key is a real secret and was handed to Adarsh directly in
+chat, not committed — he needs to add it under Supabase Dashboard → Edge
+Functions → Manage secrets (the same place `RESEND_API_KEY` already lives,
+per `send-payslip-email`'s own header comment — this repo deploys Edge
+Functions by pasting the file into the Dashboard, not via CLI), alongside
+`VAPID_SUBJECT=mailto:<his email>`.
+
+## Verified in Chromium, `?demo=1`
+
+Demo mode is fully client-side (`demo.ts`'s own comment), so it cannot
+exercise real Supabase realtime, RPCs, or an actual push send — what it DID
+verify: the bell renders and opens correctly in both the rail (owner/HR,
+initially clipped off-screen bottom-left until the two-axis positioning fix
+above) and the phone topbar (salesperson); "+ New broadcast" shows only for
+owner, not for `as=lead`; the composer modal opens correctly; the birthday
+date-formatting math was checked directly (no demo employee's DOB happens to
+fall on today, so the block correctly renders nothing rather than showing a
+false positive); the "Enable notifications" toggle fails gracefully with a
+readable error rather than crashing — the Browser pane sandbox blocks real
+service worker registration the same way it already blocks real camera
+access (noted in the punch-QR round two days ago), so genuine push delivery
+needs testing on the deployed site after the VAPID secret is set.
+`typecheck` and `build` clean throughout.
+
+## Still open — needs Adarsh's answer, not a guess
+
+**The shift-end reminder has no trigger yet.** Everything above works
+because a screen gets opened daily. "9 hours after punch-in, notify me" has
+to fire even with the app closed, which the screen-load trick genuinely
+cannot do, and this Supabase plan has no cron. The notification *type*
+exists and is sendable; nothing calls it on a schedule. Three options were
+laid out for him in the plan (a free external cron ping; Vercel Cron, which
+needs a paid plan for sub-daily frequency; or accepting a screen-load
+approximation that could arrive late) — not decided yet.
