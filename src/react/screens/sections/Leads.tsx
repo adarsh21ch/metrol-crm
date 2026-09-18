@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { DataGrid, Pager, pageRange, type GridCol } from '@/components/DataGrid'
+import { DataGrid, Pager, PhoneViewPick, pageRange, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Menu, type MenuItem } from '@/components/Menu'
 import { Avatar, Caret, EditChip, ReadQuality, ReadStatus, Yn } from '@/components/bits'
 import { QUALITY, STATUS, isConnected, type Lead, type LeadStatus, type Member, type Quality } from '@/lib/types'
@@ -28,6 +28,8 @@ export function Leads({
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
   const [edit, setEdit] = useState<Editing>(null)
+  // THE LAYOUT LAW, rule 1 — on the heading line, not on a row above the grid.
+  const [phoneView, setPhoneView] = usePhoneView('leads')
 
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -144,7 +146,14 @@ export function Leads({
     <div className="section is-on">
       <div className="section-head">
         <h3>Leads</h3>
-        <div className="sub">{unassigned} unassigned</div>
+        <div className="section-tools section-tools--tight">
+          <PhoneViewPick view={phoneView} onPick={setPhoneView} />
+        </div>
+        {/* The unassigned count moved to the foot (rule 6). The search and the
+            two buttons stay one toolbar: this is the case .section-tools' own
+            full-width wrap was written for, and splitting them would put the
+            search at the far right of the heading on a desktop and save a
+            phone nothing. */}
         <div className="section-tools">
           <div className="search">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -173,7 +182,7 @@ export function Leads({
       </div>
 
       <DataGrid
-        cols={cols} rows={slice} storageKey="leads"
+        cols={cols} rows={slice} storageKey="leads" phoneView={phoneView}
         empty={q
           ? `Nothing matches “${q}”.`
           : isOwner
@@ -181,7 +190,10 @@ export function Leads({
             : 'No leads in this project yet.'}
         foot={
           <div className="grid-foot">
-            <span>Showing {pageRange(shown.length, p, PAGE_SIZE)}{shown.length === leads.length ? ' leads' : ' matching leads'}</span>
+            <span>
+              Showing {pageRange(shown.length, p, PAGE_SIZE)}{shown.length === leads.length ? ' leads' : ' matching leads'}
+              {' · '}{unassigned} unassigned
+            </span>
             <span className="foot-right">
               <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span>
               <Pager page={p} total={shown.length} size={PAGE_SIZE} onPage={setPage} />

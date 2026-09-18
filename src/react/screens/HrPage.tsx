@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isDemo } from '@/data/demo'
 import { supabase } from '@/lib/supabase'
-import { DataGrid, type GridCol } from '@/components/DataGrid'
+import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Rail, type RailItem } from '@/components/Rail'
 import { BottomNav, type BottomNavItem } from '@/components/BottomNav'
 import { Modal } from '@/components/Modal'
+import { Tip } from '@/components/Tip'
 import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
@@ -248,6 +249,15 @@ export function HrPage({
      gated the same way every other hook on this screen is. */
   const [leaveMonth, setLeaveMonth] = useState(() => firstOfMonth(todayISO()))
   const [closingFor, setClosingFor] = useState<string | null>(null)
+  const [closeRulesOpen, setCloseRulesOpen] = useState(false)
+  /* THE LAYOUT LAW, rule 1. Every DataGrid draws its own Cards/List switch on
+     a phone, on a row of its own — six grids on this screen, six rows. The
+     screen hosts one switch per table instead, on a heading line that is
+     already there, and the grids follow it. */
+  const [dirView, setDirView] = usePhoneView('hr-directory')
+  const [leaveView, setLeaveView] = usePhoneView('hr-leave')
+  const [salaryView, setSalaryView] = usePhoneView('hr-salary')
+  const [empSalaryView, setEmpSalaryView] = usePhoneView('hr-employee-salary')
   const leaveSrc = useMemo(() => ({
     employees: hr.rows, rows: att.rows, leaves: leave.rows,
     holidays: att.holidays, settings: att.settings, today: todayISO(),
@@ -255,7 +265,11 @@ export function HrPage({
   const lm = useLeaveMonth(inProfile('leave') ? openId : null, leaveMonth, leaveSrc)
   const board = useLeaveBoard(leaveMonth, leaveSrc, section === 'attendance' && attView === 'leave')
   const thisMonth = firstOfMonth(todayISO())
-  const monthName = (m: string) => new Date(m + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  /* Short, not long. Both places this is used are a ←/→ stepper sitting at the
+     right-hand end of a section heading, and "September 2026" was the 20px that
+     pushed that stepper onto a row of its own at 375px — THE LAYOUT LAW, rule 3.
+     "Sep 2026" between two arrows loses nothing. */
+  const monthName = (m: string) => new Date(m + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
 
   /** Recording the employee's choice for the month. The refusal that matters —
    *  "close August first", "this month has not ended" — comes back as the
@@ -527,6 +541,10 @@ export function HrPage({
      department drops back to a single flat table — at that point the grouping
      is answering a question nobody asked. */
   const grouped = !q.trim() && !deptId
+  /* THE LAYOUT LAW, rule 6. These two numbers used to sit under the <h1>;
+     they belong on the bottom edge of the thing they count. Both views print
+     them, because switching view must not make a number vanish. */
+  const dirCount = <span>{count(hr.rows.length, 'record')} · {count(shown.length, 'shown', 'shown')}</span>
   const deptGroups = [...ws.departments]
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((d) => ({ id: d.id, name: d.name, rows: shown.filter((e) => e.departmentId === d.id) }))
@@ -735,7 +753,7 @@ export function HrPage({
                 <div className="section">
                   <div className="section-head">
                     <h3>Attendance</h3>
-                    <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                    <div className="section-tools section-tools--tight" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
                       Shift {fmtShift(att.shifts.find((sh) => sh.id === open.shiftId)?.startsAt ?? null)}
                     </div>
                   </div>
@@ -785,15 +803,16 @@ export function HrPage({
                 <div className="section">
                   <div className="section-head">
                     <h3>Leave</h3>
-                    <div className="section-tools">
+                    {/* The month stepper had a band of its own under this
+                        heading. THE LAYOUT LAW, rule 3 — it is what the rows
+                        below are filtered by, so it is part of the heading. */}
+                    <div className="section-tools section-tools--tight">
+                      <button className="btn btn--sm" onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
+                      <strong style={{ alignSelf: 'center' }}>{monthName(leaveMonth)}</strong>
+                      <button className="btn btn--sm" disabled={leaveMonth >= thisMonth}
+                              onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
                       <button className="btn btn--sm" onClick={() => { setLogEmpId(open.id); setLoggingFor(open.id) }}>Log leave</button>
                     </div>
-                  </div>
-                  <div className="section-tools" style={{ marginBottom: 10, justifyContent: 'flex-start' }}>
-                    <button className="btn btn--sm" onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
-                    <strong style={{ alignSelf: 'center' }}>{monthName(leaveMonth)}</strong>
-                    <button className="btn btn--sm" disabled={leaveMonth >= thisMonth}
-                            onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
                   </div>
                   {/* A month's balance, not a year's — 2 days accrue each month
                       and what is left is paid out or carried. */}
@@ -825,15 +844,16 @@ export function HrPage({
                 <div className="section">
                   <div className="section-head">
                     <h3>Salary</h3>
-                    <div className="section-tools">
+                    <div className="section-tools section-tools--tight">
                       <button className="btn btn--sm" onClick={() => setAddingSalaryFor(open.id)}>Add payslip</button>
+                      <PhoneViewPick view={empSalaryView} onPick={setEmpSalaryView} />
                     </div>
                   </div>
                   {salary.rows.filter((r) => r.employeeId === open.id).length === 0 ? (
                     <p style={{ color: 'var(--ink-3)' }}>No payslips on record.</p>
                   ) : (
                     <DataGrid cols={salaryCols} rows={[...salary.rows.filter((r) => r.employeeId === open.id)].sort((a, b) => b.period.localeCompare(a.period))}
-                              storageKey="hr-employee-salary"
+                              storageKey="hr-employee-salary" phoneView={empSalaryView}
                               foot={<div className="grid-foot"><span>{count(salary.rows.filter((r) => r.employeeId === open.id).length, 'payslip')}</span></div>} />
                   )}
                 </div>
@@ -924,7 +944,10 @@ export function HrPage({
               <>
                 <div className="page-head">
                   <h1>Dashboard</h1>
-                  <div className="sub">{fmtDate(dashToday)} · {count(activeStaff.length, 'person', 'people')} on the books</div>
+                  {/* The date is what day you are looking at — data, so it
+                      stays. "N people on the books" did not: the KPI beside it
+                      already reads "punched in, of N". */}
+                  <div className="sub">{fmtDate(dashToday)}</div>
                 </div>
 
                 <div className="kpis">
@@ -1061,9 +1084,11 @@ export function HrPage({
               <>
                 <div className="page-head">
                   <h1>Employees</h1>
-                  <div className="sub">
-                    {hr.loading ? 'Loading…' : `${count(hr.rows.length, 'record')} · ${count(shown.length, 'shown', 'shown')}`}
-                  </div>
+                  {hr.loading && <div className="sub">Loading…</div>}
+                  {/* THE LAYOUT LAW, rule 1. Add employee was the fourth control
+                      in a toolbar that takes a full row of its own on a phone;
+                      it is the page's action, so it rides on the page's title. */}
+                  <button className="btn btn--sm btn--primary head-cta" onClick={() => setAdding({})}>Add employee</button>
                 </div>
 
                 <div className="kpis">
@@ -1094,6 +1119,9 @@ export function HrPage({
                 <div className="section">
                   <div className="section-head">
                     <h3>{grouped ? 'By department' : 'Directory'}</h3>
+                    <div className="section-tools section-tools--tight">
+                      <PhoneViewPick view={dirView} onPick={setDirView} />
+                    </div>
                     <div className="section-tools">
                       <input className="input search" placeholder="Search name, code, phone…"
                              value={q} onChange={(e) => setQ(e.target.value)} />
@@ -1105,7 +1133,6 @@ export function HrPage({
                               onClick={() => setShowLeavers((v) => !v)}>
                         {showLeavers ? 'Hiding nobody' : 'Show resigned'}
                       </button>
-                      <button className="btn btn--sm btn--primary" onClick={() => setAdding({})}>Add employee</button>
                     </div>
                   </div>
 
@@ -1117,20 +1144,25 @@ export function HrPage({
                       </p>
                     </div>
                   ) : grouped ? (
-                    deptGroups.map((g) => (
-                      <div key={g.id || 'none'} style={{ marginBottom: 18 }}>
-                        <div className="section-head">
-                          <h3 style={{ fontSize: 14 }}>{g.name}</h3>
-                          <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-                            {count(g.rows.length, 'person', 'people')}
+                    <>
+                      {deptGroups.map((g) => (
+                        <div key={g.id || 'none'} style={{ marginBottom: 18 }}>
+                          <div className="section-head">
+                            <h3 style={{ fontSize: 14 }}>{g.name}</h3>
+                            <div className="section-tools section-tools--tight" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                              {count(g.rows.length, 'person', 'people')}
+                            </div>
                           </div>
+                          <DataGrid cols={deptCols} rows={g.rows} storageKey="hr-directory-dept" phoneView={dirView} />
                         </div>
-                        <DataGrid cols={deptCols} rows={g.rows} storageKey="hr-directory-dept" />
-                      </div>
-                    ))
+                      ))}
+                      {/* Grouped has no single grid to hang a foot off, so it
+                          gets the line explicitly. */}
+                      <div className="grid-foot">{dirCount}</div>
+                    </>
                   ) : (
-                    <DataGrid cols={cols} rows={shown} storageKey="hr-directory"
-                              foot={<div className="grid-foot"><span>{count(shown.length, 'employee')}</span></div>} />
+                    <DataGrid cols={cols} rows={shown} storageKey="hr-directory" phoneView={dirView}
+                              foot={<div className="grid-foot">{dirCount}</div>} />
                   )}
                 </div>
               </>
@@ -1146,13 +1178,22 @@ export function HrPage({
               <>
                 <div className="page-head">
                   <h1>Joining</h1>
-                  <div className="sub">
-                    {joiningView === 'applications'
-                      ? 'Submitted from the public joining form. Approving one creates their login and emails a link to set a password — nothing exists on their record until then.'
-                      : 'Offer, checklist and documents — open a person\'s own record to manage theirs.'}
-                  </div>
                   <div className="section-tools">{joiningToggle}</div>
                 </div>
+
+                {/* THE LAYOUT LAW, rule 7. Four lines of standing copy under
+                    every visit to this tab, describing something you learn the
+                    first time you approve somebody. Shown once, with an ✕. */}
+                {joiningView === 'applications' ? (
+                  <Tip tipKey="hr-joining-applications">
+                    Submitted from the public joining form. Approving one creates their login and emails a link to set a
+                    password — nothing exists on their record until then.
+                  </Tip>
+                ) : (
+                  <Tip tipKey="hr-joining-onboarding">
+                    Offer, checklist and documents — open a person's own record to manage theirs.
+                  </Tip>
+                )}
 
                 {joiningView === 'applications' ? (
                   <>
@@ -1217,7 +1258,6 @@ export function HrPage({
               <>
                 <div className="page-head">
                   <h1>Departments</h1>
-                  <div className="sub">Where everybody sits. Moving somebody here is done on their record.</div>
                   <div className="section-tools">
                     <div className="seg">
                       <button className={deptView === 'cards' ? 'is-on' : ''} onClick={() => pickDeptView('cards')}>Cards</button>
@@ -1225,6 +1265,12 @@ export function HrPage({
                     </div>
                   </div>
                 </div>
+
+                {/* "Where everybody sits" only said the title again. What is
+                    left is the one thing somebody does not guess. */}
+                <Tip tipKey="hr-departments">
+                  Moving somebody into a different department is done on their own record, not here.
+                </Tip>
 
                 {deptView === 'cards' && (
                   <div className="proj-grid">
@@ -1305,15 +1351,12 @@ export function HrPage({
               <>
                 <div className="page-head">
                   <h1>Leave</h1>
-                  <div className="sub">Every request across the company. Approve or reject from here.</div>
-                  <div className="section-tools">
-                    <select className="input" value={logEmpId} onChange={(e) => setLogEmpId(e.target.value)}>
-                      <option value="">Log leave for…</option>
-                      {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
-                    </select>
-                    <button className="btn btn--sm btn--primary" disabled={!logEmpId} onClick={() => setLoggingFor(logEmpId)}>Log leave</button>
-                    {attToggle}
-                  </div>
+                  {/* Only the view switch. THE LAYOUT LAW, rule 1: the page
+                      title's line carries the page's control — and a picker
+                      plus a button plus a two-way switch is not one control.
+                      The pair that logs a request moved down to the heading of
+                      the table the request appears in. */}
+                  <div className="section-tools">{attToggle}</div>
                 </div>
 
                 <div className="kpis">
@@ -1326,9 +1369,21 @@ export function HrPage({
                 {leave.error && <div className="auth-err" style={{ marginBottom: 14 }}>{leave.error}</div>}
 
                 <div className="section">
-                  <div className="section-head"><h3>All requests</h3></div>
+                  <div className="section-head">
+                    <h3>All requests</h3>
+                    <div className="section-tools section-tools--tight">
+                      <PhoneViewPick view={leaveView} onPick={setLeaveView} />
+                    </div>
+                    <div className="section-tools">
+                      <select className="input" value={logEmpId} onChange={(e) => setLogEmpId(e.target.value)}>
+                        <option value="">Log leave for…</option>
+                        {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                      </select>
+                      <button className="btn btn--sm btn--primary" disabled={!logEmpId} onClick={() => setLoggingFor(logEmpId)}>Log leave</button>
+                    </div>
+                  </div>
                   <DataGrid cols={leaveCols} rows={[...leave.rows].sort((a, b) => b.startDate.localeCompare(a.startDate))}
-                            storageKey="hr-leave"
+                            storageKey="hr-leave" phoneView={leaveView}
                             empty="No leave requests yet."
                             foot={<div className="grid-foot"><span>{count(leave.rows.length, 'request')}</span></div>} />
                 </div>
@@ -1338,9 +1393,17 @@ export function HrPage({
                     what payroll reads later. One row per person, because the
                     choice is per person and not a company-wide switch. */}
                 <div className="section">
+                  {/* THE LAYOUT LAW, rule 3: the heading and the ⓘ that
+                      explains it travel as one item, and the month stepper is
+                      this heading's own right-hand end — --tight keeps it
+                      there instead of taking a row of its own on a phone. */}
                   <div className="section-head">
-                    <h3>Close the month</h3>
-                    <div className="section-tools">
+                    <div className="sh-title">
+                      <h3>Close the month</h3>
+                      <button className="pb-info" onClick={() => setCloseRulesOpen(true)}
+                              aria-label="What closing a month does">i</button>
+                    </div>
+                    <div className="section-tools section-tools--tight">
                       <button className="btn btn--sm" onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
                       <strong style={{ alignSelf: 'center' }}>{monthName(leaveMonth)}</strong>
                       <button className="btn btn--sm" disabled={leaveMonth >= thisMonth}
@@ -1383,11 +1446,6 @@ export function HrPage({
                       </div>
                     ))}
                   </div>
-                  <p className="punch-note">
-                    Pay out puts every unused day on their salary and the balance restarts at zero. Carry forward adds them to next
-                    month instead. A month cannot be closed until it has ended, the month before it is closed, and every day somebody
-                    never punched out of has been settled.
-                  </p>
                 </div>
 
                 {/* The holidays list. It lives here rather than on a rail item
@@ -1396,11 +1454,11 @@ export function HrPage({
                     when they think about that. */}
                 <div className="section">
                   <div className="section-head"><h3>Holidays</h3></div>
-                  <p className="punch-note" style={{ margin: '0 0 12px' }}>
+                  <Tip tipKey="hr-holidays">
                     A leave day count skips Sundays and every day on this list, so nobody spends leave on a day
                     the office was shut. Adding or removing one changes how <em>new</em> requests are counted —
                     requests already decided keep the number they were approved with.
-                  </p>
+                  </Tip>
                   <div className="hol-add">
                     <input className="input" type="date" aria-label="Holiday date"
                            value={holDate} onChange={(e) => setHolDate(e.target.value)} />
@@ -1446,14 +1504,6 @@ export function HrPage({
               <>
                 <div className="page-head">
                   <h1>Salary</h1>
-                  <div className="sub">Every payslip across the company. HR sees the amounts.</div>
-                  <div className="section-tools">
-                    <select className="input" value={salaryEmpId} onChange={(e) => setSalaryEmpId(e.target.value)}>
-                      <option value="">Add payslip for…</option>
-                      {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
-                    </select>
-                    <button className="btn btn--sm btn--primary" disabled={!salaryEmpId} onClick={() => setAddingSalaryFor(salaryEmpId)}>Add payslip</button>
-                  </div>
                 </div>
 
                 <div className="kpis">
@@ -1466,9 +1516,23 @@ export function HrPage({
                 {salary.error && <div className="auth-err" style={{ marginBottom: 14 }}>{salary.error}</div>}
 
                 <div className="section">
-                  <div className="section-head"><h3>All payslips</h3></div>
+                  {/* Same move as Leave: the picker and its button sit on the
+                      heading of the table the payslip lands in. */}
+                  <div className="section-head">
+                    <h3>All payslips</h3>
+                    <div className="section-tools section-tools--tight">
+                      <PhoneViewPick view={salaryView} onPick={setSalaryView} />
+                    </div>
+                    <div className="section-tools">
+                      <select className="input" value={salaryEmpId} onChange={(e) => setSalaryEmpId(e.target.value)}>
+                        <option value="">Add payslip for…</option>
+                        {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                      </select>
+                      <button className="btn btn--sm btn--primary" disabled={!salaryEmpId} onClick={() => setAddingSalaryFor(salaryEmpId)}>Add payslip</button>
+                    </div>
+                  </div>
                   <DataGrid cols={salaryCols} rows={[...salary.rows].sort((a, b) => b.period.localeCompare(a.period))}
-                            storageKey="hr-salary"
+                            storageKey="hr-salary" phoneView={salaryView}
                             empty="No payslips yet."
                             foot={<div className="grid-foot"><span>{count(salary.rows.length, 'payslip')}</span></div>} />
                 </div>
@@ -1480,9 +1544,12 @@ export function HrPage({
               <>
                 <div className="page-head">
                   <h1>Exit</h1>
-                  <div className="sub">Everybody on notice or already gone. Open their record to manage the checklist.</div>
                   <div className="section-tools">{joiningToggle}</div>
                 </div>
+
+                <Tip tipKey="hr-exit">
+                  Open a person's record to manage their checklist.
+                </Tip>
 
                 <div className="kpis">
                   <Kpi accent label="On notice" value={hr.rows.filter((e) => e.status === 'notice').length} sub="still working" />
@@ -1538,6 +1605,26 @@ export function HrPage({
 
       {tip.node}
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
+
+      {/* THE LAYOUT LAW, rule 7: a set of rules belongs behind an ⓘ, not
+          printed under the buttons it describes on every visit. The text is
+          the paragraph that used to sit there, unchanged — Pay out is not
+          reversible, so it stays reachable rather than being a Tip somebody
+          dismissed months ago. */}
+      {closeRulesOpen && (
+        <Modal title="What closing a month does" sub="Carry forward, pay out, and when a month can be closed"
+               onClose={() => setCloseRulesOpen(false)}
+               foot={<button className="btn btn--primary" onClick={() => setCloseRulesOpen(false)}>Got it</button>}>
+          <p style={{ color: 'var(--ink-2)', lineHeight: 1.6 }}>
+            <strong>Pay out</strong> puts every unused day on their salary and the balance restarts at zero.
+            <strong> Carry forward</strong> adds them to next month instead.
+          </p>
+          <p style={{ color: 'var(--ink-2)', lineHeight: 1.6 }}>
+            A month cannot be closed until it has ended, the month before it is closed, and every day somebody
+            never punched out of has been settled.
+          </p>
+        </Modal>
+      )}
 
       {loggingFor && (
         <LeaveRequestModal employeeId={loggingFor} weekOffs={att.settings?.weekOffs ?? [0]} holidays={att.holidays}

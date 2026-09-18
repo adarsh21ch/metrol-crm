@@ -1215,6 +1215,12 @@ table.hist .what{font-weight:500}
   .dash-grid{grid-template-columns:1fr}
   .money-grid{grid-template-columns:repeat(2,1fr)}
   .proj-grid{grid-template-columns:repeat(2,1fr)}
+  /* THE LAYOUT LAW, rule 5 — the same call .kpis already makes one breakpoint
+     down. Two columns and an odd number of projects (or departments) left the
+     last card with a card-sized hole beside it. Scoped here and below, never
+     at three columns, where the third card is also :last-child:nth-child(odd)
+     and spanning it would wreck the row. */
+  .proj-grid > *:last-child:nth-child(odd){ grid-column:1 / -1 }
 }
 @media (max-width:860px){
   /* On a phone, one scroll beats two: let the grid grow and the page carry it,
@@ -1245,6 +1251,33 @@ table.hist .what{font-weight:500}
   .user-chip .name,.user-chip .role{display:none}
   .user-chip{padding-left:8px}
   .section-tools{width:100%;margin-left:0}
+  /* ------------------------------------------------------------------
+     Found while checking the owner's screens at 375px, and older than the
+     layout pass: a one-column grid track still sizes to its widest item's
+     MIN-CONTENT, so .ov-grid and .dash-grid were handing their cards 487px
+     inside a 375px wrap. The page did not scroll, so nothing looked broken —
+     the cards simply ran off the right edge, taking "Assign →" on Overview
+     and the whole money column of "Who closed it" with them. Grid items have
+     min-width:auto by default and have to be told they may shrink. */
+  .ov-grid > *, .dash-grid > *{ min-width:0 }
+  /* What was making them that wide: seven ₹ labels, nowrap, in the flow above
+     their own bar — about 490px of min-content. Five of the seven only appear
+     on hover, which a phone does not have, so on a phone they are not there at
+     all; the two that are called out may spill over their column, which is
+     what a chart label does. */
+  .bar-col{ min-width:0 }
+  /* Seven ₹ labels over 40px columns is mush, and five of the seven only ever
+     appear on hover, which a phone does not have. The number worth reading at
+     a glance is today's; the rest are read from the bars and from the week's
+     own total, which is already on the heading line beside "Last 7 days". */
+  .bar-value{ display:none }
+  /* Today is the last column, so its label hangs off the right edge if it is
+     centred on a 40px bar. It hangs left instead. */
+  .bar-col.is-today .bar-value{ display:block; opacity:1; text-align:right }
+  /* Same reason, the activity feed: a 116px name that cannot wrap set the
+     floor for the whole card. It ellipses instead — it already had the rule
+     for it. */
+  .ov-ev-nm{ min-width:0 }
   .search .input{width:100%}
   .search{flex:1}
   .landing-bar{padding:0 16px}
@@ -1315,6 +1348,9 @@ table.hist .what{font-weight:500}
   .section-tools{ margin-left:0; width:100%; flex-wrap:wrap; }
   .section-tools .search{ flex:1 1 100%; }
   .section-tools select.input{ flex:1 1 150px; min-width:150px; }
+  /* A date picker is the same shape of control as the department picker beside
+     it and was the only one still claiming a whole row to itself. */
+  .section-tools input.input[type="date"]{ flex:1 1 150px; min-width:150px; }
 }
 
 /* ------------------------------------------------------------- attendance
@@ -1982,6 +2018,15 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .section-tools .seg{ height:36px }
 .section-tools .seg{ padding:3px }
 .section-tools .seg button{ height:28px }
+
+/* THE LAYOUT LAW, rule 3. .section-tools is given a full row of its own at
+   860px and again at 600px, which is right for the directory's search box and
+   four buttons and wrong for the things that are not toolbars at all: a month
+   stepper, a single "Open Leave" link, a line of plain text counting the
+   branches. Those are the heading's own right-hand end, and a heading plus
+   three characters must never become two rows. Declared after both media
+   blocks on purpose — same specificity, later wins, at every width. */
+.section-tools--tight{ width:auto; margin-left:auto; flex-wrap:nowrap }
 
 /* ------------------------------------------------------------- the motion */
 /* "When clicking it and switching the tab, add a good animation, like

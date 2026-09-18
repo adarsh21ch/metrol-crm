@@ -76,6 +76,7 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; 
   ]
 
   const active = ws.projects.filter((p) => p.status === 'active').length
+  const projCount = `${count(rows.length, 'project')} · ${count(active, 'active', 'active')}`
 
   return (
     <div className="screen screen--app is-active" id="screen-projects">
@@ -99,7 +100,9 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; 
           <div className="wrap">
             <div className="page-head">
               <h1>Projects</h1>
-              <div className="sub">{count(active, 'active project')}</div>
+              {/* THE LAYOUT LAW, rule 6: the count was competing with the view
+                  switch for the title's row. It is on the foot of both views
+                  now — switching must not make a number vanish. */}
               <div className="section-tools">
                 <div className="seg">
                   <button className={view === 'cards' ? 'is-on' : ''} onClick={() => pick('cards')}>Cards</button>
@@ -113,6 +116,7 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; 
             )}
 
             {view === 'cards' && ws.projects.length > 0 && (
+              <>
               <div className="proj-grid">
                 {rows.map((p) => (
                   <button className="proj-card" key={p.id} onClick={() => onOpen(p.id)}>
@@ -148,18 +152,25 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr }: { ws: Workspace; 
                   </button>
                 ))}
               </div>
+              {/* Cards have no grid to hang a foot off, so they get the line. */}
+              <div className="grid-foot"><span>{projCount}</span></div>
+              </>
             )}
 
             {view === 'list' && ws.projects.length > 0 && (
               <DataGrid
                 cols={cols}
                 rows={rows}
-                storageKey="projects"
+                /* The page already has Cards/List, and the grid drew a second
+                   Cards/List beneath it meaning something else entirely — the
+                   same collision My leads had. The rich project cards ARE the
+                   phone's card view, so List here is the table, full stop. */
+                storageKey="projects" phoneView="list"
                 rowClass={() => 'row-link'}
                 onRowClick={(r) => onOpen(r.id)}
                 foot={
                   <div className="grid-foot">
-                    <span>{count(rows.length, 'project')}</span>
+                    <span>{projCount}</span>
                     <span className="grid-hint">Click a row to open the project</span>
                   </div>
                 }

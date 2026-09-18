@@ -37,10 +37,7 @@ export function Dashboard({ conv, leads, members }: { conv: Lead[]; leads: Lead[
 
   return (
     <div className="section is-on">
-      <div className="section-head">
-        <h3>Sales dashboard</h3>
-        <div className="sub">Money in, and who brought it</div>
-      </div>
+      <div className="section-head"><h3>Sales dashboard</h3></div>
 
       <div className="money-grid">
         {tiles.map((t) => (

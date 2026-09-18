@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DataGrid, Pager, type GridCol } from '@/components/DataGrid'
+import { DataGrid, Pager, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Menu } from '@/components/Menu'
 import { Avatar, Caret, Chip } from '@/components/bits'
 import { agoDays, count, daysSince, money } from '@/lib/format'
@@ -13,6 +13,7 @@ export function Sales({
 }: { ws: Workspace; conv: Lead[]; members: Member[]; isOwner: boolean; toast: (m: string) => void }) {
   const [page, setPage] = useState(0)
   const [edit, setEdit] = useState<{ anchor: HTMLElement; lead: Lead } | null>(null)
+  const [phoneView, setPhoneView] = usePhoneView('sales')
 
   const rows = [...conv].sort(
     (a, b) => daysSince(a.convertedAt ?? a.createdAt) - daysSince(b.convertedAt ?? b.createdAt),
@@ -53,17 +54,25 @@ export function Sales({
 
   return (
     <div className="section is-on">
+      {/* THE LAYOUT LAW, rule 6 — the same move the member's own My sales
+          already made: the deal count and the gross belong on the bottom edge
+          of the table they total, where the eye lands after reading it. */}
       <div className="section-head">
         <h3>Sales</h3>
-        <div className="sub">{count(conv.length, 'closed deal')} · {money(gross)} gross</div>
+        <div className="section-tools section-tools--tight">
+          <PhoneViewPick view={phoneView} onPick={setPhoneView} />
+        </div>
       </div>
 
       <DataGrid
-        cols={cols} rows={slice} storageKey="sales"
+        cols={cols} rows={slice} storageKey="sales" phoneView={phoneView}
         empty="No sales yet. A lead becomes a sale the moment its salesperson marks it Converted and records the amount."
         foot={
           <div className="grid-foot">
-            <span>{conv.filter((l) => l.verified).length} verified · {conv.filter((l) => !l.verified).length} pending</span>
+            <span>
+              {count(conv.length, 'closed deal')} · {money(gross)} gross
+              {' · '}{conv.filter((l) => l.verified).length} verified · {conv.filter((l) => !l.verified).length} pending
+            </span>
             <span className="foot-right">
               <Pager page={p} total={rows.length} size={PAGE_SIZE} onPage={setPage} />
             </span>

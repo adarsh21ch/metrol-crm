@@ -31,7 +31,7 @@ function useIsPhone() {
  *  and fits four times as many rows on a screen. Which one is right depends on
  *  whether you are reading one person or scanning forty, so it is the reader's
  *  choice, remembered per table — not ours. */
-type PhoneView = 'cards' | 'list'
+export type PhoneView = 'cards' | 'list'
 
 /** Exported so a screen can hoist this switch onto its page-title line —
  *  THE LAYOUT LAW, rule 1. A screen that does that owns the state and passes
@@ -47,6 +47,31 @@ export function usePhoneView(storageKey: string): [PhoneView, (v: PhoneView) => 
     try { localStorage.setItem(key, v) } catch { /* a view preference is not worth throwing over */ }
   }
   return [view, pick]
+}
+
+/**
+ * The Cards/List switch as a bare .seg, to be dropped into a .section-tools
+ * that is already on a heading line rather than taking a row of its own above
+ * the grid — THE LAYOUT LAW, rule 1. Same shape as attToggle and joiningToggle,
+ * so it sits beside them. Pair it with usePhoneView and pass that value to
+ * DataGrid's phoneView prop; the grid then renders no switch of its own.
+ *
+ * It disappears above the phone breakpoint, where the grid is always the
+ * resizable table and a Cards button would be a control that does nothing —
+ * the same call .seg-cards already makes for My leads.
+ *
+ * One switch can front several grids: the directory's per-department tables
+ * are one decision ("cards or rows"), not one decision per department.
+ */
+export function PhoneViewPick({ view, onPick }: { view: PhoneView; onPick: (v: PhoneView) => void }) {
+  const isPhone = useIsPhone()
+  if (!isPhone) return null
+  return (
+    <div className="seg">
+      <button className={view === 'cards' ? 'is-on' : ''} onClick={() => onPick('cards')}>Cards</button>
+      <button className={view === 'list' ? 'is-on' : ''} onClick={() => onPick('list')}>List</button>
+    </div>
+  )
 }
 
 /**

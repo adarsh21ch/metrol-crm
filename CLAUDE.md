@@ -5587,3 +5587,180 @@ grid is always the resizable table.
 ### Still not done
 HR and the owner's screens have not been through the law. Their page-head
 subs, standing explanatory text and toolbar rows are all as they were.
+
+---
+
+# The law applied to HR and the owner's screens (2026-09-18)
+
+The two "Still not done" lines at the end of the last two rounds — *"The rule has
+been applied to the Member app only. HR and the owner's screens still carry their
+own page-head subs and standing explanatory text."* and *"HR and the owner's
+screens have not been through the law."* — are now done. Nothing new was invented:
+this is THE LAYOUT LAW at the top of this file, read once and applied to every
+screen HR and the owner see.
+
+## The one thing that cost the most rows, and it was not a sub
+
+Every `DataGrid` draws its own **Cards/List switch on a row of its own** above the
+table on a phone. Nobody had counted them: the Employees tab renders one grid per
+department, so the directory alone was spending **a row per department** on the
+same two buttons. Add the company Leave table, Salary, the day's attendance, the
+owner's Leads, Sales, Team tracking and a member's By-project table and it is
+about a dozen rows across the app, all saying the same thing.
+
+`usePhoneView` and the `phoneView` prop already existed — the fourth pass built
+them for My leads — but only My leads used them. `DataGrid` now also exports
+**`PhoneViewPick`**, the switch as a bare `.seg` shaped like `attToggle` and
+`joiningToggle`, so a screen drops it into a `.section-tools` that is already on a
+heading line and passes the value back. The grid then renders no switch of its own.
+Every grid on these screens is hosted this way, and **one switch can front several
+grids**: "cards or rows" is one decision, not one per department.
+
+Above 860px `PhoneViewPick` returns `null` — the grid is always the resizable
+table up there, so a Cards button would be a control that does nothing. The empty
+wrapper it leaves behind does not disturb a desktop heading: the real toolbar is
+still the last child, so it still sits flush right. Verified at 1280px.
+
+## `.section-tools--tight` — the missing half of rule 2
+
+Rule 2 of the law says `.section-tools` is given a full row of its own below 860px,
+and that `.page-head > .section-tools` overrides it back. What had no answer was
+the same wrapper used **inside a `.section-head`** for something that is not a
+toolbar at all: a month stepper, a lone "Open Leave →", a line of plain text
+counting branches. Each of those was taking a whole row on a phone to hold three
+characters.
+
+`.section-tools--tight` is `width:auto; margin-left:auto; flex-wrap:nowrap` and is
+declared **after both media blocks** — same specificity, later wins, at every
+width. Use it for a cluster of two or three small things that belong to the
+heading. Keep the plain `.section-tools` for a real toolbar (a search box and two
+or more buttons); its full-width wrap is correct there and is what the rule exists
+for.
+
+## Screen by screen
+
+**HR Dashboard** — the sub keeps the date (that is *which day you are reading*) and
+drops "N people on the books", which the KPI beside it already prints as "punched
+in, of N".
+
+**Employees** — "Add employee" was the fourth control in a toolbar that takes its
+own row; it is a `.head-cta` on the page title now (rule 1). The two counts under
+the title went to the grid foot (rule 6), and because the default view is grouped
+by department and has no single grid to hang a foot off, **that view prints the
+same line explicitly** — switching view must not make a number vanish. The Cards/
+List switch rides on the "By department" heading and fronts every department's
+grid.
+
+**Attendance** — the sub only said the title again. Six controls were sharing the
+title's line under `flex-wrap:nowrap` and ran off the edge of a 375px phone. Split
+by what each thing acts on: **Branches, Settings and the Day/Leave switch stay on
+the page title** (they configure the screen, and the Branches panel opens directly
+below them); **the date, the branch filter and the search moved to the day table's
+own heading**, which is what they filter. Reordered to date → branch → search so
+the first two pair up on one wrapped row — `.section-tools .search` is
+`flex:1 1 100%`, so anything after it is pushed to a new line. A matching rule
+gives `input[type="date"]` the same `flex:1 1 150px` the department picker already
+had; it was the last control still claiming a whole row. "2 branches · full day 9h
+· 7 min relaxation" moved off the heading into the grid foot (rule 6).
+
+**Joining, Departments, Exit** — their page-head subs were instructional copy read
+once. Each is a one-time `<Tip>` with an ✕ now, keyed so a dismissal sticks. The
+half of each sentence that only restated the title is deleted outright.
+
+**Leave** — a picker, a button and a two-way switch is not "one page control", so
+only the Day/Leave switch stayed on the title. **"Log leave for… / Log leave"
+moved onto the heading of "All requests"** — the table the request lands in. The
+Cards/List switch is `--tight` on that same heading, so the pair keeps its own
+wrapping row beneath. The month stepper on "Close the month" is `--tight` and the
+paragraph under the buttons is behind an **ⓘ that opens a `Modal`** rather than a
+Tip: Pay out is not reversible, so those rules must stay reachable, not be
+dismissed once months ago and never seen again. The holidays paragraph *is* a Tip —
+it explains a counting rule, not an irreversible button.
+
+**`monthName` is short now.** "September 2026" between two arrows was the 20px
+that pushed the stepper onto a row of its own at 375px. "Sept 2026" loses nothing.
+
+**Salary** — same move as Leave: "Add payslip for… / Add payslip" sits on "All
+payslips".
+
+**Projects (owner)** — "3 active projects" went to the foot of both views, cards
+included. The page had Cards/List **and the grid drew a second Cards/List beneath
+it meaning something else entirely** — exactly the collision My leads had. The
+rich project cards *are* the phone's card view, so the grid is now
+`phoneView="list"` and List means the table, full stop. One switch, one meaning.
+
+**Team (owner)** — a member's page-head wrapped the title in a `<div>`, which made
+the name and the department two rows inside a flex row that was always going to
+hold all three. Flattened: `← Team`, the name and the department on one line.
+"every project, not just one" and "Every project this person has ever been assigned
+a lead in" both went — the grid is headed "By project" and says so itself.
+
+**The roster's "5 people across 1 department" stays under the title on purpose.**
+Rule 6 moves a count to the foot because it is *competing with the controls for the
+title's row*; this screen has no controls, the count already fits on the title's
+line, and giving it a foot would **add** the row the law exists to save.
+
+**Overview, Sales, Team tracking, Sales dashboard (in a project)** — these sections
+have no `.page-head`; their `<h3>` *is* the page title, so the law applies to the
+section head. "Everything in this project, right now", "Across every lead here" and
+"Money in, and who brought it" are deleted (rule 7). "9 closed deals · ₹13,28,000
+gross", "14 unassigned" and "Ranked by all-time closed value" moved into the grid
+feet (rule 6) — the last of those is not a description of the heading, it is how to
+read the order of the rows, so it belongs with them.
+
+**Leads keeps its search, Import and Add lead as one toolbar.** This is the case
+`.section-tools`' full-width wrap was written for, and splitting it would put the
+search at the far right of the heading on a desktop while saving a phone nothing.
+
+## Found while checking, and older than this round
+
+At 375px the owner's **Overview and Sales dashboard cards were 487px wide inside a
+375px wrap**. The page did not scroll, so nothing *looked* broken — the cards
+simply ran off the right edge, taking "Assign →" on Overview and the entire money
+column of "Who closed it" with them. A one-column grid track still sizes to its
+widest item's **min-content**, and grid items are `min-width:auto` by default.
+
+What was setting that floor: seven ₹ labels on the "Last 7 days" chart, `nowrap`,
+in the flow above their own bars — about 490px — plus a 116px name in the activity
+feed that could not wrap. Fixed at the phone breakpoint with `min-width:0` on the
+grid items, on `.bar-col` and on `.ov-ev-nm`. Five of those seven labels only ever
+appear on hover, which a phone does not have, so on a phone **only today's is
+printed** (right-aligned, since today is the last column); the rest are read from
+the bars and from the week's total, which is already on the heading line. The feed
+now ellipses its middle column rather than running off-screen — which is what
+`.ov-ev-what` was always written to do.
+
+`.proj-grid` also got rule 5, the call `.kpis` already makes one breakpoint down:
+at two columns an odd number of projects or departments left the last card with a
+card-sized hole beside it.
+
+## Verified
+
+`npm run typecheck` and `npm run build` both clean. Walked at **375×812** in
+Chromium as `?demo=1&as=hr` and `?demo=1&as=owner`: Dashboard, Employees,
+Attendance (day and leave), Departments, Joining, Salary, Projects (cards and
+list), a project's Overview / Leads / Sales / Team tracking / Sales dashboard, the
+team roster and a member's dashboard. `wrap.scrollWidth === wrap.clientWidth ===
+375` with **zero** elements wider than 360px on the pages that were overflowing.
+Re-checked at **1280px**: Attendance, Salary, Leads and a member's dashboard all
+keep their toolbars flush right on the heading line, and the resizable columns are
+untouched.
+
+## Still not done
+
+- **Terms & Conditions** was not swept. Its `<h1>` wraps to two lines at 375px and
+  "Download the PDF" cannot join it, so there is no row to win; the comparison
+  paragraph under it carries a real number ("3 of 10 clauses do not match") and is
+  data, not description.
+- **One person's record**, opened from Employees, still spends a row on a
+  `.page-head` holding nothing but "← Employees" while `.prof-actions` sits on its
+  own line below. Moving those together is a restructure of `.prof-head`, not a
+  one-line fix, and was left rather than rushed.
+- **That record's Leave tab** keeps the grid's own Cards/List switch: its heading
+  already carries a month stepper and "Log leave", and a third control overflows
+  375px.
+- **`.team-grid`** is `repeat(auto-fill, minmax(280px,1fr))`, so the column count
+  is width-dependent and no `:last-child:nth-child(odd)` rule can be correct at
+  every width. Rule 5 is unenforced there. Switching it to `.proj-grid`'s explicit
+  3/2/1 ladder would fix it and would change the roster's look on a desktop — worth
+  asking before doing.

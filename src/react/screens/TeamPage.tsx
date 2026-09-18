@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { DataGrid, type GridCol } from '@/components/DataGrid'
+import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Rail } from '@/components/Rail'
 import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { AccountControls } from '@/components/AccountControls'
@@ -87,6 +87,7 @@ function MemberRoster({ ws, onOpen }: { ws: Workspace; onOpen: (id: string) => v
  *  this is that same shape read off ws.leads globally for one member, plus a
  *  per-project breakdown so "every project" is an actual answer, not a claim. */
 function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member; onBack: () => void }) {
+  const [phoneView, setPhoneView] = usePhoneView('member-projects')
   const mine = useMemo(() => ws.leads.filter((l) => l.ownerId === member.id), [ws.leads, member])
   const cv = useMemo(() => mine.filter(isConverted), [mine])
   const since = (l: Lead) => daysSince(l.convertedAt ?? l.createdAt)
@@ -126,12 +127,14 @@ function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member
 
   return (
     <>
+      {/* THE LAYOUT LAW, rule 1. The wrapper round the title made the name and
+          the department two rows inside a flex row that was already going to
+          hold all three on one line. "every project, not just one" went with
+          it — the grid below is headed "By project" and says so itself. */}
       <div className="page-head">
         <button className="btn btn--ghost btn--sm" onClick={onBack}>← Team</button>
-        <div>
-          <h1>{member.name}</h1>
-          <div className="sub">{ws.departmentName(member.departmentId) ?? 'No department'} · every project, not just one</div>
-        </div>
+        <h1>{member.name}</h1>
+        <div className="sub">{ws.departmentName(member.departmentId) ?? 'No department'}</div>
       </div>
 
       <div className="kpis">
@@ -154,12 +157,14 @@ function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member
       <div className="section">
         <div className="section-head">
           <h3>By project</h3>
-          <div className="sub">Every project this person has ever been assigned a lead in</div>
+          <div className="section-tools section-tools--tight">
+            <PhoneViewPick view={phoneView} onPick={setPhoneView} />
+          </div>
         </div>
         {projectRows.length === 0
           ? <p style={{ color: 'var(--ink-3)' }}>Not assigned to anything yet.</p>
           : (
-            <DataGrid cols={cols} rows={projectRows} storageKey="member-projects"
+            <DataGrid cols={cols} rows={projectRows} storageKey="member-projects" phoneView={phoneView}
                       foot={<div className="grid-foot"><span>{projectRows.length} {projectRows.length === 1 ? 'project' : 'projects'}</span></div>} />
           )}
       </div>

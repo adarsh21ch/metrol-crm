@@ -1,4 +1,4 @@
-import { DataGrid, type GridCol } from '@/components/DataGrid'
+import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Avatar } from '@/components/bits'
 import { count, daysSince, money } from '@/lib/format'
 import { isConnected, isConverted, type Lead, type Member } from '@/lib/types'
@@ -6,6 +6,7 @@ import { isConnected, isConverted, type Lead, type Member } from '@/lib/types'
 interface Row { id: string; name: string; initials: string; avatarUrl: string | null; assigned: number; connected: number; followups: number; converted: number; today: number; week: number; month: number; all: number }
 
 export function Team({ leads, members }: { leads: Lead[]; members: Member[] }) {
+  const [phoneView, setPhoneView] = usePhoneView('team')
   const sum = (rs: Lead[]) => rs.reduce((s, l) => s + l.amount, 0)
   const since = (l: Lead) => daysSince(l.convertedAt ?? l.createdAt)
 
@@ -44,12 +45,19 @@ export function Team({ leads, members }: { leads: Lead[]; members: Member[] }) {
     <div className="section is-on">
       <div className="section-head">
         <h3>Team tracking</h3>
-        <div className="sub">Ranked by all-time closed value</div>
+        <div className="section-tools section-tools--tight">
+          <PhoneViewPick view={phoneView} onPick={setPhoneView} />
+        </div>
       </div>
       <DataGrid
-        cols={cols} rows={rows} storageKey="team"
+        cols={cols} rows={rows} storageKey="team" phoneView={phoneView}
         empty="Nobody is on this project yet. Assign a lead to a salesperson and they will appear here."
-        foot={<div className="grid-foot"><span>{count(members.length, 'salesperson', 'salespeople')} on this project</span></div>}
+        foot={<div className="grid-foot">
+          <span>{count(members.length, 'salesperson', 'salespeople')} on this project</span>
+          {/* Not a description of the heading — it is how to read the order of
+              the rows, so it belongs with them, not above them. */}
+          <span className="grid-hint">Ranked by all-time closed value</span>
+        </div>}
       />
     </div>
   )

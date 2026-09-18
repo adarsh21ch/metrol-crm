@@ -41,10 +41,9 @@ export function Overview({
 
   return (
     <div className="section is-on">
-      <div className="section-head">
-        <h3>Overview</h3>
-        <div className="sub">Everything in this project, right now</div>
-      </div>
+      {/* THE LAYOUT LAW, rule 7 — "Everything in this project, right now" was
+          the title, said twice. */}
+      <div className="section-head"><h3>Overview</h3></div>
 
       <div className="kpis">
         <Kpi accent label="Total leads" value={leads.length}
@@ -71,7 +70,7 @@ export function Overview({
         </div>
 
         <div className="ov-card">
-          <div className="ov-head"><h4>Recent activity</h4><span className="sub">Across every lead here</span></div>
+          <div className="ov-head"><h4>Recent activity</h4></div>
           <div className="ov-feed">
             {recent.length === 0 && <div className="cell-dash">Nothing recorded yet.</div>}
             {recent.map((e) => (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { DataGrid, type GridCol } from '@/components/DataGrid'
+import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Chip, Kpi } from '@/components/bits'
+import { Tip } from '@/components/Tip'
 import { AttendanceSettingsModal } from '@/modals/AttendanceSettingsModal'
 import { AttendanceEditModal } from '@/modals/AttendanceEditModal'
 import { OfficeModal } from '@/modals/OfficeModal'
@@ -55,6 +56,9 @@ export function HrAttendance({
   const [editingOffice, setEditingOffice] = useState<OfficeLocation | null>(null)
   const [addingOffice, setAddingOffice] = useState(false)
   const [showBranches, setShowBranches] = useState(false)
+  /* THE LAYOUT LAW, rule 1 — the grid's own Cards/List switch draws a row of
+     its own above the table; this hosts it on the day's heading instead. */
+  const [dayView, setDayView] = usePhoneView('hr-attendance')
   const [saving, setSaving] = useState<string | null>(null)   // branch id whose poster is being written
   const officeName = (id: string | null) => att.offices.find((o) => o.id === id)?.name ?? '—'
 
@@ -194,18 +198,16 @@ export function HrAttendance({
 
   return (
     <>
+      {/* THE LAYOUT LAW, rules 1 and 7. The sub only said the title again, and
+          six controls were sharing the title's line under flex-wrap:nowrap —
+          on a 375px phone they ran straight off the edge. What is left here is
+          what is page-level: the two that configure this screen (and whose
+          panel opens directly below them) and the Day/Leave switch. The date,
+          the search and the branch filter moved onto the heading of the table
+          they actually filter. */}
       <div className="page-head">
         <h1>Attendance</h1>
-        <div className="sub">Who is in, who is late, and who has not arrived. One day at a time.</div>
         <div className="section-tools">
-          <input className="input" type="date" value={date} max={officeToday(tz)} onChange={(e) => setDate(e.target.value)} />
-          <input className="input search" placeholder="Search name or ID" value={q} onChange={(e) => setQ(e.target.value)} />
-          {att.offices.length > 1 && (
-            <select className="input" value={branch} onChange={(e) => setBranch(e.target.value)}>
-              <option value="">All branches</option>
-              {att.offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          )}
           <button className="btn btn--sm" onClick={() => setShowBranches((v) => !v)}>
             {showBranches ? 'Hide branches' : 'Branches'}
           </button>
@@ -228,7 +230,7 @@ export function HrAttendance({
         <div className="section">
           <div className="section-head">
             <h3>Branches</h3>
-            <div className="section-tools">
+            <div className="section-tools section-tools--tight">
               <button className="btn btn--sm btn--primary" onClick={() => setAddingOffice(true)}>Add branch</button>
             </div>
           </div>
@@ -257,10 +259,10 @@ export function HrAttendance({
               </div>
             ))}
           </div>
-          <p className="punch-note">
+          <Tip tipKey="hr-branches">
             Each branch has its own location, its own allowed distance and its own printed QR code.
             Adding a third one later changes nothing else.
-          </p>
+          </Tip>
         </div>
       )}
 
@@ -277,7 +279,7 @@ export function HrAttendance({
           <div className="section-head">
             <h3>On leave {date === officeToday(tz) ? 'today' : 'this day'}</h3>
             {onOpenLeave && (
-              <div className="section-tools">
+              <div className="section-tools section-tools--tight">
                 <button className="btn btn--sm" onClick={onOpenLeave}>Open Leave →</button>
               </div>
             )}
@@ -301,18 +303,39 @@ export function HrAttendance({
       {att.error && <div className="auth-err" style={{ marginBottom: 14 }}>{att.error}</div>}
 
       <div className="section">
+        {/* THE LAYOUT LAW, rule 3 — everything that picks or filters this day
+            is on this day's own heading line. The settings it was printing
+            instead are counts, so rule 6 sends them to the foot. */}
         <div className="section-head">
           <h3>{date === officeToday(tz) ? 'Today' : date}</h3>
-          <div className="section-tools" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-            {count(att.offices.filter((o) => o.isActive).length, 'branch')} · full day {fmtDuration(settings?.requiredMinutes ?? 540)} · {settings?.graceMinutes ?? 7} min relaxation
+          <div className="section-tools section-tools--tight">
+            <PhoneViewPick view={dayView} onPick={setDayView} />
+          </div>
+          {/* Day, then branch, then search within them — and in that order the
+              first two pair up on one wrapped row at 375px, where date-then-
+              search-then-branch spent three. */}
+          <div className="section-tools">
+            <input className="input" type="date" value={date} max={officeToday(tz)} onChange={(e) => setDate(e.target.value)} />
+            {att.offices.length > 1 && (
+              <select className="input" value={branch} onChange={(e) => setBranch(e.target.value)}>
+                <option value="">All branches</option>
+                {att.offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            )}
+            <input className="input search" placeholder="Search name or ID" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </div>
         <DataGrid
           cols={cols}
           rows={dayRows}
-          storageKey="hr-attendance"
+          storageKey="hr-attendance" phoneView={dayView}
           empty="Nobody in the directory yet."
-          foot={<div className="grid-foot"><span>{count(dayRows.length, 'employee')}</span></div>}
+          foot={<div className="grid-foot">
+            <span>{count(dayRows.length, 'employee')}</span>
+            <span className="grid-hint">
+              {count(att.offices.filter((o) => o.isActive).length, 'branch')} · full day {fmtDuration(settings?.requiredMinutes ?? 540)} · {settings?.graceMinutes ?? 7} min relaxation
+            </span>
+          </div>}
         />
       </div>
 
