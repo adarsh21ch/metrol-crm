@@ -862,7 +862,6 @@ kbd{
 .page-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
 .page-head h1{font-size:23px}
 .page-head .sub{font-size:13px;color:var(--ink-3)}
-.refresh-btn{margin-left:auto;display:inline-flex;align-items:center;gap:6px}
 .spin{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .proj-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -968,6 +967,11 @@ table.grid tbody tr.row-link{cursor:pointer}
 .banner .t{font-size:13px;font-weight:600;color:var(--accent-ink)}
 .banner .d{font-size:12.5px;color:var(--ink-2)}
 .banner .btn{margin-left:auto}
+/* Tip closes with an .icon-btn, not a .btn, and the rule above only ever
+   knew about the latter — without this the ✕ sits glued to the text. */
+.banner .icon-btn{margin-left:auto;flex:none}
+/* A tip has no bold title line, so the copy carries the box on its own. */
+.banner--tip .d{color:var(--accent-ink)}
 
 /* ------------------------------------------------------------ leads board */
 .board{
@@ -1305,8 +1309,18 @@ table.hist .what{font-weight:500}
   padding:16px;box-shadow:var(--shadow-md);max-width:420px;
 }
 .punch-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.punch-date{font-family:var(--display);font-weight:700;font-size:15px;color:var(--ink)}
-.punch-office{font-size:12px;color:var(--ink-3);margin-top:2px}
+/* Date and branch on one line, the day's status chip at the far end of it.
+   min-width:0 so the truncation below can actually happen — a grid/flex item
+   refuses to shrink past its content without it. */
+.pb-when{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.punch-date{
+  font-family:var(--display);font-weight:700;font-size:15px;color:var(--ink);
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* The branch and shift ride along on the date's line, quieter than it: the
+   same fact every day, worth showing, not worth shouting. */
+.punch-office{font-size:12px;color:var(--ink-3);font-family:var(--sans);font-weight:500}
+.pb-status{flex:none}
 .punch-clock{text-align:center;padding:18px 0 14px}
 .punch-big{font-family:var(--display);font-weight:800;font-size:40px;line-height:1;letter-spacing:-.02em;color:var(--ink)}
 .punch-cap{font-size:12px;color:var(--ink-3);margin-top:6px}
@@ -1615,6 +1629,9 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .emp-id{display:flex;flex-direction:column;gap:3px;min-width:0}
 .emp-id h2{font-family:var(--display);font-size:19px;font-weight:800;margin:0;line-height:1.2}
 .emp-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink-2)}
+/* The separator belongs TO the department, not between two items a wrap can
+   pull apart — "· Sales" starting its own line was the old markup's doing. */
+.emp-dept::before{content:'· ';color:var(--ink-3)}
 .emp-code{
   font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);
   font-size:12px;font-weight:600;letter-spacing:.02em;
@@ -1629,6 +1646,27 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .range-bar .field{gap:4px}
 .range-bar .input{height:34px}
 .range-quick{display:flex;gap:6px;flex-wrap:wrap}
+/* One dropdown where three buttons and two always-open date fields were. It
+   sizes to its longest option rather than stretching across the head. */
+.range-pick{width:auto;min-width:148px}
+
+/* Sign out, at the foot of Profile. The gap above it is the point: it is the
+   end of the page, not the next thing in a list. */
+.prof-signout{margin-top:22px;padding-top:4px}
+/* One named setting per row: label and description on the left, the control
+   on the right, wrapping under it when the phone runs out of width. */
+.prof-set{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:12px 14px;margin-bottom:12px;
+}
+.prof-set .t{font-size:13.5px;font-weight:600;color:var(--ink)}
+.prof-set .d{font-size:12px;color:var(--ink-3);margin-top:2px}
+.prof-set .seg{flex:none}
+/* .btn--ghost is transparent border and all — fine for an icon beside other
+   buttons, invisible as the only way off this screen. The border brings the
+   affordance back without making sign-out the loudest thing on the page. */
+.prof-signout .btn{border-color:var(--line);height:44px}
 
 /* The month strip — ONE row, filled squares, edge to edge. Every cell grows
    to share the full width of the card (flex:1, no gaps left over on the
@@ -1693,6 +1731,9 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .cal--future{color:var(--ink-3);opacity:.35}
 
 .cal-key{display:flex;gap:11px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-bottom:14px}
+/* In the modal there is room to read it as a list rather than a squeezed row. */
+.cal-key--modal{flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2);margin:0}
+.cal-key--modal i{width:12px;height:12px;border-radius:4px}
 .cal-key span{display:inline-flex;align-items:center;gap:5px}
 .cal-key i{width:9px;height:9px;border-radius:3px;display:inline-block}
 .cal-key-holiday{
@@ -1701,7 +1742,13 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 }
 
 @media (max-width:560px){
-  .cal-cell{min-width:27px;font-size:11px}
+  /* Two rows of roughly half a month each, instead of one row you have to
+     swipe. Nobody should have to scroll sideways to see whether they made it
+     in on the 3rd. min-width goes with it: fixed columns are what let the
+     cells shrink to fit rather than overflow. Desktop keeps the single strip
+     — Adarsh confirmed that one reads fine as it is. */
+  .cal-strip{display:grid;grid-template-columns:repeat(16,1fr);overflow-x:visible}
+  .cal-cell{min-width:0;font-size:11px}
   .cal-cell .dw{font-size:7px}
 }
 
@@ -1763,7 +1810,17 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
    ==================================================================== */
 
 /* The identity block is a page header now, not a card between two things. */
-.emp-head--slim{ padding:10px 14px; gap:12px; margin-bottom:12px; align-items:center }
+/* A grid, not a wrapping flex row: photo | name block | button. Flex-wrap
+   pushed the button onto a line of its own the moment the name, meta and
+   email stacked tall enough — which on a phone is always. Three columns
+   cannot wrap, so the button stays where it belongs. */
+.emp-head--slim{
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  padding:10px 14px; gap:12px; margin-bottom:12px; align-items:center;
+}
+/* Top-right, not middle-right — it belongs to the name it sits beside, and
+   on a phone the meta under that name runs to two lines. */
+.emp-head--slim > .btn, .emp-head--slim > .icon-btn{ align-self:start }
 .emp-head--slim .emp-photo{ width:46px; height:46px }
 .emp-head--slim h2{ font-size:17px; margin:0 }
 .emp-head--slim .emp-meta{ font-size:12px; margin-top:2px }
@@ -1795,17 +1852,22 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   font-family:var(--display); font-weight:700; font-size:13px; line-height:1;
 }
 .pb-info:hover{ color:var(--ink); border-color:var(--ink-3) }
+/* Smaller beside a heading than beside the punch buttons — it is a footnote
+   on the title there, not one of three controls in a row. */
+.sh-title .pb-info{ width:22px; height:22px; font-size:11.5px }
 
 @media (max-width:860px){
-  /* A phone gets the same information in the same order, stacked — the clock
-     beside its caption rather than centred over it, because a phone is tall
-     and narrow and centring wastes the width it does have. */
+  /* A phone gets the same information in the same order, stacked. The clock
+     centres here rather than hugging the left edge — Adarsh asked for the
+     typography in the middle, and once the card is one column wide the big
+     hour counter is the thing the card is about, not a label in a row. */
   .punch-bar{ grid-template-columns:1fr; gap:10px; padding:12px 13px }
-  .pb-clock{ text-align:left; display:flex; align-items:baseline; gap:9px }
+  .pb-clock{ text-align:center; display:flex; align-items:baseline; gap:9px; justify-content:center }
+  .pb-times{ justify-content:center }
   .punch-bar .punch-big{ font-size:30px }
   .pb-actions{ justify-content:stretch }
   .pb-actions .btn{ flex:1; height:44px }
-  .pb-actions .chip{ order:-1 }
+  /* The chip this ordered is on the .pb-when line now, not in .pb-actions. */
 }
 
 /* ------------------------------------------------- the month as a real grid */
@@ -1819,6 +1881,9 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 
 /* ------------------------------ controls on the heading line, not under it */
 .section-head--wrap{ flex-wrap:wrap; gap:10px 14px; align-items:center }
+/* The heading and any ⓘ that explains it travel together. Below 600px this
+   row turns into a column, and two siblings there would be two rows. */
+.sh-title{ display:flex; align-items:center; gap:9px }
 .section-head--wrap .range-bar{ margin:0; flex:1; justify-content:flex-end }
 /* .section-head--wrap counted on the range-bar staying one row so
    align-items:center would land the h3 sensibly beside it — on a phone the
@@ -1829,6 +1894,10 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 @media (max-width:600px){
   .section-head--wrap{ flex-direction:column; align-items:flex-start }
   .section-head--wrap .range-bar{ flex:none; justify-content:flex-start; width:100% }
+  /* Custom's two dates share one row under a full-width dropdown, rather than
+     From riding beside it and To dropping onto a third line by itself. */
+  .range-bar .range-pick{ width:100% }
+  .range-bar .field{ flex:1 1 calc(50% - 4px); min-width:0 }
 }
 
 /* The profile's sub-tabs and its month stepper share one line. */

@@ -243,14 +243,22 @@ export function PunchCard({
   return (
     <>
       <div className="punch-bar">
+        {/* Date and branch on ONE line — "it is not necessarily [changing]
+            each and everything in daily basis", Adarsh's own reasoning for
+            why the branch/shift didn't need a row to itself. The status chip
+            sits at the other end of this same line (top-right on a phone,
+            since this is the first row once the card stacks): Adarsh's "top
+            right corner" for it, moved up from the button row below, where
+            it read as one more action rather than the day's status. */}
         <div className="pb-when">
           <div className="punch-date">
             {new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
+            <span className="punch-office">
+              {' · '}{dayOffice?.name ?? myOffice?.name ?? 'No branch assigned'}
+              {shiftStart && <> · shift {fmtShift(shiftStart)}</>}
+            </span>
           </div>
-          <div className="punch-office">
-            {dayOffice?.name ?? myOffice?.name ?? 'No branch assigned'}
-            {shiftStart && <> · shift {fmtShift(shiftStart)}</>}
-          </div>
+          {row && <span className={'chip pb-status ' + statusChip(row.status).cls}>{statusChip(row.status).label}</span>}
         </div>
 
         <div className="pb-clock">
@@ -271,7 +279,8 @@ export function PunchCard({
         </div>
 
         <div className="pb-actions">
-          {row && <span className={'chip ' + statusChip(row.status).cls}>{statusChip(row.status).label}</span>}
+          {/* The status chip lives on the pb-when line now, not here — same
+             value, shown once. */}
           {noOffice ? (
             <span className="punch-note" style={{ margin: 0 }}>No office set up yet.</span>
           ) : !row?.punchInAt ? (

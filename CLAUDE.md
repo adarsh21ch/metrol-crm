@@ -5340,72 +5340,103 @@ from the deps. Left alone because it was not this round's ask.
 
 ---
 
-# PENDING — mobile UI/UX density pass, requested 2026-09-18 (not started)
+# The mobile density pass, shipped (2026-09-18)
 
-Adarsh's own words (voice-dictated, cleaned up below — check against the
-original if any line reads oddly). Scope is the **Member app** first
-(Profile, Attendance, My Sales, Overview), then the **same patterns**
-wherever they repeat for HR, other departments, and the owner's own screens.
-Nothing in this section is built yet — this is the brief, not a log of work
-done.
+The brief that sat in this file as PENDING is built. Adarsh's complaint was
+one thing said about eight places: a phone screen is 812px tall and this app
+was spending them on rows that carry nothing — a permanent instruction line,
+a labelled Refresh button under every title, a legend for a key you learn
+once, a sun icon repeated on every tab, three range buttons for a question
+that is "this month" nine times in ten.
 
-## Profile tab
-- Give it a real header card at the top, same shape as the identity card
-  already on Attendance: photo/DP on the left, name + ID number + role/
-  department beside it.
-- Section pills (Leave / Salary / Onboarding / Terms) stay below it, as today.
-- **Sign out moves INTO this tab**, as the last item after scrolling — not a
-  top-bar icon anymore.
-- Top bar: remove the sign-out icon. Adarsh also said "remove the logo at
-  the top right" — the brand mark is on the top-LEFT today, so this is most
-  likely the avatar/profile shortcut on the top-right (redundant once Profile
-  is its own bottom-nav tab), not literally the brand logo. **Confirm which he
-  means before removing anything** — don't guess on this one line.
+## The general rules this round establishes
 
-## Attendance tab
-- Move **Refresh** into the top-right of the section's own header row —
-  today it sits on its own line below "Attendance", wasting a row.
-- The line **"Punch in when you reach the office, punch out when you
-  leave"** stops being permanent copy. Replace it with a one-time dismissible
-  notice (an ✕ to close it, and it never shows again once dismissed for that
-  user). Same treatment for any other always-on instructional/disclaimer text
-  found elsewhere in the app — this is meant as a general rule, not just this
-  one line.
-- **Request leave**: move it beside the identity card (horizontal), not
-  full-width below it, so the card block is denser.
-- **"Friday, 18 Sept" and "Noida Sector 6 · shift 10:30"**: one line, not
-  two — branch and shift don't change day to day, so they don't need their
-  own visual row.
-- Check-in/check-out block: centre the typography properly (it currently
-  reads a little uneven around the big hour counter).
-- The **"In office"** pill: right-aligned (top-right of that card), green
-  when active.
-- Date range controls: the three separate buttons (This month / Last month /
-  Last 30 days) plus the always-visible From/To fields collapse into **one
-  dropdown**. Default: "This month". From/To only appear when "Custom" is
-  picked from that dropdown.
-- **Mobile only**: the day-strip calendar wraps to two rows (roughly half
-  the month each) instead of one horizontally-scrolling row — nobody should
-  have to swipe sideways to see the whole month on a phone. Desktop keeps the
-  single strip.
-- The legend row (Present / Late-half day / Leave / Absent dots) stops being
-  permanently visible — replace with a small **(i)** icon that reveals it on
-  tap.
-- Attendance table column order becomes: **Date → Check-in → Check-out →
-  Remark → Hours** (Hours moves from 4th to last, after Remark, since reading
-  check-in/check-out then immediately the hour total was reading confusingly
-  next to Remark in between).
+**A line you only need once is not permanent copy.** `useOneTimeTip` (a
+localStorage flag, so dismissed stays dismissed in tomorrow's tab, not just
+this session) plus `Tip` — a dismissible `.banner` with an ✕. Attendance's
+"Punch in when you reach the office" is the first user. PunchCard had already
+solved this for its own three paragraphs with a ⓘ; this generalises it so any
+screen can do the same. The choice of localStorage over a DB column was the
+open question in the brief: a per-device flag is the simplest thing that never
+shows it again, and the cost of being wrong is one dismissed notice reappearing
+on a new phone.
 
-## Everywhere else
-- Same pass — tighter vertical rhythm, no redundant always-on text, top bar
-  kept minimal — applies to **My Sales**, **Overview**, and the equivalent HR/
-  other-department/owner screens wherever the same issues repeat. Not a
-  literal per-screen spec; use judgement screen by screen the way the
-  Attendance spec above demonstrates the intent.
+**An empty string still costs a row.** `<div className="sub">` rendered
+whether or not it had text. The sub is resolved into one `headSub` value now
+and the div only renders when that value is non-empty — which is what actually
+banks the space freed by emptying Attendance's sub.
 
-## Not yet decided
-- The exact wording/one-time-notice mechanism (localStorage key vs. a DB
-  column, given other users on other devices) — pick the simplest thing that
-  actually never shows the notice again for that person.
-- The Profile top-bar line above ("logo" vs. avatar) — ask Adarsh before
-  removing either.
+**A control that belongs on every tab belongs in the top bar, not under
+every title.** Refresh was a labelled button inside `.page-head`, costing a
+row on all six member tabs. It is an icon beside the notification bell now.
+The theme toggle went the other way for the same reason — it was an icon on
+every screen for a setting you change roughly never, so it is a named
+Light/Dark/Auto control on the Profile tab (Auto keeps `useTheme`'s existing
+"follow the device" third state rather than dropping it on the way).
+
+## What changed, screen by screen
+
+**Member top bar** — sign-out icon, avatar chip and theme icon all gone.
+Refresh icon in. Adarsh confirmed the "logo at the top right" he wanted
+removed was the avatar chip, not the brand mark: Profile is its own bottom-nav
+tab now, so the chip was a second door to the same room.
+
+**Profile** — opens with the same identity card Attendance has (photo, name,
+code, designation, department) with a pencil that opens the existing
+ProfileModal. Guarded for somebody HR has not added to the directory yet:
+their name and email, not two "No ID" placeholders. Appearance and Sign out
+sit together at the foot of the page. The page sub no longer repeats the code
+and designation the card now prints properly.
+
+**Attendance** — the instruction line is a Tip. Date/branch/shift is one line
+with the status chip at its right end, green when you are in office. Three
+range buttons and two always-open date fields collapsed into one dropdown,
+with From/To revealed only on Custom (and Custom moves no dates — it reveals
+the range you were already looking at). The legend is behind a ⓘ on the
+heading's own line. Table columns are Date → In → Out → Remark → Hours; the
+total reads as the answer that follows from the three facts before it rather
+than sitting between the times and their explanation.
+
+**Phone-specific CSS** — the month strip is a 16-column grid below 560px, two
+rows, no sideways swipe (desktop keeps its single scrolling strip, which
+Adarsh confirmed is fine). The punch clock centres instead of hugging the
+left edge, overriding the earlier call in this file. `.emp-head--slim` is a
+three-column grid rather than a wrapping flex row, so Request leave and the
+Profile pencil can no longer be pushed onto a line of their own.
+
+## Two things worth knowing
+
+**Sign out sits after the Leave block, not after Terms.** Profile's five
+inner tabs are not contiguous in `Member.tsx` — Leave renders *after* the
+whole Attendance section. Anything placed with the other profile blocks would
+land mid-page on the tab most people open. It is gated on `shownSec ===
+'profile'` alone, so it is the end of Profile whichever inner tab is open.
+`.btn--ghost` is a transparent border and all, which is fine for an icon among
+other buttons and invisible as the only way off a screen — `.prof-signout .btn`
+puts the border back.
+
+**`.section-head--wrap` turns into a column below 600px.** A sibling added to
+that row gets its own line, which is what happened to the ⓘ on first attempt.
+Heading and ⓘ are wrapped in `.sh-title` so the column sees one item. Worth
+remembering before adding anything else to a section head.
+
+## Verified
+
+`npm run typecheck` and `npm run build` both clean. Checked at 375×812 and on
+desktop: theme switch from Profile flips the app, the legend modal opens,
+Custom reveals the date fields with the range preserved, the month strip has
+`scrollWidth === clientWidth` (no horizontal scroll), and the Owner screen is
+untouched — it still has its theme toggle, sign-out and user chip, because
+every one of these is an opt-in prop on `AccountControls` that only Member
+passes.
+
+## Still open
+
+- The "same pass everywhere else" half of the brief — My leads, Overview, and
+  the HR/owner screens — is not done. This round did Profile, Attendance, and
+  the parts of My sales/Overview that fell out of the shared page-head and top
+  bar. The per-screen judgement call the brief asks for is still to make.
+- On Attendance the identity card's department wraps to its own line on a
+  narrow phone, because "Request leave" is a wide button next to a 46px photo.
+  Legible, nothing hidden, but not tidy. Profile's card does not have this —
+  its pencil is narrow enough that the meta fits one line.

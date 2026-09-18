@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isDemo } from '@/data/demo'
-import { supabase } from '@/lib/supabase'
+import { supabase, signOut } from '@/lib/supabase'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
 import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { AccountControls } from '@/components/AccountControls'
 import { DensitySlider } from '@/components/DensitySlider'
+import { Tip } from '@/components/Tip'
+import { Modal } from '@/components/Modal'
 import { Avatar, Chip, EditChip, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
@@ -24,12 +26,15 @@ import { useAttendance } from '@/data/useAttendance'
 import { PunchCard } from '@/components/PunchCard'
 import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
+import { useTheme } from '@/lib/useTheme'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
 import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod } from '@/lib/hr'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
 import type { Workspace } from '@/data/useWorkspace'
+
+type AttRange = 'this' | 'last' | 'd30' | 'custom'
 
 type LeadsView = 'list' | 'board'
 const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
@@ -44,7 +49,10 @@ const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
 type MemberSec = 'overview' | 'attendance' | 'leads' | 'sales' | 'team' | 'profile'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Where your leads stand right now' },
-  attendance: { title: 'Attendance', sub: 'Punch in when you reach the office, punch out when you leave' },
+  // The line that used to live here is a one-time <Tip> inside the section
+  // now — see the Attendance block below. Empty, so the page head drops the
+  // whole row rather than printing a blank one.
+  attendance: { title: 'Attendance', sub: '' },
   leads: { title: 'My leads', sub: 'Assigned to you by the owner' },
   sales: { title: 'My sales', sub: '' },
   team: { title: 'Manage team', sub: 'The people in your department, and how they are doing' },
@@ -200,6 +208,27 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // day. Days after today render blank (buildCalendar's own 'future' kind,
   // already excluded from the table beneath it), so nothing here is guessed.
   const [attTo, setAttTo] = useState(() => monthEnd(officeToday()))
+  /* Three buttons and two date fields, always on screen, to answer a question
+     that is "this month" almost every time. One dropdown, and the two fields
+     only when somebody actually asks for Custom. */
+  const [attRange, setAttRange] = useState<AttRange>('this')
+  const pickRange = (r: AttRange) => {
+    setAttRange(r)
+    const t = officeToday(tz)
+    if (r === 'this') { setAttFrom(monthStart(t)); setAttTo(monthEnd(t)) }
+    else if (r === 'last') {
+      const prev = addDays(monthStart(t), -1)
+      setAttFrom(monthStart(prev)); setAttTo(monthEnd(prev))
+    } else if (r === 'd30') { setAttFrom(addDays(t, -29)); setAttTo(t) }
+    // 'custom' moves nothing — it only reveals the two fields, so the range
+    // you were already looking at is the one you start editing from.
+  }
+  // What the calendar's colours mean, behind a ⓘ instead of five labels
+  // living under the strip forever.
+  const [keyOpen, setKeyOpen] = useState(false)
+  // Light/dark is a setting on the Profile tab now, not a sun icon sitting on
+  // top of every screen in the app.
+  const { theme, setTheme } = useTheme()
 
   /* Every date in the range, told what it is — a punched day, an approved
      leave, a holiday, a Sunday, or an absence. The grid and the table below
@@ -412,6 +441,16 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     },
   ]
 
+  /* One string, resolved once, because an empty <div className="sub"> is not
+     nothing — it is a line of the page. Attendance's sub is '' now (its copy
+     moved into a dismissible Tip), and Profile's used to repeat the employee
+     code and designation that the new identity card below prints properly,
+     so both tabs get that row back. */
+  const headSub =
+    sec === 'sales' ? `${count(cv.length, 'deal')} closed · ${money(sum(cv))} total`
+      : sec === 'leads' ? `${count(mine.length, 'lead')} across ${count(projects, 'project')}`
+        : HEAD[sec].sub
+
   return (
     <div className="screen screen--app is-active">
       <div className="topbar">
@@ -420,7 +459,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           <div className="brand-name">Metrol Media</div>
         </div>
         <div className="topbar-right">
-          <AccountControls ws={ws} variant="topbar" alwaysShow extra={<DensitySlider />}
+          {/* Sign-out is the last thing on the Profile tab now, and the
+              avatar chip was a second door to the same profile that tab
+              already is — "so their space becomes clean". */}
+          <AccountControls ws={ws} variant="topbar" alwaysShow hideSignOut hideUserChip hideTheme
+                           onRefresh={() => { if (!ws.refreshing) void ws.refresh() }}
+                           refreshing={ws.refreshing}
+                           extra={<DensitySlider />}
                            roleLabel={ws.departmentName(me?.departmentId ?? null) ?? 'Sales'}
                            onOpenProfile={() => setProfileOpen(true)} />
         </div>
@@ -431,32 +476,19 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           <div className="wrap">
             <div className="page-head">
               <h1>{HEAD[sec].title}</h1>
-              <div className="sub">
-                {sec === 'sales' ? `${count(cv.length, 'deal')} closed · ${money(sum(cv))} total`
-                  : sec === 'leads' ? `${count(mine.length, 'lead')} across ${count(projects, 'project')}`
-                    : sec === 'profile' && myEmployee
-                      ? `${myEmployee.employeeCode || 'No ID'} · ${myEmployee.designation || 'No designation'}`
-                      : HEAD[sec].sub}
-              </div>
-              <div className="section-tools">
-                {sec === 'leads' && (
+              {headSub && <div className="sub">{headSub}</div>}
+              {/* Refresh used to sit here, labelled, on a row of its own under
+                  every single page title. It is an icon in the top bar now —
+                  same button, on every tab, costing no vertical space. So this
+                  row only exists on the one tab that has a real control. */}
+              {sec === 'leads' && (
+                <div className="section-tools">
                   <div className="seg">
                     <button className={leadsView === 'board' ? 'is-on' : ''} onClick={() => pickView('board')}>Board</button>
                     <button className={leadsView === 'list' ? 'is-on' : ''} onClick={() => pickView('list')}>List</button>
                   </div>
-                )}
-                {/* Live sync should mean nobody needs this — it exists for
-                    anyone who would rather press something than trust it, so
-                    it stays on every tab rather than living on one of them. */}
-                <button className="btn btn--ghost btn--sm refresh-btn" disabled={ws.refreshing}
-                        onClick={() => void ws.refresh()}>
-                  <svg className={ws.refreshing ? 'spin' : ''} width="14" height="14" viewBox="0 0 24 24"
-                       fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" />
-                  </svg>
-                  {ws.refreshing ? 'Refreshing…' : 'Refresh'}
-                </button>
-              </div>
+                </div>
+              )}
             </div>
 
             <div className="tabs tabs--nav">
@@ -479,6 +511,41 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 Profile {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
               </button>
             </div>
+
+            {/* Profile opens with the same identity card Attendance does —
+                the passport photo the joining form collected, the name, the
+                ID and the designation. Its pencil opens the very profile
+                editor the top-right avatar chip used to, which is what made
+                that chip removable. */}
+            {shownSec === 'profile' && (
+              <div className="emp-head emp-head--slim">
+                {photoUrl
+                  ? <img className="emp-photo" src={photoUrl} alt="" />
+                  : <div className="emp-photo emp-photo--none">{initials(myEmployee?.fullName || me?.name || '?')}</div>}
+                <div className="emp-id">
+                  <h2>{myEmployee?.fullName || me?.name || '—'}</h2>
+                  {/* Somebody HR has not added to the directory yet has no
+                      code and no designation. Their email, not two "No ID"
+                      placeholders that read like a broken record. */}
+                  {myEmployee ? (
+                    <div className="emp-meta">
+                      <span className="emp-code">{myEmployee.employeeCode || 'No ID'}</span>
+                      <span>{myEmployee.designation || 'No designation'}</span>
+                      <span className="emp-dept">{ws.departmentName(myEmployee.departmentId) ?? 'No department'}</span>
+                    </div>
+                  ) : (
+                    <div className="emp-meta" style={{ color: 'var(--ink-3)' }}>{me?.email}</div>
+                  )}
+                </div>
+                <button className="icon-btn" title="Edit my profile" aria-label="Edit my profile"
+                        onClick={() => setProfileOpen(true)}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </button>
+              </div>
+            )}
 
             {/* The profile's own tabs. Not .tabs--nav: this strip is the way
                 around inside Profile, so unlike the section strip above it has
@@ -608,6 +675,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   </div>
                 ) : (
                   <>
+                    {/* The line that used to sit under the page title every
+                        single day. Once, with an ✕ — "did they need this text
+                        again after the first time? No, right?" */}
+                    <Tip tipKey="metrol-att-help">
+                      Punch in when you reach the office, punch out when you leave.
+                    </Tip>
+
                     {/* Identity first — it is the header of the page, not a
                         block stranded between the punch strip and the month.
                         The passport photo has existed in employee-documents
@@ -622,15 +696,14 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                         <div className="emp-meta">
                           <span className="emp-code">{myEmployee.employeeCode || 'No ID'}</span>
                           <span>{myEmployee.designation || 'No designation'}</span>
-                          <span>·</span>
-                          <span>{ws.departmentName(myEmployee.departmentId) ?? 'No department'}</span>
+                          <span className="emp-dept">{ws.departmentName(myEmployee.departmentId) ?? 'No department'}</span>
                         </div>
                         <div className="emp-meta" style={{ color: 'var(--ink-3)' }}>{myEmployee.workEmail || me?.email}</div>
                       </div>
                       {/* Asking for leave used to live only on Profile → Leave,
                           a tab away from the screen somebody actually opens
                           every day. It belongs beside the thing it's about. */}
-                      <button className="btn btn--sm btn--primary" style={{ marginLeft: 'auto' }} onClick={() => setRequestingLeave(true)}>
+                      <button className="btn btn--sm btn--primary" onClick={() => setRequestingLeave(true)}>
                         Request leave
                       </button>
                     </div>
@@ -645,30 +718,37 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           a whole band of white above the month is exactly the
                           space this screen was wasting. */}
                       <div className="section-head section-head--wrap">
-                        <h3>My attendance</h3>
+                        {/* Heading and ⓘ are one item on purpose: this row
+                            stacks into a column on a phone, so two siblings
+                            would be two rows. A legend nobody needs twice
+                            should not cost a row to hide either. */}
+                        <div className="sh-title">
+                          <h3>My attendance</h3>
+                          <button className="pb-info" onClick={() => setKeyOpen(true)}
+                                  aria-label="What the colours mean">i</button>
+                        </div>
                       <div className="range-bar">
-                        <div className="field">
-                          <label htmlFor="attFrom">From</label>
-                          <input className="input" id="attFrom" type="date" value={attFrom}
-                                 max={attTo} onChange={(e) => setAttFrom(e.target.value)} />
-                        </div>
-                        <div className="field">
-                          <label htmlFor="attTo">To</label>
-                          <input className="input" id="attTo" type="date" value={attTo}
-                                 min={attFrom} onChange={(e) => setAttTo(e.target.value)} />
-                        </div>
-                        <div className="range-quick">
-                          <button className="btn btn--sm" onClick={() => {
-                            const t = officeToday(tz); setAttFrom(monthStart(t)); setAttTo(monthEnd(t))
-                          }}>This month</button>
-                          <button className="btn btn--sm" onClick={() => {
-                            const prev = addDays(monthStart(officeToday(tz)), -1)
-                            setAttFrom(monthStart(prev)); setAttTo(monthEnd(prev))
-                          }}>Last month</button>
-                          <button className="btn btn--sm" onClick={() => {
-                            const t = officeToday(tz); setAttFrom(addDays(t, -29)); setAttTo(t)
-                          }}>Last 30 days</button>
-                        </div>
+                        <select className="input range-pick" aria-label="Date range"
+                                value={attRange} onChange={(e) => pickRange(e.target.value as AttRange)}>
+                          <option value="this">This month</option>
+                          <option value="last">Last month</option>
+                          <option value="d30">Last 30 days</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                        {attRange === 'custom' && (
+                          <>
+                            <div className="field">
+                              <label htmlFor="attFrom">From</label>
+                              <input className="input" id="attFrom" type="date" value={attFrom}
+                                     max={attTo} onChange={(e) => setAttFrom(e.target.value)} />
+                            </div>
+                            <div className="field">
+                              <label htmlFor="attTo">To</label>
+                              <input className="input" id="attTo" type="date" value={attTo}
+                                     min={attFrom} onChange={(e) => setAttTo(e.target.value)} />
+                            </div>
+                          </>
+                        )}
                       </div>
                       </div>
 
@@ -701,13 +781,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                               </div>
                             ))}
                           </div>
-                          <div className="cal-key">
-                            <span><i style={{ background: 'var(--cal-present)' }} />Present</span>
-                            <span><i style={{ background: 'var(--cal-late)' }} />Late / half day</span>
-                            <span><i style={{ background: 'var(--cal-leave)' }} />Leave</span>
-                            <span><i style={{ background: 'var(--cal-absent)' }} />Absent</span>
-                            <span><i className="cal-key-holiday" />Holiday or weekly off</span>
-                          </div>
                         </div>
                       )}
 
@@ -736,8 +809,14 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                               <th>Date</th>
                               <th><span className="lbl-long">Punch in</span><span className="lbl-short">In</span></th>
                               <th><span className="lbl-long">Punch out</span><span className="lbl-short">Out</span></th>
-                              <th><span className="lbl-long">Work duration</span><span className="lbl-short">Hours</span></th>
+                              {/* Remark before the total: in and out are two
+                                  times, the remark says what kind of day it
+                                  was, and the hours are the answer that
+                                  follows from all three. Reading a total
+                                  between the times and their explanation was
+                                  the thing that did not scan. */}
                               <th>Remark</th>
+                              <th><span className="lbl-long">Work duration</span><span className="lbl-short">Hours</span></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -748,13 +827,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                                   <DateCell iso={d.date} />
                                   <TimeCell iso={d.row?.punchInAt ?? null} tz={tz} />
                                   <TimeCell iso={d.row?.punchOutAt ?? null} tz={tz} />
-                                  <td className="num">{d.row?.workedMinutes ? fmtDuration(d.row.workedMinutes) : <span className="muted">—</span>}</td>
                                   <td className="rmk">
                                     <Chip cls={d.row ? statusChip(d.row.status).cls : d.kind === 'absent' ? 'chip--bad' : 'chip--mute'}>
                                       {DAY_KIND[d.kind].label}
                                     </Chip>
                                     {note && <span className="att-note">{note}</span>}
                                   </td>
+                                  <td className="num">{d.row?.workedMinutes ? fmtDuration(d.row.workedMinutes) : <span className="muted">—</span>}</td>
                                 </tr>
                               )
                             })}
@@ -880,6 +959,34 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   </>
                 )}
               </>
+            )}
+
+            {/* Sign out lives on Profile now, not as an icon in the top bar
+                — "the last item, after scrolling", on the one tab that is
+                about you. Gated on the section only, so it is the end of
+                Profile whichever inner tab is open. It sits here rather than
+                beside the other profile blocks because Leave renders after
+                Attendance in this file: anything higher would land in the
+                middle of the page on the Leave tab. */}
+            {shownSec === 'profile' && (
+              <div className="prof-signout">
+                {/* The sun icon that used to ride along on every screen, as a
+                    setting with a name on the one tab that is about you. Auto
+                    keeps the existing third state — follow the phone — rather
+                    than dropping it on the way. */}
+                <div className="prof-set">
+                  <div>
+                    <div className="t">Appearance</div>
+                    <div className="d">How the app looks on this device</div>
+                  </div>
+                  <div className="seg">
+                    <button className={theme === 'light' ? 'is-on' : ''} onClick={() => setTheme('light')}>Light</button>
+                    <button className={theme === 'dark' ? 'is-on' : ''} onClick={() => setTheme('dark')}>Dark</button>
+                    <button className={theme === 'system' ? 'is-on' : ''} onClick={() => setTheme('system')}>Auto</button>
+                  </div>
+                </div>
+                <button className="btn btn--block btn--ghost" onClick={() => void signOut()}>Sign out</button>
+              </div>
             )}
 
             {shownSec === 'team' && (
@@ -1015,6 +1122,20 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           { key: 'profile', label: 'Profile', icon: NAV_ICONS.profile, badge: myLeave.filter((r) => r.status === 'pending').length, onClick: () => setSec('profile') },
         ]}
       />
+
+      {keyOpen && (
+        <Modal title="What the colours mean" sub="The month strip above, explained"
+               onClose={() => setKeyOpen(false)}
+               foot={<button className="btn btn--primary" onClick={() => setKeyOpen(false)}>Got it</button>}>
+          <div className="cal-key cal-key--modal">
+            <span><i style={{ background: 'var(--cal-present)' }} />Present</span>
+            <span><i style={{ background: 'var(--cal-late)' }} />Late / half day</span>
+            <span><i style={{ background: 'var(--cal-leave)' }} />Leave</span>
+            <span><i style={{ background: 'var(--cal-absent)' }} />Absent</span>
+            <span><i className="cal-key-holiday" />Holiday or weekly off</span>
+          </div>
+        </Modal>
+      )}
 
       {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
 

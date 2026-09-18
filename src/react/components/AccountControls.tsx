@@ -27,7 +27,8 @@ const SIGN_OUT = (
  * exactly one is ever on screen and neither can drift from the other.
  */
 export function AccountControls({
-  ws, roleLabel, onOpenProfile, variant, extra, alwaysShow,
+  ws, roleLabel, onOpenProfile, variant, extra, alwaysShow, hideSignOut, hideUserChip,
+  hideTheme, onRefresh, refreshing,
 }: {
   ws: Workspace
   /** What to print under the name — "Owner", "HR", a department. Each screen
@@ -41,6 +42,25 @@ export function AccountControls({
   /** Screen-specific controls that belong beside the account block rather than
    *  in the page (the density slider on the employee's own app). */
   extra?: React.ReactNode
+  /** Member's own topbar drops both of these: sign-out moved into its Profile
+   *  tab as the last thing on the page, and the avatar/name chip here was a
+   *  second way to reach the exact same profile that tab now already is —
+   *  "remove the logout button and [the avatar] at the top right ... so
+   *  their space becomes clean." Owner and HR screens have no such tab (their
+   *  Profile is this chip, opening a modal), so neither prop is passed there
+   *  and nothing changes for them. */
+  hideSignOut?: boolean
+  hideUserChip?: boolean
+  /** Light/dark moved onto the member's Profile tab as a real setting with a
+   *  label, rather than a sun icon repeated on top of every single screen —
+   *  "instead of theme icon in every tab there should be a refresh button".
+   *  Owner and HR have no Profile tab to put it on, so they keep the icon and
+   *  neither of these props is passed there. */
+  hideTheme?: boolean
+  /** Refresh as an icon up here, where it costs nothing, instead of a labelled
+   *  button on a row of its own under every page title. */
+  onRefresh?: () => void
+  refreshing?: boolean
 }) {
   const name = ws.me?.name ?? '—'
   const isPrivileged = ws.me?.role === 'owner' || ws.departmentName(ws.me?.departmentId ?? null) === HR_DEPARTMENT
@@ -52,18 +72,28 @@ export function AccountControls({
     <div className={variant === 'rail' ? 'rail-foot'
         : 'topbar-account' + (alwaysShow ? ' topbar-account--always' : '')}>
       <div className="acct-row">
-        <ThemeToggle />
+        {onRefresh && (
+          <IconBtn title={refreshing ? 'Refreshing…' : 'Refresh'} onClick={onRefresh}>
+            <svg className={refreshing ? 'spin' : ''} width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" />
+            </svg>
+          </IconBtn>
+        )}
+        {!hideTheme && <ThemeToggle />}
         <NotificationBell ws={ws} n={n} isPrivileged={isPrivileged} />
         {extra}
-        <IconBtn title="Sign out" onClick={() => void signOut()}>{SIGN_OUT}</IconBtn>
+        {!hideSignOut && <IconBtn title="Sign out" onClick={() => void signOut()}>{SIGN_OUT}</IconBtn>}
       </div>
-      <button className="user-chip" title="My profile" onClick={onOpenProfile}>
-        <Avatar lg src={ws.me?.avatarUrl}>{initials(name === '—' ? '?' : name)}</Avatar>
-        <div>
-          <div className="name">{name}</div>
-          <div className="role">{roleLabel}</div>
-        </div>
-      </button>
+      {!hideUserChip && (
+        <button className="user-chip" title="My profile" onClick={onOpenProfile}>
+          <Avatar lg src={ws.me?.avatarUrl}>{initials(name === '—' ? '?' : name)}</Avatar>
+          <div>
+            <div className="name">{name}</div>
+            <div className="role">{roleLabel}</div>
+          </div>
+        </button>
+      )}
     </div>
   )
 }

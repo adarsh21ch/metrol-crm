@@ -142,7 +142,9 @@ export interface Shift {
  *  directly: a row written by a newer migration than this bundle would
  *  otherwise take the whole screen down on an undefined lookup. */
 export const ATT_STATUS: Record<AttendanceStatus, { label: string; cls: string }> = {
-  in_progress: { label: 'In office', cls: 'chip--accent' },
+  // Green, not the neutral grey it was — "In office" is the one status that
+  // is actively good news, not just a fact being recorded.
+  in_progress: { label: 'In office', cls: 'chip--good' },
   present: { label: 'Present', cls: 'chip--good' },
   // Amber, not red. Late is a fact to count, not a failure to punish on sight.
   late: { label: 'Late', cls: 'chip--warn' },
