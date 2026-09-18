@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { isDemo } from '@/data/demo'
 
@@ -14,6 +14,9 @@ export interface AppNotification {
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v))
+
+/** Makes every realtime topic its own — see the subscribe effect below. */
+let channelSeq = 0
 
 const toNotification = (r: Row): AppNotification => ({
   id: str(r.id),
@@ -57,14 +60,30 @@ export function useNotifications(enabled = true) {
 
   useEffect(() => {
     if (!enabled || isDemo()) return
-    const channel = supabase
-      .channel('notifications-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (p: any) => {
-        const row = toNotification(p.new as Row)
-        if (rowsRef.current.some((r) => r.id === row.id)) return
-        setRows((prev) => [row, ...prev])
-      })
-      .subscribe()
+    /* The topic is unique per mount, never the bare 'notifications-live' it
+       used to be. supabase.channel() hands back an EXISTING channel when the
+       topic matches, and .on('postgres_changes') THROWS on a channel that has
+       already subscribed — an uncaught throw in an effect, which unmounts the
+       whole tree and paints the window white. That is the 2026-09-18 crash.
+       The provider below makes two subscribers impossible; a topic nobody
+       else can collide with makes it harmless if it ever happens again, and
+       also settles the unmount/remount race, since removeChannel() is async
+       and the old channel is still in the client's list while it drains. */
+    const channel = supabase.channel(`notifications-live-${++channelSeq}`)
+    try {
+      channel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (p: any) => {
+          const row = toNotification(p.new as Row)
+          if (rowsRef.current.some((r) => r.id === row.id)) return
+          setRows((prev) => [row, ...prev])
+        })
+        .subscribe()
+    } catch (e) {
+      /* A live badge is a nicety; the feed itself still loads above and
+         reloads whenever the bell is opened. Losing the subscription must
+         cost the badge, never the screen. */
+      console.error('[Metrol CRM] notifications realtime unavailable:', e)
+    }
     return () => { void supabase.removeChannel(channel) }
   }, [enabled])
 
@@ -101,3 +120,37 @@ export function useNotifications(enabled = true) {
 }
 
 export type Notifications = ReturnType<typeof useNotifications>
+
+/* ───────────────────────────────────────────────────────────────────────────
+   One feed per session, not one per bell.
+
+   AccountControls renders TWICE on every screen that has a rail — the rail's
+   copy and the topbar's — and which of the two you see is decided in CSS, not
+   in React: both are mounted, always. So a hook called from inside it ran
+   twice, and two subscribers on one realtime topic is what threw the error
+   that painted the dashboard white for the owner (never for a member, whose
+   screen has no rail, and never in demo, where the subscribe is skipped).
+
+   Holding the feed above the screens fixes the cause rather than the symptom:
+   there is exactly one fetch and one subscription for the whole session, the
+   two bells can no longer disagree about the unread count, and navigating
+   between screens no longer tears the subscription down and builds it again.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const FeedContext = createContext<Notifications | null>(null)
+
+export function NotificationsProvider(
+  { enabled, children }: { enabled: boolean; children: React.ReactNode },
+) {
+  const feed = useNotifications(enabled)
+  return <FeedContext.Provider value={feed}>{children}</FeedContext.Provider>
+}
+
+/** The bell's way in. Throws rather than returning an empty feed, because a
+ *  bell rendered outside the provider would otherwise sit there silently
+ *  claiming you have no notifications. */
+export function useNotificationFeed(): Notifications {
+  const feed = useContext(FeedContext)
+  if (!feed) throw new Error('NotificationBell rendered outside NotificationsProvider')
+  return feed
+}

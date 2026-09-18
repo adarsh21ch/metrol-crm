@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useWorkspace } from '@/data/useWorkspace'
+import { NotificationsProvider } from '@/data/useNotifications'
 import { isDemo } from '@/data/demo'
 import { useToast } from '@/components/Toast'
 import { SignIn } from '@/screens/SignIn'
@@ -90,6 +91,18 @@ function SignedIn() {
     ws.clearError()
   }, [ws.error, ws.loading, ws.projects.length, toast, ws])
 
+  /* Every screen below is wrapped in this. The notifications feed has to
+     live ABOVE them: AccountControls renders twice on any screen with a rail
+     and would otherwise open two subscriptions on one realtime topic, which
+     threw and took the whole tree — and the window — down with it. Here it is
+     also built once per session instead of once per navigation. */
+  const withFeed = (screen: ReactNode) => (
+    <NotificationsProvider enabled={!!ws.me}>
+      {screen}
+      {toastNode}
+    </NotificationsProvider>
+  )
+
   if (ws.loading) return <Booting />
 
   if (ws.error && ws.projects.length === 0) {
@@ -112,9 +125,9 @@ function SignedIn() {
   // enforced by policy in the database, not by this line.
   if (ws.me?.role === 'member') {
     if (ws.departmentName(ws.me.departmentId) === HR_DEPARTMENT) {
-      return <><HrPage ws={ws} toast={toast} />{toastNode}</>
+      return withFeed(<HrPage ws={ws} toast={toast} />)
     }
-    return <><Member ws={ws} toast={toast} />{toastNode}</>
+    return withFeed(<Member ws={ws} toast={toast} />)
   }
 
   const onOpenProjects = () => setRoute({ name: 'projects' })
@@ -123,7 +136,7 @@ function SignedIn() {
   const onOpenMember = (id: string) => setRoute({ name: 'member', id })
   const onOpenHr = () => setRoute({ name: 'hr' })
 
-  return (
+  return withFeed(
     <>
       {route.name === 'projects' && <Projects ws={ws} onOpen={onOpenProject} onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} />}
       {route.name === 'project' && (
@@ -149,7 +162,6 @@ function SignedIn() {
         />
       )}
       {route.name === 'hr' && <HrPage ws={ws} toast={toast} onBackToProjects={onOpenProjects} />}
-      {toastNode}
-    </>
+    </>,
   )
 }

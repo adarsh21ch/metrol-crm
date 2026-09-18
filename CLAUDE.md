@@ -5225,3 +5225,79 @@ exists and is sendable; nothing calls it on a schedule. Three options were
 laid out for him in the plan (a free external cron ping; Vercel Cron, which
 needs a paid plan for sub-daily frequency; or accepting a screen-load
 approximation that could arrive late) — not decided yet.
+
+---
+
+# 2026-09-18 — the white screen, named
+
+The ErrorBoundary added an hour earlier did its job: instead of a blank
+window the owner got a sentence, and the sentence was the whole diagnosis —
+
+> Error: cannot add `postgres_changes` callbacks for realtime:notifications-live
+> after `subscribe()`.
+
+## The cause
+
+`AccountControls` renders **twice** on every screen that has a rail — once in
+the topbar, once inside `Rail` — and which of the two you see is decided in
+CSS (`.topbar-account` is hidden above 860px, the rail below it). Both are
+mounted in React, always. That was fine until the notifications round put
+`useNotifications()` inside it, which made two subscribers on one hard-coded
+realtime topic.
+
+`supabase.channel(topic)` does **not** always give you a new channel:
+`RealtimeClient.channel()` returns an existing one when the topic matches, and
+`RealtimeChannel.on()` throws outright if the channel has already subscribed.
+So the second copy of the bell grabbed the first copy's live channel and threw
+— inside a `useEffect`, i.e. *after* first paint, which is exactly why the
+dashboard appeared for a fraction of a second and then vanished.
+
+Every condition Adarsh reported falls out of that:
+
+- **signed out** — `AccountControls` never mounts, no crash
+- **demo** — the subscribe effect returns early before `.on()`, no crash
+- **a salesperson** — `Member.tsx` has no rail, so only ONE copy mounts
+- **the owner (and HR)** — rail + topbar, two copies, crash
+
+## The fix
+
+Notifications are session state, so they now live above the screens:
+`NotificationsProvider` holds the one feed and both bells read it through
+context. One fetch and one subscription for the whole session, the two bells
+can no longer disagree about the unread count, and navigating between screens
+no longer tears the channel down and rebuilds it.
+
+Two smaller guards alongside it, because the goal is that this class of bug
+cannot paint the window white again:
+
+- the realtime topic is now unique per mount (`notifications-live-<n>`), so
+  the client can never hand back a subscribed channel — this also settles the
+  unmount/remount race, since `removeChannel()` is async and the old channel
+  lingers in the client's list while it drains
+- `.on().subscribe()` is wrapped: a realtime failure costs the live badge, not
+  the screen. The feed still loads, and the bell reloads whenever it is opened.
+
+`useNotifications.ts` became `.tsx` (it holds a provider now).
+
+## Verified
+
+The throw was reproduced character-for-character against the installed
+`@supabase/realtime-js` 2.115.0 — old pattern (one fixed topic, subscribed
+twice) throws the exact message from Adarsh's screenshot, new pattern does
+not. The provider contract was render-tested with two bells: both resolve to
+the *same* feed object (so exactly one hook instance), and a bell rendered
+outside the provider fails loudly rather than quietly showing an empty feed.
+`typecheck` and `build` clean.
+
+Not verified in a browser: the Browser pane's dev server was blocked by a
+stale port registration from another session, and demo mode cannot exercise
+this path anyway (it skips the subscribe). **The live site with the owner
+account is the real confirmation** — that is Adarsh's one step.
+
+## Worth knowing for next time
+
+Anything session-wide — a realtime channel, a polling loop, a subscription —
+must not be created inside `AccountControls`, `Rail`, or anything else that
+CSS renders twice. `useWorkspace` and `useLeaveRequests` are fine today
+(one call site each), but they use fixed topics too, so the same trap is set
+for whoever mounts them a second time.
