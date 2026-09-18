@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isDemo } from '@/data/demo'
 import { supabase, signOut } from '@/lib/supabase'
-import { DataGrid, type GridCol } from '@/components/DataGrid'
+import { DataGrid, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
 import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
@@ -237,6 +237,15 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // Light/dark is a setting on the Profile tab now, not a sun icon sitting on
   // top of every screen in the app.
   const { theme, setTheme } = useTheme()
+  // Sales' Cards/List lived on a row of its own inside the grid. The law says
+  // it belongs on the title's line, so this screen owns it and puts it there.
+  const [salesView, setSalesView] = usePhoneView('member-sales')
+  // My leads had TWO switches on a phone — Board/List in the head and the
+  // grid's own Cards/List on a row under it, both with a button labelled
+  // "List" meaning different things. They are one three-way control now:
+  // Board is the kanban, Cards is the card list, List is the table. The Cards
+  // button hides above the phone breakpoint, where the grid is always a table.
+  const [leadsGridView, setLeadsGridView] = usePhoneView('member-leads')
 
   /* Every date in the range, told what it is — a punched day, an approved
      leave, a holiday, a Sunday, or an absence. The grid and the table below
@@ -454,10 +463,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
      moved into a dismissible Tip), and Profile's used to repeat the employee
      code and designation that the new identity card below prints properly,
      so both tabs get that row back. */
-  const headSub =
-    sec === 'sales' ? `${count(cv.length, 'deal')} closed · ${money(sum(cv))} total`
-      : sec === 'leads' ? `${count(mine.length, 'lead')} across ${count(projects, 'project')}`
-        : HEAD[sec].sub
+  // Rule 6 of the layout law: totals live on the bottom edge of the thing they
+  // count, not in the header fighting the view switch for the same row. Both
+  // of these moved into their grid foots.
+  const headSub = HEAD[sec].sub
 
   return (
     <div className="screen screen--app is-active">
@@ -491,15 +500,26 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   row only exists on the one tab that has a real control. */}
               {sec === 'leads' && (
                 <div className="section-tools">
-                  <div className="seg">
+                  <div className="seg seg--leads">
                     <button className={leadsView === 'board' ? 'is-on' : ''} onClick={() => pickView('board')}>Board</button>
-                    <button className={leadsView === 'list' ? 'is-on' : ''} onClick={() => pickView('list')}>List</button>
+                    <button className={'seg-cards' + (leadsView === 'list' && leadsGridView === 'cards' ? ' is-on' : '')}
+                            onClick={() => { pickView('list'); setLeadsGridView('cards') }}>Cards</button>
+                    <button className={leadsView === 'list' && leadsGridView === 'list' ? 'is-on' : ''}
+                            onClick={() => { pickView('list'); setLeadsGridView('list') }}>List</button>
                   </div>
                 </div>
               )}
               {/* Beside the title, not in .section-tools — that wrapper takes a
                   full row to itself on a phone, which is the row this was
                   supposed to save. */}
+              {sec === 'sales' && (
+                <div className="section-tools">
+                  <div className="seg">
+                    <button className={salesView === 'cards' ? 'is-on' : ''} onClick={() => setSalesView('cards')}>Cards</button>
+                    <button className={salesView === 'list' ? 'is-on' : ''} onClick={() => setSalesView('list')}>List</button>
+                  </div>
+                </div>
+              )}
               {sec === 'attendance' && myEmployee && (
                 <button className="btn btn--sm btn--primary head-cta" onClick={() => setRequestingLeave(true)}>
                   Request leave
@@ -1080,13 +1100,19 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             {sec === 'leads' && (
               <div className="section">
                 {leadsView === 'list' ? (
-                  <DataGrid cols={leadCols} rows={mine} storageKey="member-leads"
+                  <DataGrid cols={leadCols} rows={mine} storageKey="member-leads" phoneView={leadsGridView}
                             empty="Nothing assigned to you yet. The owner will hand you leads from here."
-                            foot={<div className="grid-foot"><span>{count(mine.length, 'lead')}</span>
+                            foot={<div className="grid-foot"><span>{count(mine.length, 'lead')} across {count(projects, 'project')}</span>
                               <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span></div>} />
                 ) : (
-                  <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)}
-                              onEditQuality={(e, l) => setEdit({ kind: 'quality', anchor: e.currentTarget, lead: l })} />
+                  <>
+                    <LeadsBoard leads={mine} projectName={projectName} onOpenHistory={setHistoryFor} onDropStatus={(l, s) => void dropStatus(l, s)}
+                                onEditQuality={(e, l) => setEdit({ kind: 'quality', anchor: e.currentTarget, lead: l })} />
+                    {/* The board has no grid to hang a foot off, so it gets the
+                        same line the list's foot carries — the total does not
+                        disappear just because you switched view. */}
+                    <div className="grid-foot"><span>{count(mine.length, 'lead')} across {count(projects, 'project')}</span></div>
+                  </>
                 )}
               </div>
             )}
@@ -1094,9 +1120,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             {sec === 'sales' && (
               <div className="section">
                 <DataGrid cols={salesCols} rows={[...cv].sort((a, b) => daysSince(a.convertedAt ?? a.createdAt) - daysSince(b.convertedAt ?? b.createdAt))}
-                          storageKey="member-sales"
+                          storageKey="member-sales" phoneView={salesView}
                           empty="No sales yet. Mark a lead Converted and record the amount, and it lands here."
-                          foot={<div className="grid-foot"><span>{cv.filter((l) => l.verified).length} verified · {cv.filter((l) => !l.verified).length} pending</span></div>} />
+                          foot={<div className="grid-foot">
+                            <span>{count(cv.length, 'deal')} closed · {money(sum(cv))} total</span>
+                            <span className="grid-hint">{cv.filter((l) => l.verified).length} verified · {cv.filter((l) => !l.verified).length} pending</span>
+                          </div>} />
               </div>
             )}
           </div>

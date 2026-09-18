@@ -33,7 +33,11 @@ function useIsPhone() {
  *  choice, remembered per table — not ours. */
 type PhoneView = 'cards' | 'list'
 
-function usePhoneView(storageKey: string): [PhoneView, (v: PhoneView) => void] {
+/** Exported so a screen can hoist this switch onto its page-title line —
+ *  THE LAYOUT LAW, rule 1. A screen that does that owns the state and passes
+ *  it back in, so the grid still renders the view the switch is pointing at.
+ *  Screens that do not care keep the built-in toggle and change nothing. */
+export function usePhoneView(storageKey: string): [PhoneView, (v: PhoneView) => void] {
   const key = 'metrol-gridview-' + storageKey
   const [view, setView] = useState<PhoneView>(() => {
     try { return localStorage.getItem(key) === 'list' ? 'list' : 'cards' } catch { return 'cards' }
@@ -67,6 +71,7 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   onRowClick,
   foot,
   empty,
+  phoneView: phoneViewProp,
 }: {
   cols: GridCol<T>[]
   rows: T[]
@@ -79,6 +84,10 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
    *  closed a sale in yet. Bare column headers over nothing read as a page
    *  that failed to load rather than one with nothing in it yet. */
   empty?: React.ReactNode
+  /** Pass a value from usePhoneView() to host the Cards/List switch yourself
+   *  (in the page head). The grid then follows it and renders no switch of
+   *  its own. Omit it and the grid keeps its own switch, as before. */
+  phoneView?: PhoneView
 }) {
   const [widths, setWidths] = useState<number[]>(() => {
     try {
@@ -98,7 +107,9 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   const guideRef = useRef<HTMLDivElement>(null)
   const [slack, setSlack] = useState(0)
   const isPhone = useIsPhone()
-  const [phoneView, setPhoneView] = usePhoneView(storageKey)
+  const [ownView, setOwnView] = usePhoneView(storageKey)
+  const controlled = phoneViewProp !== undefined
+  const phoneView = controlled ? phoneViewProp : ownView
 
   const total = widths.reduce((a, b) => a + b, 0)
 
@@ -196,11 +207,11 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   /* Shown on a phone above either view. Deliberately small and right-aligned:
      it is a preference, not an action, and a full-width control here would
      spend the vertical space this whole change is meant to save. */
-  const viewToggle = isPhone ? (
+  const viewToggle = isPhone && !controlled ? (
     <div className="grid-view-pick">
       <div className="seg">
-        <button className={phoneView === 'cards' ? 'is-on' : ''} onClick={() => setPhoneView('cards')}>Cards</button>
-        <button className={phoneView === 'list' ? 'is-on' : ''} onClick={() => setPhoneView('list')}>List</button>
+        <button className={phoneView === 'cards' ? 'is-on' : ''} onClick={() => setOwnView('cards')}>Cards</button>
+        <button className={phoneView === 'list' ? 'is-on' : ''} onClick={() => setOwnView('list')}>List</button>
       </div>
     </div>
   ) : null

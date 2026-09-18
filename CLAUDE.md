@@ -8,6 +8,51 @@ An in-house CRM for **Metrol Media** (metrol.in) — the company Adarsh works at
 
 Adarsh is the developer/owner of this build. He is **non-technical-leaning** — always end replies with a plain-language numbered **"WHAT YOU DO NEXT"** section. He is also **cost-conscious about Claude usage**: batch your checks, don't iterate one query at a time, don't re-derive things this file already answers.
 
+## THE LAYOUT LAW — read before touching any screen
+
+Adarsh has had to ask for this **four separate times** on four separate
+screens. It is not a preference and it is not per-screen feedback. It is the
+rule, and it applies to every screen in this app, including ones not mentioned
+here and ones built later.
+
+> **Never spend a row on something that fits on an existing one.**
+> A phone is 812px tall. Vertical space is the scarce resource; horizontal
+> space, on a heading line, is usually free. If a control CAN sit on a line
+> that already exists, it MUST.
+
+Concretely, and non-negotiably:
+
+1. **Page controls belong on the page title's line, right-aligned.** Board/List,
+   Cards/List, Request leave, a filter, a date picker — all of it. Never on a
+   row of its own under the title. `.page-head` is a flex row; put the control
+   in it with `margin-left:auto`.
+2. **Beware `.section-tools` on a phone.** There is a rule at `max-width:860px`
+   giving it `width:100%`, which drops it onto its own row — the exact thing
+   this law forbids. Inside `.page-head` it is overridden back to `width:auto`.
+   If you add a control and it appears on its own line, this is why.
+3. **A section heading and everything that filters or explains that section
+   share one line.** Heading, an ⓘ, a month stepper, a dropdown. If the row
+   stacks into a column at some breakpoint (`.section-head--wrap` does, below
+   600px), wrap the pieces that belong together in one element so the column
+   sees one item, not three.
+4. **Labels sit beside their control, not above it.** "Appearance" left,
+   Light/Dark/Auto right. One line, not two.
+5. **A grid with an odd card out stretches the last one.** Never leave a
+   card-sized hole next to a lone tile.
+6. **Totals and counts go in the foot, not under the title.** "30 deals closed
+   · ₹7,91,000 total" belongs on the bottom edge of the thing it counts, where
+   the eye lands after reading it — not in the header competing with the
+   controls for the same row.
+7. **If it is read once and skipped forever, it is not permanently on screen.**
+   Page subtitles that only restate the title: delete. Instructional copy: a
+   one-time `<Tip>` with an ✕. A legend or a set of rules: behind an ⓘ that
+   opens a `Modal`. A sub that carries a real NUMBER is data — that stays, but
+   see rule 6 for where it goes.
+
+Before you call any screen done, look at it at **375px wide** and ask of every
+single row: *could this have been part of the row above it?* If yes, it is not
+done.
+
 ## The quality bar (stated by the client-facing side)
 
 > "It should not look childish, incomplete, or have bad UI/UX. Give them more than they expect. But maintain a minimalistic approach — do not include unnecessary features which they did not ask for. If they later ask, we can build that."
@@ -5508,3 +5553,37 @@ everything in the app."
 ### Not done
 The rule has been applied to the Member app only. HR and the owner's screens
 still carry their own page-head subs and standing explanatory text.
+
+## Fourth pass — the law written down, and My leads / My sales brought under it
+
+Adarsh, on being asked the same thing a fourth time: *"How many times I say to
+you same fixing same issue? Make this a law."* He is right, and the fix was
+not another screen — it was **THE LAYOUT LAW at the top of this file**. Read
+it before touching any screen. What follows is just this round's application
+of it.
+
+**The view switches moved onto the page title's line.** Board/List on My leads
+and Cards/List on My sales each had a row of their own under the title. The
+blocker was `.section-tools{width:100%}` at 860px — written for HR's toolbar
+of a search box and four buttons, but applied to every use of the class.
+`.page-head > .section-tools` overrides it back to `width:auto`. This one rule
+is the root cause of most of the repeats.
+
+**Totals moved to the foot** (law, rule 6). "30 deals closed · ₹7,91,000
+total" and "163 leads across 6 projects" were competing with the switch for
+the title row. They sit on the bottom edge of the thing they count now. The
+leads BOARD has no grid to hang a foot off, so it got the same line explicitly
+— switching view must not make a number vanish.
+
+**My leads had two switches, both with a "List" button.** Board/List in the
+head, and the grid's own phone-only Cards/List on a row beneath it, meaning
+two different things by the same word. They are one three-way control now:
+**Board | Cards | List**. `usePhoneView` is exported from `DataGrid` and
+`phoneView` is an optional controlled prop — pass it and the grid follows your
+state and renders no switch of its own; omit it and nothing changes. HR and
+the owner's grids are untouched. `.seg-cards` hides above 861px, where the
+grid is always the resizable table.
+
+### Still not done
+HR and the owner's screens have not been through the law. Their page-head
+subs, standing explanatory text and toolbar rows are all as they were.

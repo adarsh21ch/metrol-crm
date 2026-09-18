@@ -866,6 +866,15 @@ kbd{
    that wrapper is given a full row of its own on a phone, which is exactly
    the row a button this small should not be costing. */
 .head-cta{margin-left:auto;flex:none}
+/* THE LAYOUT LAW, rule 2. .section-tools is given width:100% at 860px so a
+   toolbar of a search box and four buttons can wrap. Inside .page-head it
+   holds one small control, and that blanket rule was dropping it onto a row
+   of its own under every page title — the single most-repeated complaint on
+   this project. It stays on the title's line at every width. */
+.page-head > .section-tools{ width:auto; margin-left:auto; flex-wrap:nowrap }
+/* Cards is a phone-only view — above the breakpoint the grid is always the
+   resizable table, so the button would be a third option that does nothing. */
+@media (min-width:861px){ .seg--leads .seg-cards{ display:none } }
 .spin{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .proj-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
