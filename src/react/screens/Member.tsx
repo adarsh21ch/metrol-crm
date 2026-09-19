@@ -779,12 +779,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           strip is always this one shape, on every screen. */}
                       {calendar.length > 0 && (
                         <div className="cal-wrap">
-                          {/* --cal-half is half the month, rounded up. The phone
-                              stylesheet reads it as its column count so the two
-                              rows come out even; desktop ignores it entirely and
-                              stays one scrolling strip. */}
+                          {/* --cal-third is a third of the month, rounded up. The
+                              phone stylesheet reads it as its column count so the
+                              three rows come out even; desktop ignores it entirely
+                              and stays one scrolling strip. */}
                           <div className="cal-strip"
-                               style={{ ['--cal-half' as string]: Math.ceil(calendar.length / 2) }}>
+                               style={{ ['--cal-third' as string]: Math.ceil(calendar.length / 3) }}>
                             {calendar.map((d) => (
                               <div className={'cal-cell ' + DAY_KIND[d.kind].cls
                                      + (d.date === officeToday(tz) ? ' cal-cell--today' : '')}

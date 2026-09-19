@@ -104,7 +104,7 @@ export function EmployeeAttendanceBoard({
 
       {calendar.length > 0 && (
         <div className="cal-wrap">
-          <div className="cal-strip" style={{ ['--cal-half' as string]: Math.ceil(calendar.length / 2) }}>
+          <div className="cal-strip" style={{ ['--cal-third' as string]: Math.ceil(calendar.length / 3) }}>
             {calendar.map((d) => (
               <div className={'cal-cell ' + DAY_KIND[d.kind].cls + (d.date === today ? ' cal-cell--today' : '')}
                    key={d.date}

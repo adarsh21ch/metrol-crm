@@ -1827,12 +1827,14 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 }
 
 @media (max-width:560px){
-  /* Two rows of roughly half a month each, instead of one row you have to
-     swipe. Nobody should have to scroll sideways to see whether they made it
-     in on the 3rd. min-width goes with it: fixed columns are what let the
-     cells shrink to fit rather than overflow. Desktop keeps the single strip
-     — Adarsh confirmed that one reads fine as it is. */
-  .cal-strip{display:grid;grid-template-columns:repeat(var(--cal-half,16),1fr);overflow-x:visible}
+  /* Three rows of roughly a third of a month each (was two — Adarsh asked
+     for three on 2026-09-19, so each square is bigger and easier to tap),
+     instead of one row you have to swipe. Nobody should have to scroll
+     sideways to see whether they made it in on the 3rd. min-width goes with
+     it: fixed columns are what let the cells shrink to fit rather than
+     overflow. Desktop keeps the single strip — Adarsh confirmed that one
+     reads fine as it is. */
+  .cal-strip{display:grid;grid-template-columns:repeat(var(--cal-third,11),1fr);overflow-x:visible}
   .cal-cell{min-width:0;font-size:11px}
   .cal-cell .dw{font-size:7px}
 }
