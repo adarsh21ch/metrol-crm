@@ -6,6 +6,7 @@ import { EMPLOYMENT, fmtDate, todayISO, type EmploymentType, type JobApplication
 import { fmtShift, type OfficeLocation, type Shift } from '@/lib/attendance'
 import type { ApprovalDetails } from '@/data/useJobApplications'
 import type { Department } from '@/lib/types'
+import { buildJoiningFormPdf } from '@/lib/joiningForm'
 
 /** One label / value pair, the same shape HrPage uses on an employee's own
  *  record — an application is read the same way, so it looks the same. */
@@ -13,12 +14,19 @@ const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
   <div className="hr-fld"><div className="l">{l}</div><div className="v">{v || '—'}</div></div>
 )
 
-const DOCS: { key: keyof Pick<JobApplication, 'photoPath' | 'panPath' | 'aadhaarPath' | 'bankProofPath' | 'relievingLetterPath'>; label: string }[] = [
+const DOCS: {
+  key: keyof Pick<JobApplication, 'photoPath' | 'panPath' | 'aadhaarPath' | 'bankProofPath'
+    | 'relievingLetterPath' | 'signaturePath' | 'experienceLetterPath' | 'salarySlipPath'>
+  label: string
+}[] = [
   { key: 'photoPath', label: 'Photo' },
   { key: 'panPath', label: 'PAN card' },
   { key: 'aadhaarPath', label: 'Aadhaar card' },
   { key: 'bankProofPath', label: 'Bank proof' },
   { key: 'relievingLetterPath', label: 'Relieving letter' },
+  { key: 'signaturePath', label: 'Signature' },
+  { key: 'experienceLetterPath', label: 'Experience letter' },
+  { key: 'salarySlipPath', label: 'Salary slip' },
 ]
 
 /**
@@ -75,6 +83,49 @@ export function ApplicationReviewModal({
   const [dateOfJoining, setDateOfJoining] = useState(todayISO())
   const [gross, setGross] = useState('')
   const [net, setNet] = useState('')
+  const [downloadingForm, setDownloadingForm] = useState(false)
+
+  // Round 6 (0026): "the joining form should fill itself from what the
+  // candidate already typed." Builds it client-side from the application's
+  // own fields, embeds the uploaded signature when there is one, and hands
+  // the browser a normal download — HR can print it, exactly what "print the
+  // physical form automatically filled" asked for. Uses whatever this modal's
+  // OWN approve-details fields currently hold (blank until Approve… is
+  // opened at least once) rather than requiring approval to have happened.
+  const downloadJoiningForm = async () => {
+    setDownloadingForm(true); setErr(null)
+    try {
+      let sig: Uint8Array | null = null
+      if (app.signaturePath) {
+        const url = await documentUrl(app.signaturePath)
+        if (url) {
+          const res = await fetch(url)
+          if (res.ok) sig = new Uint8Array(await res.arrayBuffer())
+        }
+      }
+      const bytes = await buildJoiningFormPdf(app, {
+        designation: designation.trim() || app.positionInterest,
+        departmentName: departments.find((d) => d.id === departmentId)?.name ?? '',
+        employmentType: EMPLOYMENT[employmentType],
+        officeName: offices.find((o) => o.id === officeId)?.name ?? '',
+        dateOfJoining,
+        employeeCode: '',
+      }, sig)
+      const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `joining-form-${app.fullName.replace(/\s+/g, '-').toLowerCase()}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not build the joining form.')
+    } finally {
+      setDownloadingForm(false)
+    }
+  }
 
   const view = async (path: string | null) => {
     if (!path) return
@@ -159,6 +210,11 @@ export function ApplicationReviewModal({
           <button className="btn btn--sm" onClick={mode === 'approve-confirm' ? () => setMode('approve-details') : onClose} disabled={action !== null}>
             {mode === 'approve-confirm' ? 'Back' : 'Close'}
           </button>
+          {mode === 'view' && (
+            <button className="btn btn--sm" disabled={downloadingForm} onClick={() => void downloadJoiningForm()}>
+              {downloadingForm ? 'Building…' : 'Download joining form'}
+            </button>
+          )}
           {mode === 'view' && app.status === 'pending' && (
             <>
               <button className="btn btn--sm" onClick={() => setMode('reject')}>Reject</button>

@@ -215,6 +215,77 @@ branches: 0" was after an earlier round.
 
 ---
 
+## Round 6 — leave types, comp-off, joining-form autofill, T&C scroll-gate (2026-09-19)
+
+Adarsh's voice brief, in order. Migration `0026_leave_types_comp_off_and_forms.sql`
+— **not yet run on the real database; Adarsh has to paste it into the
+Supabase SQL editor**, and the `approve-job-application` Edge Function has to
+be re-pasted into Supabase Dashboard → Edge Functions (this repo's Edge
+Functions are hand-deployed, not pushed by git).
+
+- [x] **Leave request form now offers three types only**: Casual (default),
+      Compulsory/Week-off, Period. Sick and Unpaid stay valid in the database
+      (old rows, an HR override) but are off the form.
+- [x] **Compulsory/Week-off leave** — working a week-off day (Sunday, by
+      default — any real attendance row graded present/late/half-day on that
+      weekday) earns one credit (`comp_off_credits`, 0026). Spending one is a
+      Compulsory leave request; the database refuses a request beyond the
+      balance (`check_leave_request` trigger) and settles credits as spent on
+      approval, given back if the approval is undone
+      (`settle_comp_off_on_decision`). Never touches the paid-leave balance —
+      `leave_month_summary()` counts it (`compulsory_days`) purely for
+      display, the same way `period_days` already was.
+- [x] **Period leave gated by gender, not only the company-wide switch** —
+      `employees.gender` is new (0026); the request form only offers Period
+      to `gender = 'Female'`, and the database refuses anyone else's request
+      regardless. At most one per calendar month, enforced in the same
+      trigger.
+- [x] **`employees.gender`** copied from the application on approval
+      (`approve-job-application`, needs re-deploy) — existing employees are
+      null until HR fills it in on the Edit form (new field added).
+- [x] **Apply form**: Signature upload (required), Experience letter and
+      Salary slip uploads (both optional, hidden when "no previous
+      employer" is ticked) — `APPLICATION_DOCS` in `lib/hr.ts`, three new
+      `job_applications` columns, three new `employee_documents` doc types.
+- [x] **Apply form marital status**: Bachelor/single removed — Married,
+      Unmarried only.
+- [x] **Apply form T&C**: no longer only a PDF download + tick — the full
+      transcript scrolls inline (`TermsText`, exported from
+      `TermsAndConditions.tsx`, reused rather than duplicated) and the accept
+      checkbox stays disabled, with an inline nudge on a blocked click, until
+      it has been scrolled to the end at least once. The PDF is still offered
+      as "Download a copy for your records," not the only path through.
+- [x] **"Download joining form"** — `ApplicationReviewModal`, builds a PDF
+      client-side (`lib/joiningForm.ts`, `pdf-lib`, loaded via dynamic
+      `import()` so it never ships in the bundle every employee's phone
+      downloads to punch in) from the application's own fields, with the
+      uploaded signature embedded in a signature box. **There is no scanned
+      copy of Metrol's actual printed joining form in this repo** — this
+      generates a clean equivalent with the same fields in the same order,
+      not an overlay onto the real paper form. If Adarsh has the real form as
+      a PDF, hand it over and this becomes a one-function change to draw onto
+      it instead.
+- [x] **HR gets the employee's own attendance+leave dashboard, not just the
+      day view** — a name in the Attendance day table is now a button
+      (`EmployeeAttendanceModal`, new) opening that one person's whole month:
+      calendar totals, the leave KPIs (available/used/left/unpaid), the
+      attendance table, and their leave requests — built from the exact same
+      `buildCalendar`/`calendarTotals`/`useLeaveMonth` the employee's own
+      screen uses, so the two numbers cannot disagree.
+- [x] **Removed "Last 30 days"** from the employee's own attendance range
+      picker — This month / Last month / Custom only.
+- [x] **Salary field relabelled "CTC"** with a Monthly/Annual display toggle
+      on `EmployeeModal` — the database still stores one monthly number
+      either way; only which unit the field shows changed.
+- Employee directory already had a search bar (name/code/phone) before this
+  round — the "add a search bar to lists" ask is already satisfied there and
+  on the HR attendance day table; not duplicated elsewhere this round.
+
+### What Adarsh has to do to make this live
+1. Supabase SQL editor → paste and run `supabase/migrations/0026_leave_types_comp_off_and_forms.sql` in full, check the proof rows at the bottom all read as expected.
+2. Supabase Dashboard → Edge Functions → `approve-job-application` → replace with the updated `supabase/functions/approve-job-application/index.ts` → Deploy.
+3. Existing employees have no gender on record yet — Period leave will not appear for anyone until HR sets it (Edit employee → Gender) for the women on staff.
+
 ## RESOLVED — the punch-out QR "bug" was never a bug (2026-09-18)
 
 Adarsh: "I scanned the QR code for punch-out and it is not updated in the

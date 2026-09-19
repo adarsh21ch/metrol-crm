@@ -31,6 +31,7 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
   shiftId: null,
   officeId: null,
   monthlySalary: null,
+  gender: null,
   ...prefill,
 })
 
@@ -58,6 +59,10 @@ export function EmployeeModal({
   const [f, setF] = useState<EmployeeDraft>(() => (employee ? { ...employee } : blank(prefill)))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // CTC display only — Round 6 (0026). The database still stores one number,
+  // monthly, exactly as before; this is just which unit the field is showing
+  // right now, so typing an annual figure does not have to be hand-divided.
+  const [salaryUnit, setSalaryUnit] = useState<'monthly' | 'annual'>('monthly')
 
   const set = <K extends keyof EmployeeDraft>(k: K, v: EmployeeDraft[K]) => setF((p) => ({ ...p, [k]: v }))
 
@@ -198,6 +203,17 @@ export function EmployeeModal({
         </div>
 
         <div className="field">
+          <label htmlFor="emGender">Gender</label>
+          <select className="input" id="emGender" value={f.gender ?? ''}
+                  onChange={(e) => set('gender', e.target.value || null)}>
+            <option value="">Not set</option>
+            <option value="Female">Female</option>
+            <option value="Male">Male</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div className="field">
           <label htmlFor="emAddr">Address</label>
           <input className="input" id="emAddr" value={f.address}
                  onChange={(e) => set('address', e.target.value)} />
@@ -281,10 +297,30 @@ export function EmployeeModal({
         </div>
 
         <div className="field">
-          <label htmlFor="emSalary">Monthly salary (₹)</label>
-          <input className="input" id="emSalary" type="number" min={0} placeholder="Not set — payroll cannot run without this"
-                 value={f.monthlySalary ?? ''}
-                 onChange={(e) => set('monthlySalary', e.target.value === '' ? null : Number(e.target.value))} />
+          <label htmlFor="emSalary">CTC ({salaryUnit === 'monthly' ? 'monthly' : 'annual'}, ₹)</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input className="input" id="emSalary" type="number" min={0} placeholder="Not set — payroll cannot run without this"
+                   value={f.monthlySalary == null ? '' : (salaryUnit === 'monthly' ? f.monthlySalary : Math.round(f.monthlySalary * 12))}
+                   onChange={(e) => {
+                     if (e.target.value === '') { set('monthlySalary', null); return }
+                     const n = Number(e.target.value)
+                     set('monthlySalary', salaryUnit === 'monthly' ? n : Math.round((n / 12) * 100) / 100)
+                   }} />
+            {/* Switching the unit only changes what this field DISPLAYS — the
+                database still gets one monthly number either way, so toggling
+                back and forth never drifts the figure by a rounding error. */}
+            <div className="seg" style={{ flex: '0 0 auto' }}>
+              <button type="button" className={salaryUnit === 'monthly' ? 'is-on' : ''} onClick={() => setSalaryUnit('monthly')}>Monthly</button>
+              <button type="button" className={salaryUnit === 'annual' ? 'is-on' : ''} onClick={() => setSalaryUnit('annual')}>Annual</button>
+            </div>
+          </div>
+          {f.monthlySalary != null && (
+            <p className="field-hint">
+              {salaryUnit === 'monthly'
+                ? `₹${Math.round(f.monthlySalary * 12).toLocaleString('en-IN')} a year`
+                : `₹${f.monthlySalary.toLocaleString('en-IN')} a month`}
+            </p>
+          )}
         </div>
 
         <div className="field">

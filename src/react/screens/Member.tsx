@@ -30,10 +30,11 @@ import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
 import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod } from '@/lib/hr'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
+import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
 import type { Workspace } from '@/data/useWorkspace'
 
-type AttRange = 'this' | 'last' | 'd30' | 'custom'
+type AttRange = 'this' | 'last' | 'custom'
 
 type LeadsView = 'list' | 'board'
 const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
@@ -197,6 +198,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     holidays: att.holidays, settings: att.settings, today: officeToday(tz),
   }), [staff.rows, att.rows, leave.rows, att.holidays, att.settings, tz])
   const lm = useLeaveMonth(myEmployee?.id ?? null, leaveMonth, leaveSrc)
+  const compOffBalance = useCompOffBalance(myEmployee?.id ?? null)
   const thisMonth = firstOfMonth(officeToday(tz))
   const monthName = (m: string) => new Date(m + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const myAtt = useMemo(
@@ -225,7 +227,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     else if (r === 'last') {
       const prev = addDays(monthStart(t), -1)
       setAttFrom(monthStart(prev)); setAttTo(monthEnd(prev))
-    } else if (r === 'd30') { setAttFrom(addDays(t, -29)); setAttTo(t) }
+    }
     // 'custom' moves nothing — it only reveals the two fields, so the range
     // you were already looking at is the one you start editing from.
   }
@@ -740,7 +742,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                                 value={attRange} onChange={(e) => pickRange(e.target.value as AttRange)}>
                           <option value="this">This month</option>
                           <option value="last">Last month</option>
-                          <option value="d30">Last 30 days</option>
                           <option value="custom">Custom</option>
                         </select>
                         {attRange === 'custom' && (
@@ -1156,6 +1157,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           weekOffs={att.settings?.weekOffs ?? [0]}
           holidays={att.holidays}
           allowPeriod={(att.settings?.periodLeavePerMonth ?? 0) > 0}
+          gender={myEmployee.gender}
+          compOffBalance={compOffBalance}
+          existingLeave={myLeave}
           onClose={() => setRequestingLeave(false)}
           onSave={async (draft) => {
             const message = await leave.create(draft)

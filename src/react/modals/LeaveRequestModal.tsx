@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Modal } from '@/components/Modal'
-import { LEAVE_TYPE, fmtDate, todayISO, workingDaysBetween } from '@/lib/hr'
-import type { LeaveType } from '@/lib/hr'
+import { LEAVE_TYPE, REQUESTABLE_LEAVE_TYPES, fmtDate, todayISO, workingDaysBetween } from '@/lib/hr'
+import type { LeaveRequest, LeaveType } from '@/lib/hr'
 import type { Holiday } from '@/lib/attendance'
 import { count, plural } from '@/lib/format'
 import type { LeaveDraft } from '@/data/useLeaveRequests'
@@ -14,9 +14,16 @@ import type { LeaveDraft } from '@/data/useLeaveRequests'
  *  The day count shown is a PREVIEW, worked out here from the same rule 0016's
  *  trigger uses. The number that gets stored is always the database's — the
  *  hook re-reads the saved row rather than trusting this. Worth knowing if the
- *  two ever disagree: the record is still right and only a sentence was wrong. */
+ *  two ever disagree: the record is still right and only a sentence was wrong.
+ *
+ *  Round 6 (0026): the type picker only ever offers three — casual (the
+ *  default), compulsory/week-off and period — and the database is the one
+ *  that actually enforces the balance/gender/once-a-month rules below (this
+ *  modal only disables what it already knows will be refused, so nobody
+ *  fills in a whole request to be told no at the very end). */
 export function LeaveRequestModal({
-  employeeId, weekOffs, holidays, allowPeriod = false, onClose, onSave,
+  employeeId, weekOffs, holidays, allowPeriod = false, gender = null,
+  compOffBalance = null, existingLeave = [], onClose, onSave,
 }: {
   employeeId: string
   /** 0 = Sunday, from attendance_settings. Sunday is Metrol's only week off. */
@@ -27,6 +34,19 @@ export function LeaveRequestModal({
    *  will not pay is how somebody applies for something that silently becomes
    *  ordinary leave. */
   allowPeriod?: boolean
+  /** This person's `employees.gender` (Round 6). Period is only ever offered
+   *  when this reads 'Female' — the database refuses anybody else's request
+   *  either way, but there is no reason to show an option that can only
+   *  fail. */
+  gender?: string | null
+  /** comp_off_balance() for this person, or null while it has not loaded yet
+   *  (the option stays visible but shows no count, and the database still
+   *  has the final say on whether a request fits). */
+  compOffBalance?: number | null
+  /** This person's OWN requests, so a second Period request this calendar
+   *  month can be caught here instead of round-tripping to the database to
+   *  learn the same thing. */
+  existingLeave?: LeaveRequest[]
   onClose: () => void
   onSave: (draft: LeaveDraft) => Promise<string | null>
 }) {
@@ -36,6 +56,10 @@ export function LeaveRequestModal({
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  const periodAlreadyThisMonth = useMemo(() => existingLeave.some((r) =>
+    r.leaveType === 'period' && r.status !== 'rejected' && r.status !== 'cancelled'
+    && r.startDate.slice(0, 7) === startDate.slice(0, 7)), [existingLeave, startDate])
 
   const backwards = endDate < startDate
 
@@ -48,7 +72,9 @@ export function LeaveRequestModal({
   // for — refused here rather than filed as a request worth zero days that HR
   // then has to wonder about.
   const emptyRange = !backwards && days.total === 0
-  const invalid = backwards || emptyRange
+  const overCompOff = leaveType === 'compulsory' && compOffBalance != null && days.total > compOffBalance
+  const blockedPeriod = leaveType === 'period' && periodAlreadyThisMonth
+  const invalid = backwards || emptyRange || overCompOff || blockedPeriod
 
   // How many DAYS were dropped, not how many phrases describe them: one phrase
   // reading "2 Sundays" still takes a plural verb. Getting this from
@@ -95,18 +121,32 @@ export function LeaveRequestModal({
         <div className="field">
           <label>Type</label>
           <div className="seg seg--form" role="group" aria-label="Leave type">
-            {(Object.keys(LEAVE_TYPE) as LeaveType[]).filter((t) => t !== 'period' || allowPeriod).map((t) => (
-              <button key={t} type="button" className={leaveType === t ? 'is-on' : ''}
-                      aria-pressed={leaveType === t} onClick={() => setLeaveType(t)}>
-                {LEAVE_TYPE[t].label}
-              </button>
-            ))}
+            {REQUESTABLE_LEAVE_TYPES
+              .filter((t) => t !== 'period' || (allowPeriod && gender === 'Female'))
+              .map((t) => (
+                <button key={t} type="button" className={leaveType === t ? 'is-on' : ''}
+                        aria-pressed={leaveType === t} onClick={() => setLeaveType(t)}>
+                  {LEAVE_TYPE[t].label}
+                </button>
+              ))}
           </div>
           <p className="field-hint">
-            {leaveType === 'unpaid'
-              ? 'Recorded as an absence, but not taken out of your paid days.'
-              : 'Comes out of your paid days for this year.'}
+            {leaveType === 'compulsory'
+              ? (compOffBalance == null
+                  ? 'Earned by working a week-off day, spent day for day — never out of your paid leave.'
+                  : `${count(compOffBalance, 'day')} earned and not yet used.`)
+              : leaveType === 'period'
+                ? 'Fully paid, and does not come out of your paid days.'
+                : 'Comes out of your paid days for this month.'}
           </p>
+          {overCompOff && (
+            <p className="auth-err">
+              Only {count(compOffBalance ?? 0, 'compulsory/week-off day')} earned — asking for {count(days.total, 'day')}.
+            </p>
+          )}
+          {blockedPeriod && (
+            <p className="auth-err">A period leave request already exists for this month.</p>
+          )}
         </div>
         <div className="field">
           <label htmlFor="lvStart">From</label>

@@ -389,6 +389,10 @@ textarea.input{
    somebody has to hit exactly. */
 .check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;color:var(--ink-2);line-height:1.45}
 .check input{flex:none;width:17px;height:17px}
+/* Round 6: the T&C checkbox before it has unlocked — still clickable (so the
+   nudge message fires), just visibly not ready yet. */
+.check.is-disabled{opacity:.55}
+.check.is-disabled input{cursor:not-allowed}
 
 .decl{
   font-size:12.5px;line-height:1.6;color:var(--ink-2);
@@ -401,6 +405,17 @@ textarea.input{
 .tc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .tc-top strong{font-size:13.5px}
 .tc-top .btn{margin-left:auto}
+/* Round 6: the full transcript, scrolled in place rather than only offered as
+   a download — the accept box below stays locked until this has been
+   scrolled to its end at least once (ApplyPage tracks that, not CSS). */
+.tc-scroll{
+  max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;
+  padding:12px 14px;background:var(--surface);
+}
+.tc-scroll .prose h2{font-size:14px;margin:16px 0 6px}
+.tc-scroll .prose h2:first-child{margin-top:0}
+.tc-scroll .prose h3{font-size:12.5px;margin:10px 0 4px}
+.tc-scroll .prose p,.tc-scroll .prose li{font-size:12.5px;color:var(--ink-2)}
 .file-ok{font-size:11.5px;color:var(--good);font-weight:500}
 
 /* A country code that is part of the furniture rather than something to type.

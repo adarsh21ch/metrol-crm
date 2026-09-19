@@ -51,6 +51,11 @@ export interface LeaveMonth {
   lateHalfDays: number
   periodDays: number
   periodPaid: number
+  /** Round 6 (0026). Compulsory/week-off leave — earned 1:1 by working a
+   *  week-off day, spent 1:1, checked against the balance at the point of
+   *  asking, so an approved one always fits. Counted here for display only;
+   *  it never enters `demand` and never touches the paid-leave balance. */
+  compulsoryDays: number
   /** Taken out of the balance: leave days + half a day per half day + period
    *  leave beyond its allowance, capped at what was available. */
   used: number
@@ -101,6 +106,7 @@ export function toLeaveMonth(j: Record<string, unknown>): LeaveMonth {
     lateHalfDays: num(j.late_half_days),
     periodDays: num(j.period_days),
     periodPaid: num(j.period_paid),
+    compulsoryDays: num(j.compulsory_days),
     used: num(j.used),
     unpaidOverflow: num(j.unpaid_overflow),
     unpaidLeaveDays: num(j.unpaid_leave_days),
@@ -134,7 +140,7 @@ export function emptyMonth(employeeId: string, month: string): LeaveMonth {
   return {
     ok: true, reason: null, message: null, counted: false, closed: false, provisional: false, ended: false,
     employeeId, month, opening: 0, accrued: 0, available: 0, leaveDays: 0, halfDays: 0, lateCount: 0,
-    lateHalfDays: 0, periodDays: 0, periodPaid: 0, used: 0, unpaidOverflow: 0, unpaidLeaveDays: 0,
+    lateHalfDays: 0, periodDays: 0, periodPaid: 0, compulsoryDays: 0, used: 0, unpaidOverflow: 0, unpaidLeaveDays: 0,
     absentDays: 0, unsettledDays: 0, closing: 0, unpaidDays: 0, choice: null, payoutDays: null,
     carried: null, suggestedChoice: 'payout', closedAt: null,
   }
@@ -183,10 +189,11 @@ export function computeLeaveMonth(ctx: LeaveCtx, month: string, live = false): L
   })
 
   let leaveDays = 0, halfDays = 0, lateCount = 0, lateHalfDays = 0
-  let periodDays = 0, unpaidLeaveDays = 0, absentDays = 0, unsettledDays = 0
+  let periodDays = 0, compulsoryDays = 0, unpaidLeaveDays = 0, absentDays = 0, unsettledDays = 0
   const spend = (t: string | null) => {
     if (t === 'unpaid') unpaidLeaveDays++
     else if (t === 'period') periodDays++
+    else if (t === 'compulsory') compulsoryDays++
     else leaveDays++
   }
   for (const d of days) {
@@ -216,6 +223,7 @@ export function computeLeaveMonth(ctx: LeaveCtx, month: string, live = false): L
   return {
     ...base, counted: true, provisional, ended: mEnd < today,
     opening, accrued, available, leaveDays, halfDays, lateCount, lateHalfDays, periodDays, periodPaid,
+    compulsoryDays,
     used, unpaidOverflow, unpaidLeaveDays, absentDays, unsettledDays, closing,
     unpaidDays: absentDays + unpaidLeaveDays + unpaidOverflow,
     suggestedChoice: last?.choice ?? 'payout',

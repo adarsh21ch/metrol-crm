@@ -54,6 +54,12 @@ const DOC_MAP: { pathCol: string; docType: string }[] = [
   { pathCol: 'aadhaar_path', docType: 'aadhaar' },
   { pathCol: 'bank_proof_path', docType: 'bank_proof' },
   { pathCol: 'relieving_letter_path', docType: 'other' },
+  // Round 6 (0026): signature is asked of everyone; the other two only when
+  // the applicant ticked previous employment — both are null otherwise, and
+  // the loop below already skips a null pathCol.
+  { pathCol: 'signature_path', docType: 'signature' },
+  { pathCol: 'experience_letter_path', docType: 'experience_letter' },
+  { pathCol: 'salary_slip_path', docType: 'salary_slip' },
 ]
 
 Deno.serve(async (req: Request) => {
@@ -169,6 +175,9 @@ Deno.serve(async (req: Request) => {
     // here would mean new columns on `employees`, which is Adarsh's call.
     date_of_birth: app.date_of_birth ?? null,
     address: app.present_address ?? '',
+    // Round 6 (0026): the only reason Period leave could ever be a per-person
+    // rule instead of one company-wide switch — nothing stored this before.
+    gender: app.gender ?? null,
     office_id: officeId,
     shift_id: shiftId,
     annual_leave_days: annualLeaveDays,

@@ -171,7 +171,7 @@ export const demoEmployees: Employee[] = [
     emergencyName: 'Sunil Sharma', emergencyRelation: 'Father', emergencyPhone: '+91 98200 11002',
     status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), shiftId: 'sh1', officeId: 'off1',
     offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
-    resignationDate: null, noticePeriodDays: null, monthlySalary: 45000,
+    resignationDate: null, noticePeriodDays: null, monthlySalary: 45000, gender: 'Female',
   },
   ...demoMembers.map((m, i) => ({
     id: 'e' + (i + 1),
@@ -209,6 +209,9 @@ export const demoEmployees: Employee[] = [
     // Round 4: everybody in the demo is priced except the newest starter —
     // that one row shows what "Set a monthly salary first" looks like.
     monthlySalary: i === 3 ? null : 25000 + i * 6000,
+    // Round 6: one female salesperson so the demo shows Period leave actually
+    // being offered, not just an empty state.
+    gender: i === 1 ? 'Female' : 'Male',
   })),
 ]
 
@@ -504,6 +507,7 @@ const APP_BLANK = {
   bankName: '', bankAccountName: '', bankAccountNo: '', bankIfsc: '',
   languages: [], referenceName: '', referenceDepartment: '',
   declarationAcceptedAt: null, termsAcceptedAt: null,
+  signaturePath: 'demo/signature.jpg', experienceLetterPath: null, salarySlipPath: null,
 } satisfies Partial<JobApplication>
 
 export const demoJobApplications: JobApplication[] = [
@@ -513,7 +517,7 @@ export const demoJobApplications: JobApplication[] = [
     positionInterest: 'Video Editor', noPreviousEmployment: false,
     firstName: 'Rakesh', lastName: 'Kumar', fatherOrHusband: 'Suresh Kumar',
     gender: 'Male', dateOfBirth: '2001-04-18', placeOfBirth: 'Ghaziabad',
-    religion: 'Hindu', maritalStatus: 'Bachelor', dependents: 'No',
+    religion: 'Hindu', maritalStatus: 'Unmarried', dependents: 'No',
     aadhaarNumber: '6424 4201 0063', pincode: '201204',
     presentAddress: 'D-33, Madan Pura, Modinagar, Ghaziabad',
     permanentAddress: 'D-33, Madan Pura, Modinagar, Ghaziabad',

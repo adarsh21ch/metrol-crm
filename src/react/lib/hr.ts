@@ -49,6 +49,11 @@ export interface Employee {
    *  on a raise. Null means nobody has priced this person yet — the payslip
    *  generator refuses to compute from a number nobody entered. */
   monthlySalary: number | null
+  /** Round 6 (0026). Free text ('Male' | 'Female' | 'Other' | ''), copied
+   *  from the application on approval. The one thing that makes Period leave
+   *  (T&C 3.7) offerable to the people it is actually for, automatically,
+   *  instead of a company-wide switch. Null for anyone added before this. */
+  gender: string | null
 }
 
 export const EMPLOYMENT: Record<EmploymentType, string> = {
@@ -77,8 +82,15 @@ export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 /** Sick and casual spend the monthly paid balance; unpaid spends nothing and
  *  comes off salary. Period (0022, T&C 3.7) is paid WITHOUT touching the
  *  balance, up to the monthly allowance HR sets — and only HR logs it. How a
- *  month adds up lives in lib/leaveRules.ts, not here. */
-export type LeaveType = 'sick' | 'casual' | 'unpaid' | 'period'
+ *  month adds up lives in lib/leaveRules.ts, not here.
+ *
+ *  Round 6 (0026, Adarsh's 2026-09-19 brief): the request form now offers
+ *  only three types — casual (the default), compulsory (a week-off day
+ *  actually worked, spent 1:1 out of comp_off_credits, never touches the
+ *  paid balance), and period (female employees only, one a month, enforced
+ *  in the database). 'sick' and 'unpaid' stay valid values — old rows and an
+ *  HR override still read correctly — they are just no longer offered. */
+export type LeaveType = 'sick' | 'casual' | 'unpaid' | 'period' | 'compulsory'
 
 /** One request. `daysCount` is set by a database trigger (0009) from the two
  *  dates, never trusted from the client — a mismatched request must not be
@@ -118,7 +130,12 @@ export const LEAVE_TYPE: Record<LeaveType, { label: string; cls: string; short: 
   sick: { label: 'Sick', cls: 'chip--mute', short: 'SL' },
   unpaid: { label: 'Unpaid', cls: 'chip--accent', short: 'LWP' },
   period: { label: 'Period', cls: 'chip--mute', short: 'PER' },
+  compulsory: { label: 'Compulsory / Week-off', cls: 'chip--mute', short: 'C/O' },
 }
+
+/** The three types the request form actually offers — Round 6. Casual is
+ *  always first, so it stays the default the form opens on. */
+export const REQUESTABLE_LEAVE_TYPES: LeaveType[] = ['casual', 'compulsory', 'period']
 
 /** Is this type paid at all? Period is — it just does not spend the balance. */
 export const isPaidLeave = (t: LeaveType) => t !== 'unpaid'
@@ -213,7 +230,8 @@ export interface OnboardingTask {
   sortOrder: number
 }
 
-export type DocType = 'pan' | 'aadhaar' | 'bank_proof' | 'photo' | 'resume' | 'other'
+export type DocType = 'pan' | 'aadhaar' | 'bank_proof' | 'photo' | 'resume'
+  | 'signature' | 'experience_letter' | 'salary_slip' | 'other'
 
 export const DOC_TYPE: Record<DocType, string> = {
   pan: 'PAN card',
@@ -221,6 +239,9 @@ export const DOC_TYPE: Record<DocType, string> = {
   bank_proof: 'Bank proof',
   photo: 'Photo',
   resume: 'Resume',
+  signature: 'Signature',
+  experience_letter: 'Experience letter',
+  salary_slip: 'Salary slip',
   other: 'Other',
 }
 
@@ -355,6 +376,13 @@ export interface JobApplication {
   /** Null only when noPreviousEmployment is true — the database enforces
    *  that pairing, not this type. */
   relievingLetterPath: string | null
+  /** Round 6 (0026). Required of every applicant. */
+  signaturePath: string
+  /** Round 6 (0026). Optional even with previous employment — "keep the
+   *  field there... not compulsory", Adarsh's words. Null when not attached
+   *  or when noPreviousEmployment is true. */
+  experienceLetterPath: string | null
+  salarySlipPath: string | null
   status: ApplicationStatus
   decidedBy: string | null
   decidedAt: string | null
@@ -380,4 +408,11 @@ export const APPLICATION_DOCS = [
   { key: 'aadhaar', label: 'Aadhaar card' },
   { key: 'bank_proof', label: 'Bank proof (cancelled cheque or passbook)' },
   { key: 'relieving_letter', label: 'Previous employer relieving letter', waivable: true },
+  { key: 'signature', label: 'Your signature (photo or scan)' },
+  // Round 6 (0026): optional even for somebody with previous employment —
+  // "if it is not compulsory to do it but we keep the field there." Hidden
+  // entirely when noPreviousEmployment is ticked, same as the relieving
+  // letter, but never blocks Next/Submit either way.
+  { key: 'experience_letter', label: 'Experience letter (optional)', optional: true, waivable: true },
+  { key: 'salary_slip', label: 'Salary slip (optional)', optional: true, waivable: true },
 ] as const

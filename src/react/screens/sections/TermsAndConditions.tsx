@@ -181,7 +181,7 @@ export function TermsAndConditions({ settings, back }: {
 /** The transcript. Headings match the printed document's own numbering so a
  *  clause referenced elsewhere in this app (T&C 3.7, 3.9, 3.10…) can be found
  *  here by that number. */
-function TermsText() {
+export function TermsText() {
   return (
     <div className="prose" style={{ lineHeight: 1.6 }}>
       <h2>1. Employment Overview</h2>

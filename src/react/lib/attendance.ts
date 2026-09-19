@@ -377,7 +377,7 @@ export const monthEnd = (iso: string) => {
 
 /** Leave type labels, kept here rather than imported from hr.ts so this file
  *  stays free of imports — 'casual' is the plain case and says nothing. */
-const LEAVE_REMARK: Record<string, string> = { sick: 'Sick', unpaid: 'Unpaid', period: 'Period' }
+const LEAVE_REMARK: Record<string, string> = { sick: 'Sick', unpaid: 'Unpaid', period: 'Period', compulsory: 'Comp-off' }
 
 /**
  * Every date from `from` to `to`, told what it is.

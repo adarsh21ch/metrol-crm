@@ -103,6 +103,9 @@ const toApp = (r: Row): JobApplication => ({
   aadhaarPath: str(r.aadhaar_path),
   bankProofPath: str(r.bank_proof_path),
   relievingLetterPath: (r.relieving_letter_path as string | null) ?? null,
+  signaturePath: str(r.signature_path),
+  experienceLetterPath: (r.experience_letter_path as string | null) ?? null,
+  salarySlipPath: (r.salary_slip_path as string | null) ?? null,
   status: (r.status as JobApplication['status']) ?? 'pending',
   decidedBy: (r.decided_by as string | null) ?? null,
   decidedAt: (r.decided_at as string | null) ?? null,
@@ -177,6 +180,9 @@ export interface ApplicationSubmission {
     aadhaar: File
     bank_proof: File
     relieving_letter: File | null
+    signature: File
+    experience_letter: File | null
+    salary_slip: File | null
   }
 }
 
@@ -247,6 +253,7 @@ export function useJobApplications(enabled = true) {
     if (!form.noPreviousEmployment && !form.files.relieving_letter) {
       return 'A relieving letter is required, or tick "I have no previous employer."'
     }
+    if (!form.files.signature) return 'A signature is required.'
     if (!form.declarationAccepted) return 'Please accept the declaration before submitting.'
     if (!form.termsAccepted) return 'Please accept the Terms & Conditions before submitting.'
 
@@ -259,6 +266,9 @@ export function useJobApplications(enabled = true) {
       ['photo', form.files.photo], ['pan', form.files.pan],
       ['aadhaar', form.files.aadhaar], ['bank_proof', form.files.bank_proof],
       ['relieving_letter', form.files.relieving_letter],
+      ['signature', form.files.signature],
+      ['experience_letter', form.files.experience_letter],
+      ['salary_slip', form.files.salary_slip],
     ]
     const attached = uploads.filter((u): u is [keyof ApplicationSubmission['files'], File] => u[1] != null)
     const paths: Record<string, string | null> = {}
@@ -341,6 +351,9 @@ export function useJobApplications(enabled = true) {
       aadhaar_path: paths.aadhaar,
       bank_proof_path: paths.bank_proof,
       relieving_letter_path: paths.relieving_letter,
+      signature_path: paths.signature,
+      experience_letter_path: paths.experience_letter,
+      salary_slip_path: paths.salary_slip,
     })
     if (err) return err.message
     return null
@@ -424,7 +437,10 @@ export function useJobApplications(enabled = true) {
     let before: JobApplication[] = []
     setRows((p) => { before = p; return p.filter((a) => a.id !== app.id) })
 
-    const paths = [app.photoPath, app.panPath, app.aadhaarPath, app.bankProofPath, app.relievingLetterPath].filter((p): p is string => !!p)
+    const paths = [
+      app.photoPath, app.panPath, app.aadhaarPath, app.bankProofPath, app.relievingLetterPath,
+      app.signaturePath, app.experienceLetterPath, app.salarySlipPath,
+    ].filter((p): p is string => !!p)
     const [, rowRes] = await Promise.all([
       paths.length > 0 ? supabase.storage.from(BUCKET).remove(paths) : Promise.resolve(null),
       supabase.from('job_applications').delete().eq('id', app.id),

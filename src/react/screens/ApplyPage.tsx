@@ -5,6 +5,7 @@ import {
   type ApplicationSubmission, type EducationRow, type EmploymentRow, type LanguageRow,
 } from '@/data/useJobApplications'
 import { APPLICATION_DOCS } from '@/lib/hr'
+import { TermsText } from '@/screens/sections/TermsAndConditions'
 
 /**
  * The one screen in this app that renders for a signed-out stranger — reached
@@ -97,6 +98,7 @@ export function ApplyPage() {
   const [restored, setRestored] = useState(false)
   const [files, setFiles] = useState<Record<string, File | null>>({
     photo: null, pan: null, aadhaar: null, bank_proof: null, relieving_letter: null,
+    signature: null, experience_letter: null, salary_slip: null,
   })
   const [busy, setBusy] = useState(false)
   // What the Submit button says while it works. Five documents off a phone
@@ -106,6 +108,12 @@ export function ApplyPage() {
   const [err, setErr] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const topRef = useRef<HTMLDivElement | null>(null)
+  // HR asked that the applicant cannot just download the PDF and tick the box
+  // unread — the checkbox below stays disabled until they have scrolled the
+  // whole transcript into view at least once, and clicking it while disabled
+  // says so instead of doing nothing.
+  const [tcScrolled, setTcScrolled] = useState(false)
+  const [tcNudge, setTcNudge] = useState(false)
 
   /* ---------------------------------------------------------- persistence */
   /* Read once on mount. Somebody filling this in on a phone gets a call, or
@@ -167,6 +175,7 @@ export function ApplyPage() {
     }
     if (n === 6) {
       const missing = APPLICATION_DOCS.filter((doc) => {
+        if ('optional' in doc && doc.optional) return false
         if (doc.key === 'relieving_letter' && d.noPreviousEmployment) return false
         return !files[doc.key]
       })
@@ -216,6 +225,9 @@ export function ApplyPage() {
         photo: files.photo!, pan: files.pan!, aadhaar: files.aadhaar!,
         bank_proof: files.bank_proof!,
         relieving_letter: d.noPreviousEmployment ? null : files.relieving_letter,
+        signature: files.signature!,
+        experience_letter: d.noPreviousEmployment ? null : files.experience_letter,
+        salary_slip: d.noPreviousEmployment ? null : files.salary_slip,
       },
     }
     const message = await apps.submit(submission, setProgress)
@@ -339,9 +351,8 @@ export function ApplyPage() {
                   <select className="input" id="apMar" value={d.maritalStatus}
                           onChange={(e) => set('maritalStatus', e.target.value)}>
                     <option value="">Select…</option>
-                    <option value="Bachelor">Bachelor / single</option>
                     <option value="Married">Married</option>
-                    <option value="Other">Other</option>
+                    <option value="Unmarried">Unmarried</option>
                   </select>
                 </div>
                 <div className="field">
@@ -633,10 +644,12 @@ export function ApplyPage() {
                 </p>
                 <div className="field-grid">
                   {APPLICATION_DOCS.map((doc) => {
-                    if (doc.key === 'relieving_letter' && d.noPreviousEmployment) return null
+                    const optional = 'optional' in doc && doc.optional
+                    if ((doc.key === 'relieving_letter' || doc.key === 'experience_letter' || doc.key === 'salary_slip')
+                        && d.noPreviousEmployment) return null
                     return (
                       <div className="field" key={doc.key}>
-                        <label htmlFor={`apf-${doc.key}`}>{doc.label}<Req /></label>
+                        <label htmlFor={`apf-${doc.key}`}>{doc.label}{!optional && <Req />}</label>
                         <input className="input" id={`apf-${doc.key}`} type="file"
                                accept="image/*,.pdf"
                                onChange={(e) => setFile(doc.key, e.target.files?.[0] ?? null)} />
@@ -670,20 +683,34 @@ export function ApplyPage() {
                 <div className="tc-box">
                   <div className="tc-top">
                     <strong>Terms &amp; Conditions of Employment</strong>
-                    <a className="btn btn--sm" href={TERMS_PDF} target="_blank" rel="noopener" download>
-                      Download PDF
-                    </a>
                   </div>
                   <p className="field-hint">
-                    Working hours and attendance, paid leave and salary adjustment, the annual
-                    performance review, workplace conduct, termination and notice period,
-                    confidentiality, and non-compete. Please read it before accepting.
+                    Please scroll through the whole document below — the box you tick at the bottom
+                    only unlocks once you have reached the end.
                   </p>
-                  <label className="check">
-                    <input type="checkbox" checked={d.termsAccepted}
+                  {/* Scrolled to within 24px of the bottom counts as "reached the
+                      end" — a rounding pixel or two on some browsers must not be
+                      the difference between done and stuck forever. */}
+                  <div className="tc-scroll" onScroll={(e) => {
+                    const el = e.currentTarget
+                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) setTcScrolled(true)
+                  }}>
+                    <TermsText />
+                  </div>
+                  <a className="btn btn--sm" href={TERMS_PDF} target="_blank" rel="noopener" download style={{ marginTop: 10 }}>
+                    Download a copy for your records
+                  </a>
+                  <label className={'check' + (!tcScrolled ? ' is-disabled' : '')}
+                         onClick={(e) => {
+                           if (!tcScrolled) { e.preventDefault(); setTcNudge(true) }
+                         }}>
+                    <input type="checkbox" checked={d.termsAccepted} disabled={!tcScrolled}
                            onChange={(e) => set('termsAccepted', e.target.checked)} />
                     I have read, understood and accept the Terms &amp; Conditions of Employment.
                   </label>
+                  {tcNudge && !tcScrolled && (
+                    <p className="auth-err">Please scroll through the whole Terms &amp; Conditions above before accepting.</p>
+                  )}
                 </div>
               </>
             )}

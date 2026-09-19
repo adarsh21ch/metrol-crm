@@ -5,6 +5,7 @@ import { Tip } from '@/components/Tip'
 import { AttendanceSettingsModal } from '@/modals/AttendanceSettingsModal'
 import { AttendanceEditModal } from '@/modals/AttendanceEditModal'
 import { OfficeModal } from '@/modals/OfficeModal'
+import { EmployeeAttendanceModal } from '@/modals/EmployeeAttendanceModal'
 import { count } from '@/lib/format'
 import { downloadPoster } from '@/lib/qrPoster'
 import { PUNCH_METHOD, statusChip, fmtDuration, fmtShift, fmtTime, officeToday, type AttendanceRow, type OfficeLocation } from '@/lib/attendance'
@@ -60,6 +61,10 @@ export function HrAttendance({
      its own above the table; this hosts it on the day's heading instead. */
   const [dayView, setDayView] = usePhoneView('hr-attendance')
   const [saving, setSaving] = useState<string | null>(null)   // branch id whose poster is being written
+  /** Round 6 (0026): "give HR the same dashboard view of all the employees."
+   *  Clicking a name opens this one person's whole month — attendance and
+   *  leave together — rather than HR having to reconstruct it from filters. */
+  const [detailFor, setDetailFor] = useState<string | null>(null)
   const officeName = (id: string | null) => att.offices.find((o) => o.id === id)?.name ?? '—'
 
   // Days somebody walked out of without punching out would otherwise sit at
@@ -111,7 +116,10 @@ export function HrAttendance({
   const closed = dayRows.filter((r) => r.row?.punchOutAt).length
 
   const cols: GridCol<DayRow>[] = [
-    { key: 'name', label: 'Employee', width: 190, render: (r) => <span className="cell-strong">{r.name}</span> },
+    {
+      key: 'name', label: 'Employee', width: 190,
+      render: (r) => <button className="name-btn" onClick={() => setDetailFor(r.employeeId)}>{r.name}</button>,
+    },
     { key: 'code', label: 'ID', width: 88, render: (r) => <span className="cell-mono">{r.code || '—'}</span> },
     { key: 'shift', label: 'Shift', width: 76, render: (r) => <span className="cell-mono">{fmtShift(r.row?.shiftStart)}</span> },
     { key: 'in', label: 'Punch in', width: 104, render: (r) => <span className="cell-mono">{fmtTime(r.row?.punchInAt, tz)}</span> },
@@ -377,6 +385,14 @@ export function HrAttendance({
           }}
         />
       )}
+
+      {detailFor && (() => {
+        const emp = employees.find((e) => e.id === detailFor)
+        return emp ? (
+          <EmployeeAttendanceModal employee={emp} att={att} leave={leave} allEmployees={employees}
+                                    onClose={() => setDetailFor(null)} />
+        ) : null
+      })()}
     </>
   )
 }

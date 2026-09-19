@@ -22,6 +22,7 @@ import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
 import { DocumentUploadModal } from '@/modals/DocumentUploadModal'
 import { ApplicationReviewModal } from '@/modals/ApplicationReviewModal'
 import { useLeaveBoard, useLeaveMonth } from '@/data/useLeaveMonths'
+import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays, type LeaveChoice } from '@/lib/leaveRules'
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
 import { useJobApplications } from '@/data/useJobApplications'
@@ -177,6 +178,7 @@ export function HrPage({
   const [exitReason, setExitReason] = useState('')
   const [rehireEligible, setRehireEligible] = useState(true)
   const [loggingFor, setLoggingFor] = useState<string | null>(null)
+  const loggingForCompOff = useCompOffBalance(loggingFor)
   const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
   const [holDate, setHolDate] = useState('')
   const [holName, setHolName] = useState('')
@@ -1679,6 +1681,9 @@ export function HrPage({
       {loggingFor && (
         <LeaveRequestModal employeeId={loggingFor} weekOffs={att.settings?.weekOffs ?? [0]} holidays={att.holidays}
                            allowPeriod={(att.settings?.periodLeavePerMonth ?? 0) > 0}
+                           gender={hr.rows.find((e) => e.id === loggingFor)?.gender ?? null}
+                           compOffBalance={loggingForCompOff}
+                           existingLeave={leave.rows.filter((r) => r.employeeId === loggingFor)}
                            onClose={() => setLoggingFor(null)} onSave={logLeave} />
       )}
       {deciding && (
