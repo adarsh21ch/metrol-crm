@@ -14,6 +14,8 @@ import { TeamPage } from '@/screens/TeamPage'
 import { Member } from '@/screens/Member'
 import { HrPage } from '@/screens/HrPage'
 import { ApplyPage } from '@/screens/ApplyPage'
+import { OwnerProfile } from '@/screens/OwnerProfile'
+import { NAV_ICONS, type BottomNavItems } from '@/components/BottomNav'
 import { HR_DEPARTMENT } from '@/lib/hr'
 import { usePersistedState } from '@/lib/usePersistedState'
 
@@ -26,6 +28,11 @@ type Route =
   | { name: 'team' }
   | { name: 'member'; id: string }
   | { name: 'hr' }
+  /** The owner's fifth tab. A route rather than the modal it used to be,
+   *  because Profile is a place on every screen now and a place has to be
+   *  somewhere you can BE — including on a desktop, where the rail's avatar
+   *  chip lands here too. */
+  | { name: 'profile' }
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -74,6 +81,7 @@ function SignedIn() {
   const ws = useWorkspace()
   const { toast, node: toastNode } = useToast()
   const [route, setRoute] = usePersistedState<Route>('route', { name: 'projects' })
+  const [lastProject, setLastProject] = usePersistedState<string | null>('last-project', null)
 
   /* A failed write used to roll the row back in silence: the chip flicked back
      to its old value and nothing said why, which is precisely what makes a
@@ -131,14 +139,42 @@ function SignedIn() {
   }
 
   const onOpenProjects = () => setRoute({ name: 'projects' })
-  const onOpenProject = (id: string) => setRoute({ name: 'project', id })
+  const onOpenProject = (id: string) => { setLastProject(id); setRoute({ name: 'project', id }) }
   const onOpenTeam = () => setRoute({ name: 'team' })
   const onOpenMember = (id: string) => setRoute({ name: 'member', id })
   const onOpenHr = () => setRoute({ name: 'hr' })
+  const onOpenProfile = () => setRoute({ name: 'profile' })
+
+  /* The owner's second tab, "Project" — resume the one you were working in.
+     The owner has only three app-level destinations (Projects, Team, HR) and
+     the bar wants four, and inventing a fourth screen would have been exactly
+     the feature creep the quality bar forbids. This is not invented: it is
+     where the owner actually spends the day, one tap from anywhere. Falls back
+     to the first active project, then to any project, then to the grid — so
+     the tab is never a button that does nothing. */
+  const resumeProject = ws.projects.find((p) => p.id === lastProject)
+    ?? ws.projects.find((p) => p.status === 'active')
+    ?? ws.projects[0]
+    ?? null
+  const onOpenLastProject = () => (resumeProject ? onOpenProject(resumeProject.id) : onOpenProjects())
+
+  /* Every owner screen's tab bar, outside a project. Built once, here, rather
+     than three times in three screens — which is how they came to disagree in
+     the first place. Each screen only says which tab is lit. */
+  const ownerNav: BottomNavItems = [
+    { key: 'projects', label: 'Projects', icon: NAV_ICONS.projects, onClick: onOpenProjects },
+    { key: 'project', label: resumeProject?.name ?? 'Project', short: 'Project', icon: NAV_ICONS.overview, onClick: onOpenLastProject },
+    { key: 'team', label: 'Team', icon: NAV_ICONS.team, onClick: onOpenTeam },
+    { key: 'hr', label: 'HR', icon: NAV_ICONS.hr, onClick: onOpenHr },
+    { key: 'profile', label: 'Profile', icon: NAV_ICONS.profile, onClick: onOpenProfile },
+  ]
 
   return withFeed(
     <>
-      {route.name === 'projects' && <Projects ws={ws} onOpen={onOpenProject} onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} />}
+      {route.name === 'projects' && (
+        <Projects ws={ws} onOpen={onOpenProject} onOpenTeam={onOpenTeam} onOpenHr={onOpenHr}
+                  onOpenProfile={onOpenProfile} nav={ownerNav} />
+      )}
       {route.name === 'project' && (
         <ProjectShell
           ws={ws}
@@ -147,6 +183,7 @@ function SignedIn() {
           onOpenProject={onOpenProject}
           onOpenTeam={onOpenTeam}
           onOpenHr={onOpenHr}
+          onOpenProfile={onOpenProfile}
           toast={toast}
         />
       )}
@@ -159,9 +196,16 @@ function SignedIn() {
           onOpenProjects={onOpenProjects}
           onOpenProject={onOpenProject}
           onOpenHr={onOpenHr}
+          onOpenProfile={onOpenProfile}
+          nav={ownerNav}
         />
       )}
       {route.name === 'hr' && <HrPage ws={ws} toast={toast} onBackToProjects={onOpenProjects} />}
+      {route.name === 'profile' && (
+        <OwnerProfile ws={ws} nav={ownerNav}
+                      onOpenProjects={onOpenProjects} onOpenProject={onOpenProject}
+                      onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} />
+      )}
     </>,
   )
 }

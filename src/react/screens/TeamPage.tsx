@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Rail } from '@/components/Rail'
-import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
+import { BottomNav, type BottomNavItems } from '@/components/BottomNav'
 import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
@@ -9,7 +9,6 @@ import { Avatar, Kpi } from '@/components/bits'
 import { count, daysSince, money, pct } from '@/lib/format'
 import { isConnected, isConverted, type Lead, type Member } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
-import { ProfileModal } from '@/modals/ProfileModal'
 import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
 
 interface ProjectRow {
@@ -183,6 +182,7 @@ function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member
 
 export function TeamPage({
   ws, memberId, onOpenMember, onBackToTeam, onOpenProjects, onOpenProject, onOpenHr,
+  onOpenProfile, nav,
 }: {
   ws: Workspace
   memberId: string | null
@@ -191,8 +191,10 @@ export function TeamPage({
   onOpenProjects: () => void
   onOpenProject: (id: string) => void
   onOpenHr: () => void
+  onOpenProfile: () => void
+  /** The owner's five, built once in App. This screen only says which is lit. */
+  nav: BottomNavItems
 }) {
-  const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const panes = usePanes()
   const tip = useHoverTip()
@@ -208,12 +210,12 @@ export function TeamPage({
         </div>
         <div className="topbar-right">
           <AccountControls ws={ws} variant="topbar" roleLabel={ws.me?.email ?? 'Owner'}
-                           onOpenProfile={() => setProfileOpen(true)} />
+                           onOpenProfile={onOpenProfile} />
         </div>
       </div>
 
       <div className="shell">
-        <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={() => setProfileOpen(true)} active="team" panes={panes} tip={tip}
+        <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={onOpenProfile} active="team" panes={panes} tip={tip}
               onOpenProjects={onOpenProjects} onOpenProject={onOpenProject}
               onOpenTeam={onBackToTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 
@@ -226,17 +228,9 @@ export function TeamPage({
         </div>
       </div>
 
-      <BottomNav
-        active="team"
-        items={[
-          { key: 'projects', label: 'Projects', icon: NAV_ICONS.projects, onClick: onOpenProjects },
-          { key: 'team', label: 'Team', icon: NAV_ICONS.team, onClick: onBackToTeam },
-          { key: 'hr', label: 'HR', icon: NAV_ICONS.hr, onClick: onOpenHr },
-        ]}
-      />
+      <BottomNav items={nav} active="team" />
 
       {tip.node}
-      {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
       {adminOpen && <CompanyAdminModal ws={ws} onClose={() => setAdminOpen(false)} />}
     </div>
   )

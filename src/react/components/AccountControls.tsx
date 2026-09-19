@@ -27,12 +27,12 @@ const SIGN_OUT = (
  * exactly one is ever on screen and neither can drift from the other.
  */
 export function AccountControls({
-  ws, roleLabel, onOpenProfile, variant, extra, alwaysShow, hideSignOut, hideUserChip,
-  hideTheme, onRefresh, refreshing,
+  ws, roleLabel, onOpenProfile, variant, extra, alwaysShow, onRefresh, refreshing,
 }: {
   ws: Workspace
   /** What to print under the name — "Owner", "HR", a department. Each screen
-   *  already had its own answer and they are not interchangeable. */
+   *  already had its own answer and they are not interchangeable. Rail only:
+   *  the topbar has no chip to print it on. */
   roleLabel: string
   onOpenProfile: () => void
   variant: 'rail' | 'topbar'
@@ -42,27 +42,23 @@ export function AccountControls({
   /** Screen-specific controls that belong beside the account block rather than
    *  in the page (the density slider on the employee's own app). */
   extra?: React.ReactNode
-  /** Member's own topbar drops both of these: sign-out moved into its Profile
-   *  tab as the last thing on the page, and the avatar/name chip here was a
-   *  second way to reach the exact same profile that tab now already is —
-   *  "remove the logout button and [the avatar] at the top right ... so
-   *  their space becomes clean." Owner and HR screens have no such tab (their
-   *  Profile is this chip, opening a modal), so neither prop is passed there
-   *  and nothing changes for them. */
-  hideSignOut?: boolean
-  hideUserChip?: boolean
-  /** Light/dark moved onto the member's Profile tab as a real setting with a
-   *  label, rather than a sun icon repeated on top of every single screen —
-   *  "instead of theme icon in every tab there should be a refresh button".
-   *  Owner and HR have no Profile tab to put it on, so they keep the icon and
-   *  neither of these props is passed there. */
-  hideTheme?: boolean
   /** Refresh as an icon up here, where it costs nothing, instead of a labelled
    *  button on a row of its own under every page title. */
   onRefresh?: () => void
   refreshing?: boolean
 }) {
   const name = ws.me?.name ?? '—'
+  /* The topbar is the PHONE's copy — the rail is hidden below 860px and this
+     takes over. It used to carry a theme toggle, a sign-out icon and an avatar
+     chip on the owner's and HR's screens, and all three are Profile's job now:
+     Profile is the fifth tab on every screen, so a second door to it in the
+     corner, and two settings sitting outside it, were exactly the scatter this
+     round exists to end. The member's app had already been cut back this way —
+     "remove the logout button and [the avatar] at the top right ... so their
+     space becomes clean" — and what is left is what the bar cannot do: the
+     bell, whose whole job is to show an unread count without being asked.
+     The rail keeps all of it; on a desktop it IS the navigation. */
+  const full = variant === 'rail'
   const isPrivileged = ws.me?.role === 'owner' || ws.departmentName(ws.me?.departmentId ?? null) === HR_DEPARTMENT
   /* The session's one feed, NOT a new one per copy of this component: this
      renders twice on every screen with a rail (rail + topbar, one hidden by
@@ -80,12 +76,12 @@ export function AccountControls({
             </svg>
           </IconBtn>
         )}
-        {!hideTheme && <ThemeToggle />}
+        {full && <ThemeToggle />}
         <NotificationBell ws={ws} n={n} isPrivileged={isPrivileged} />
         {extra}
-        {!hideSignOut && <IconBtn title="Sign out" onClick={() => void signOut()}>{SIGN_OUT}</IconBtn>}
+        {full && <IconBtn title="Sign out" onClick={() => void signOut()}>{SIGN_OUT}</IconBtn>}
       </div>
-      {!hideUserChip && (
+      {full && (
         <button className="user-chip" title="My profile" onClick={onOpenProfile}>
           <Avatar lg src={ws.me?.avatarUrl}>{initials(name === '—' ? '?' : name)}</Avatar>
           <div>

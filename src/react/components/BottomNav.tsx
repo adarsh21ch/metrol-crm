@@ -1,6 +1,3 @@
-import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-
 /** Shape-compatible with RailItem, plus two things only a phone needs:
  *  a shorter label (a tab bar has ~64px per item, a sidebar has 180px) and a
  *  count that belongs on the icon rather than inside the words. */
@@ -15,11 +12,18 @@ export interface BottomNavItem {
   onClick: () => void
 }
 
-const MORE_ICON = (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" />
-  </svg>
-)
+/**
+ * EXACTLY five. Not "at most five" — five, checked by the compiler.
+ *
+ * This used to be `BottomNavItem[]` with an overflow sheet behind a "More"
+ * button, and that escape hatch is precisely how the bar came to mean a
+ * different thing on every screen: a screen could add a sixth item, never see
+ * a consequence, and the tab that mattered quietly fell into a drawer. A team
+ * lead's Profile tab was in there. So the rule is a type now, and a sixth
+ * destination does not overflow — it fails `npm run typecheck` and you go and
+ * decide which four are the daily ones.
+ */
+export type BottomNavItems = readonly [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem]
 
 /** Icons for the sections that are not HR's — those already carry their own in
  *  HrPage's rail. Kept in one place so five screens do not each hand-roll an
@@ -96,8 +100,6 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   ),
 }
 
-const MAX_TABS = 5
-
 /**
  * The phone's navigation. It replaces the strip of chips that used to sit
  * under the topbar, for one reason: that strip scrolled sideways, so half the
@@ -106,86 +108,31 @@ const MAX_TABS = 5
  * under the thumb rather than at the top of the screen where a phone is
  * hardest to reach.
  *
- * Five is the ceiling — past that the labels stop being readable, so the
- * fifth slot becomes "More" and opens a sheet with the rest. HR has eight
- * sections and is the reason the overflow exists at all.
+ * Five tabs, and the fifth is Profile — on every screen, for every role, in
+ * the same place with the same icon. Whatever is not one of a screen's four
+ * daily destinations lives INSIDE Profile, which is why there is no longer
+ * anything for an overflow sheet to hold.
  *
  * Rendered on every screen; CSS hides it above 860px, where the rail and the
  * tab strip are the better tools and nothing about the desktop layout changes.
  */
-export function BottomNav({ items, active }: { items: BottomNavItem[]; active: string }) {
-  const [sheet, setSheet] = useState(false)
-
-  const overflows = items.length > MAX_TABS
-  const tabs = overflows ? items.slice(0, MAX_TABS - 1) : items
-  const rest = overflows ? items.slice(MAX_TABS - 1) : []
-  const activeInRest = rest.some((i) => i.key === active)
-
-  useEffect(() => {
-    if (!sheet) return
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setSheet(false) }
-    document.addEventListener('keydown', esc)
-    return () => document.removeEventListener('keydown', esc)
-  }, [sheet])
-
+export function BottomNav({ items, active }: { items: BottomNavItems; active: string }) {
   return (
-    <>
-      <nav className="bnav" aria-label="Sections">
-        {tabs.map((it) => (
-          <button
-            key={it.key}
-            className={'bnav-btn' + (active === it.key ? ' is-on' : '')}
-            onClick={it.onClick}
-            aria-current={active === it.key ? 'page' : undefined}
-          >
-            <span className="bnav-ico">
-              {it.icon}
-              {!!it.badge && <span className="bnav-badge">{it.badge > 99 ? '99+' : it.badge}</span>}
-            </span>
-            <span className="bnav-lbl">{it.short ?? it.label}</span>
-          </button>
-        ))}
-
-        {overflows && (
-          <button
-            className={'bnav-btn' + (activeInRest ? ' is-on' : '')}
-            onClick={() => setSheet(true)}
-            aria-haspopup="dialog"
-          >
-            <span className="bnav-ico">
-              {MORE_ICON}
-              {/* A count hidden behind "More" is a count nobody sees, so any
-                  badge in the overflow is surfaced on the button itself. */}
-              {!!rest.reduce((t, i) => t + (i.badge ?? 0), 0) && <span className="bnav-badge bnav-badge--dot" />}
-            </span>
-            <span className="bnav-lbl">
-              {activeInRest ? (rest.find((i) => i.key === active)?.short ?? 'More') : 'More'}
-            </span>
-          </button>
-        )}
-      </nav>
-
-      {sheet && createPortal(
-        <div className="bsheet-back" onClick={(e) => { if (e.target === e.currentTarget) setSheet(false) }}>
-          <div className="bsheet" role="dialog" aria-label="More sections">
-            <div className="bsheet-grip" />
-            <div className="bsheet-list">
-              {rest.map((it) => (
-                <button
-                  key={it.key}
-                  className={'bsheet-row' + (active === it.key ? ' is-on' : '')}
-                  onClick={() => { it.onClick(); setSheet(false) }}
-                >
-                  <span className="bsheet-ico">{it.icon}</span>
-                  <span className="bsheet-lbl">{it.label}</span>
-                  {!!it.badge && <span className="bsheet-count">{it.badge}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
-    </>
+    <nav className="bnav" aria-label="Sections">
+      {items.map((it) => (
+        <button
+          key={it.key}
+          className={'bnav-btn' + (active === it.key ? ' is-on' : '')}
+          onClick={it.onClick}
+          aria-current={active === it.key ? 'page' : undefined}
+        >
+          <span className="bnav-ico">
+            {it.icon}
+            {!!it.badge && <span className="bnav-badge">{it.badge > 99 ? '99+' : it.badge}</span>}
+          </span>
+          <span className="bnav-lbl">{it.short ?? it.label}</span>
+        </button>
+      ))}
+    </nav>
   )
 }

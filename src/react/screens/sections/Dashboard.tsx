@@ -37,8 +37,10 @@ export function Dashboard({ conv, leads, members }: { conv: Lead[]; leads: Lead[
 
   return (
     <div className="section is-on">
-      <div className="section-head"><h3>Sales dashboard</h3></div>
-
+      {/* No heading of its own. This is a VIEW of Sales now, not a section
+          beside it, and the switch that turned it on is one row up with the
+          word "Dashboard" lit on it — THE LAYOUT LAW, rule 7: a line that
+          only says the title again is a row spent on nothing. */}
       <div className="money-grid">
         {tiles.map((t) => (
           <div className="money-tile" key={t.k}>

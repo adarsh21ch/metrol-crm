@@ -122,7 +122,12 @@ export function compareToSettings(s: AttendanceSettings | null): Check[] {
   ]
 }
 
-export function TermsAndConditions({ settings }: { settings: AttendanceSettings | null }) {
+export function TermsAndConditions({ settings, back }: {
+  settings: AttendanceSettings | null
+  /** HR reaches this through Profile on a phone, so it is handed the way back.
+   *  The member's own copy is opened from a ← header already and passes none. */
+  back?: React.ReactNode
+}) {
   const checks = compareToSettings(settings)
   const disagreements = checks.filter((c) => c.verdict === 'mismatch' || c.verdict === 'off')
 
@@ -135,6 +140,7 @@ export function TermsAndConditions({ settings }: { settings: AttendanceSettings 
           it wrap onto its own line below instead of fighting the title for
           the same row. */}
       <div className="section-head tc-head">
+        {back}
         <h1>Terms & Conditions of Employment</h1>
         <a className="btn btn--sm" href="/metrol-media-terms-and-conditions.pdf" target="_blank" rel="noreferrer">
           Download the PDF

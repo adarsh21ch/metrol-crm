@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
 import { Rail } from '@/components/Rail'
-import { BottomNav } from '@/components/BottomNav'
+import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { DensitySlider } from '@/components/DensitySlider'
 import { Chip, IconBtn } from '@/components/bits'
 import { usePanes } from '@/lib/usePanes'
@@ -13,35 +13,37 @@ import { ImportModal } from '@/modals/ImportModal'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { AddLeadModal } from '@/modals/AddLeadModal'
-import { ProfileModal } from '@/modals/ProfileModal'
 import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
 import { Overview } from './sections/Overview'
 import { Leads } from './sections/Leads'
 import { Sales } from './sections/Sales'
 import { Team } from './sections/Team'
-import { Dashboard } from './sections/Dashboard'
 
-export type SecId = 'overview' | 'leads' | 'sales' | 'team' | 'dash'
+/** 'dash' is gone. "Sales dashboard" was a fifth section showing the same
+ *  converted leads the Sales table already holds, summarised — so it is a
+ *  Deals/Dashboard switch on Sales' own heading line now (THE LAYOUT LAW,
+ *  rule 1: it joins a row that already exists), and the slot it was using
+ *  goes to Profile, which every screen in this app owes its fifth tab. */
+export type SecId = 'overview' | 'leads' | 'sales' | 'team'
 
 const ICONS: Record<SecId, React.ReactNode> = {
   overview: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></svg>,
   leads: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /></svg>,
   sales: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 .9-5 2.8c0 3.7 10 2.2 10 5.9 0 2-2.2 3.1-5 3.1s-5-1.1-5-3.1" /></svg>,
   team: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M3 20V10M9 20V4M15 20v-7M21 20v-11" /></svg>,
-  dash: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>,
 }
 const LABEL: Record<SecId, string> = {
-  overview: 'Overview', leads: 'Leads', sales: 'Sales', team: 'Team tracking', dash: 'Sales dashboard',
+  overview: 'Overview', leads: 'Leads', sales: 'Sales', team: 'Team tracking',
 }
-const ORDER: SecId[] = ['overview', 'leads', 'sales', 'team', 'dash']
-/** "Team tracking" and "Sales dashboard" do not fit a 75px tab. The sidebar
+const ORDER: SecId[] = ['overview', 'leads', 'sales', 'team']
+/** "Team tracking" does not fit a 75px tab. The sidebar
  *  keeps the full names; only the phone's tab bar uses these. */
 const SHORT: Record<SecId, string> = {
-  overview: 'Overview', leads: 'Leads', sales: 'Sales', team: 'Team', dash: 'Dashboard',
+  overview: 'Overview', leads: 'Leads', sales: 'Sales', team: 'Team',
 }
 
 export function ProjectShell({
-  ws, projectId, onBack, onOpenProject, onOpenTeam, onOpenHr, toast,
+  ws, projectId, onBack, onOpenProject, onOpenTeam, onOpenHr, onOpenProfile, toast,
 }: {
   ws: Workspace
   projectId: string
@@ -49,6 +51,7 @@ export function ProjectShell({
   onOpenProject: (id: string) => void
   onOpenTeam: () => void
   onOpenHr: () => void
+  onOpenProfile: () => void
   toast: (m: string) => void
 }) {
   // The dialogs live here because this is the level that knows the project.
@@ -56,9 +59,19 @@ export function ProjectShell({
   const [addOpen, setAddOpen] = useState(false)
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
-  const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
-  const [sec, setSec] = usePersistedState<SecId>('project-sec:' + projectId, 'overview')
+  const [storedSec, setSec] = usePersistedState<SecId | 'dash'>('project-sec:' + projectId, 'overview')
+  /* sessionStorage can still be holding 'dash' from before this round — a
+     value no branch below renders, which would paint an empty page. It means
+     "the money summary", so it lands on Sales with Dashboard already picked. */
+  const sec: SecId = storedSec === 'dash' ? 'sales' : storedSec
+  const salesOpensOnDashboard = storedSec === 'dash'
+
+  /** One tab, built from the same LABEL/SHORT/ICONS the rail's links use, so
+   *  the two can never describe a section differently. */
+  const tab = (id: SecId) => ({
+    key: id, label: LABEL[id], short: SHORT[id], icon: ICONS[id], onClick: () => setSec(id),
+  })
 
   const panes = usePanes()
   const tip = useHoverTip()
@@ -104,12 +117,12 @@ export function ProjectShell({
         </select>
         <div className="topbar-right">
           <AccountControls ws={ws} variant="topbar" extra={<DensitySlider />} roleLabel={ws.me?.email ?? 'Owner'}
-                           onOpenProfile={() => setProfileOpen(true)} />
+                           onOpenProfile={onOpenProfile} />
         </div>
       </div>
 
       <div className="shell">
-        <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={() => setProfileOpen(true)} active={projectId} panes={panes} tip={tip}
+        <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={onOpenProfile} active={projectId} panes={panes} tip={tip}
               onOpenProjects={onBack} onOpenProject={onOpenProject}
               onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
 
@@ -144,18 +157,26 @@ export function ProjectShell({
                      onImport={() => setImportOpen(true)} onAdd={() => setAddOpen(true)}
                      onHistory={setHistoryFor} onNeedsSale={setSaleFor} toast={toast} />
             )}
-            {sec === 'sales' && <Sales ws={ws} conv={conv} members={ws.members} isOwner={isOwner} toast={toast} />}
+            {sec === 'sales' && (
+              <Sales ws={ws} conv={conv} leads={leads} members={ws.members} isOwner={isOwner}
+                     openOnDashboard={salesOpensOnDashboard} toast={toast} />
+            )}
             {sec === 'team' && <Team leads={leads} members={members} />}
-            {sec === 'dash' && <Dashboard conv={conv} leads={leads} members={members} />}
           </div>
         </div>
       </div>
 
+      {/* Inside a project the bar is the project's sections — this is where
+          the owner actually works, and burying it behind a dropdown to keep
+          the bar identical everywhere would have cost them the fastest path
+          they have. The pattern is what is uniform: four daily destinations,
+          then Profile, fifth, always. */}
       <BottomNav
         active={sec}
-        items={ORDER.map((id) => ({
-          key: id, label: LABEL[id], short: SHORT[id], icon: ICONS[id], onClick: () => setSec(id),
-        }))}
+        items={[
+          tab('overview'), tab('leads'), tab('sales'), tab('team'),
+          { key: 'profile', label: 'Profile', icon: NAV_ICONS.profile, onClick: onOpenProfile },
+        ]}
       />
 
       {tip.node}
@@ -210,7 +231,6 @@ export function ProjectShell({
         />
       )}
 
-      {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
       {adminOpen && <CompanyAdminModal ws={ws} onClose={() => setAdminOpen(false)} />}
     </div>
   )

@@ -1472,7 +1472,6 @@ html{-webkit-text-size-adjust:100%}
 button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 
 .bnav{display:none}
-.bsheet-back{display:none}
 
 @media (max-width:860px){
   /* ------------------------------------------------- 1. the zoom trap */
@@ -1506,29 +1505,6 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
     font-size:10px;font-weight:700;line-height:16px;text-align:center;
   }
   .bnav-badge--dot{min-width:8px;width:8px;height:8px;padding:0;top:-1px;left:15px}
-
-  .bsheet-back{display:flex;position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.45);align-items:flex-end}
-  .bsheet{
-    width:100%;background:var(--surface);border-top:1px solid var(--line);
-    border-radius:16px 16px 0 0;box-shadow:var(--shadow-lg);
-    padding:6px 10px calc(12px + env(safe-area-inset-bottom));
-    animation:bsheet-up .18s ease;
-  }
-  @keyframes bsheet-up{from{transform:translateY(16px);opacity:.5}to{transform:none;opacity:1}}
-  .bsheet-grip{width:38px;height:4px;border-radius:2px;background:var(--line-2);margin:4px auto 8px}
-  .bsheet-row{
-    display:flex;align-items:center;gap:13px;width:100%;height:50px;padding:0 12px;
-    border:0;background:none;border-radius:10px;color:var(--ink);
-    font-size:14.5px;font-weight:500;text-align:left;
-  }
-  .bsheet-row.is-on{background:var(--surface-3);color:var(--accent)}
-  .bsheet-ico{display:flex;color:var(--ink-3)}
-  .bsheet-row.is-on .bsheet-ico{color:var(--accent)}
-  .bsheet-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .bsheet-count{
-    min-width:20px;padding:0 6px;height:20px;border-radius:10px;background:var(--accent);
-    color:var(--accent-on);font-size:11px;font-weight:700;line-height:20px;text-align:center;
-  }
 
   /* The salesperson's tab strip is the same sideways-scrolling problem the
      chip strip was; the tab bar has taken its job over. */
@@ -1718,6 +1694,21 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .prof-foot{margin-top:22px;padding-top:4px;display:flex;flex-direction:column;gap:10px}
 /* One row per section, tapped into rather than four pills sharing a line. */
 .prof-menu{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+/* Profile holds two unlike things now — the destinations this role has that
+   are not daily tabs, and the account itself. One word each keeps them apart
+   without spending a row on a sentence. */
+.prof-group{
+  font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);margin:6px 0 -2px;
+}
+.prof-menu > .prof-group:first-child{margin-top:0}
+.prof-account{margin-top:2px}
+/* A control that only makes sense below the breakpoint. Salary, Departments
+   and Terms are rail links on a desktop — Profile is not where you came from
+   up there — but on a phone they are reached THROUGH Profile, so that is
+   where ← has to go back to. Same direction as .seg-cards above. */
+.on-phone{display:none}
+@media (max-width:860px){ .on-phone{display:inline-flex} }
 .prof-row{
   display:flex;align-items:center;gap:10px;width:100%;text-align:left;
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r);

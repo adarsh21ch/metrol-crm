@@ -3,15 +3,15 @@ import { isDemo } from '@/data/demo'
 import { supabase } from '@/lib/supabase'
 import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Rail, type RailItem } from '@/components/Rail'
-import { BottomNav, type BottomNavItem } from '@/components/BottomNav'
+import { BottomNav, NAV_ICONS, type BottomNavItems } from '@/components/BottomNav'
 import { Modal } from '@/components/Modal'
 import { Tip } from '@/components/Tip'
 import { AccountControls } from '@/components/AccountControls'
+import { ProfileSection } from '@/components/ProfileSection'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
 import { Avatar, Chip, Kpi } from '@/components/bits'
 import { count, initials, money } from '@/lib/format'
-import { ProfileModal } from '@/modals/ProfileModal'
 import { EmployeeModal } from '@/modals/EmployeeModal'
 import { HrAttendance } from '@/screens/sections/HrAttendance'
 import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
@@ -142,7 +142,7 @@ export function HrPage({
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'salary' | 'joining' | 'exit' | 'terms'>('hr-section', 'dashboard')
+  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'salary' | 'joining' | 'exit' | 'terms' | 'profile'>('hr-section', 'dashboard')
   /* Applications (the public joining form's inbox) and Onboarding (the
      checklist for somebody an application just turned into) used to be two
      separate sidebar tabs, even though the moment one is approved the SAME
@@ -176,7 +176,6 @@ export function HrPage({
   const [noticeDays, setNoticeDays] = useState('')
   const [exitReason, setExitReason] = useState('')
   const [rehireEligible, setRehireEligible] = useState(true)
-  const [profileOpen, setProfileOpen] = useState(false)
   const [loggingFor, setLoggingFor] = useState<string | null>(null)
   const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
   const [holDate, setHolDate] = useState('')
@@ -371,21 +370,45 @@ export function HrPage({
     { key: 'terms', label: 'Terms & Conditions', icon: TERMS_ICON, onClick: () => { setSection('terms'); setOpenId(null) } },
   ]
 
-  /* The phone's tab bar carries the same seven sections in the same order —
-     a sidebar can list them all, five tabs cannot, so the first four become
-     tabs and the rest live behind More. Labels are shortened for a 75px tab,
-     and both counted tabs' numbers move out of the words and onto the icon
-     where a tab bar puts them. */
-  const NAV_SHORT: Record<string, string> = {
-    dashboard: 'Dashboard', attendance: 'Attendance', departments: 'Departments', directory: 'Employees',
-    salary: 'Salary', exit: 'Exit', joining: 'Joining', terms: 'Terms',
-  }
-  const navItems: BottomNavItem[] = railItems.map((it) => ({
-    ...it,
-    label: it.key === 'joining' ? 'Joining' : it.key === 'attendance' ? 'Attendance' : it.label,
-    short: NAV_SHORT[it.key],
-    badge: it.key === 'joining' ? pendingApps.length : it.key === 'attendance' ? pendingLeave.length : undefined,
-  }))
+  /* The tab bar is NOT the rail any more, and that is the fix.
+     It used to be `railItems.map(...)` — all seven sections, four of them
+     tabs and three behind a "More" sheet, which is how HR ended up with a
+     bar that was a different height and a different shape from everybody
+     else's and had no Profile on it at all. The rail above still lists all
+     seven; a sidebar can afford them. The phone gets the four HR opens
+     daily, then Profile.
+     Salary is monthly, Departments is one-time setup and Terms is read once
+     at joining — all three are rows inside Profile now. Joining keeps a tab
+     because its badge is an actionable queue: somebody has applied, and a
+     count nobody sees is a count that does not work. */
+  const HR_TABS = ['dashboard', 'attendance', 'directory', 'joining'] as const
+  /** The three that moved into Profile. Opening one lights Profile on the bar
+   *  and puts a ← Profile on its page head, so "where am I" still has an
+   *  answer and the way back is one tap. */
+  const IN_PROFILE = ['salary', 'departments', 'terms'] as const
+  const inProfileTab = (IN_PROFILE as readonly string[]).includes(section)
+  const railItem = (key: string) => railItems.find((it) => it.key === key)!
+  /** Phone only — see `.on-phone`. Sits ON the title's row, not above it. */
+  const backToProfile = (
+    <button className="btn btn--sm on-phone" onClick={() => setSection('profile')}>← Profile</button>
+  )
+  const navItems: BottomNavItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: railItem('dashboard').icon, onClick: railItem('dashboard').onClick },
+    {
+      key: 'attendance', label: 'Attendance', icon: railItem('attendance').icon,
+      badge: pendingLeave.length, onClick: railItem('attendance').onClick,
+    },
+    { key: 'directory', label: 'Employees', icon: railItem('directory').icon, onClick: railItem('directory').onClick },
+    {
+      key: 'joining', label: 'Joining', icon: railItem('joining').icon,
+      badge: pendingApps.length, onClick: railItem('joining').onClick,
+    },
+    {
+      key: 'profile', label: 'Profile', icon: NAV_ICONS.profile,
+      onClick: () => { setSection('profile'); setOpenId(null) },
+    },
+  ]
+  void HR_TABS
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
   const exitRecordFor = (employeeId: string) => exitRecords.rows.find((r) => r.employeeId === employeeId) ?? null
@@ -613,12 +636,12 @@ export function HrPage({
         <div className="topbar-right">
           {onBackToProjects && <button className="btn btn--sm" onClick={onBackToProjects}>← Projects</button>}
           <AccountControls ws={ws} variant="topbar" roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'}
-                           onOpenProfile={() => setProfileOpen(true)} />
+                           onOpenProfile={() => { setSection('profile'); setOpenId(null) }} />
         </div>
       </div>
 
       <div className="shell">
-        <Rail ws={ws} roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'} onOpenProfile={() => setProfileOpen(true)} active={open ? 'directory' : section} panes={panes} tip={tip} items={railItems} />
+        <Rail ws={ws} roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'} onOpenProfile={() => { setSection('profile'); setOpenId(null) }} active={open ? 'directory' : section} panes={panes} tip={tip} items={railItems} />
 
         <div className="workspace">
 
@@ -1266,6 +1289,7 @@ export function HrPage({
             {!open && section === 'departments' && (
               <>
                 <div className="page-head">
+                  {backToProfile}
                   <h1>Departments</h1>
                   <div className="section-tools">
                     <div className="seg">
@@ -1512,6 +1536,7 @@ export function HrPage({
             {!open && section === 'salary' && (
               <>
                 <div className="page-head">
+                  {backToProfile}
                   <h1>Salary</h1>
                 </div>
 
@@ -1595,12 +1620,29 @@ export function HrPage({
             )}
 
             {/* -------------------------------------------------- terms */}
-            {!open && section === 'terms' && <TermsAndConditions settings={att.settings} />}
+            {!open && section === 'terms' && <TermsAndConditions settings={att.settings} back={backToProfile} />}
+
+            {/* ------------------------------------------------- profile */}
+            {!open && section === 'profile' && (
+              <>
+                <div className="page-head"><h1>Profile</h1></div>
+                <ProfileSection
+                  ws={ws}
+                  subtitle={ws.me?.role === 'owner' ? 'Owner' : 'Human Resources'}
+                  photoUrl={ws.me?.avatarUrl}
+                  rows={[
+                    { key: 'salary', label: 'Salary', onClick: () => setSection('salary') },
+                    { key: 'departments', label: 'Departments', onClick: () => setSection('departments') },
+                    { key: 'terms', label: 'Terms & Conditions', atFoot: true, onClick: () => setSection('terms') },
+                  ]}
+                />
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <BottomNav items={navItems} active={open ? 'directory' : section} />
+      <BottomNav items={navItems} active={open ? 'directory' : inProfileTab ? 'profile' : section} />
 
       <LeaveAlertStack
         alerts={leaveAlerts}
@@ -1613,7 +1655,6 @@ export function HrPage({
       />
 
       {tip.node}
-      {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
 
       {/* THE LAYOUT LAW, rule 7: a set of rules belongs behind an ⓘ, not
           printed under the buttons it describes on every visit. The text is

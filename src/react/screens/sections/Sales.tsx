@@ -3,14 +3,39 @@ import { DataGrid, Pager, PhoneViewPick, usePhoneView, type GridCol } from '@/co
 import { Menu } from '@/components/Menu'
 import { Avatar, Caret, Chip } from '@/components/bits'
 import { agoDays, count, daysSince, money } from '@/lib/format'
+import { Dashboard } from '@/screens/sections/Dashboard'
 import type { Lead, Member } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
 
 const PAGE_SIZE = 50
 
+/**
+ * Sales, and — since this round — the sales dashboard with it.
+ *
+ * They were two sections of the project, one under the other in the rail, and
+ * the second was the first one summarised: the same converted leads, totalled
+ * by day, week, month and year. That cost the phone's tab bar a whole slot,
+ * and the bar owes its fifth to Profile on every screen in this app. So they
+ * are one section with two views, and the switch rides on the heading line
+ * that `PhoneViewPick` is already on — THE LAYOUT LAW, rule 1, no new row.
+ *
+ * Cards/List only means anything about the table, so it is only rendered on
+ * the Deals view. The desktop rail still lists Sales once; nothing up there
+ * changes.
+ */
 export function Sales({
-  ws, conv, members, isOwner, toast,
-}: { ws: Workspace; conv: Lead[]; members: Member[]; isOwner: boolean; toast: (m: string) => void }) {
+  ws, conv, leads, members, isOwner, openOnDashboard, toast,
+}: {
+  ws: Workspace
+  conv: Lead[]
+  leads: Lead[]
+  members: Member[]
+  isOwner: boolean
+  /** A session that was left on the old 'dash' section lands here. */
+  openOnDashboard?: boolean
+  toast: (m: string) => void
+}) {
+  const [view, setView] = useState<'deals' | 'dash'>(openOnDashboard ? 'dash' : 'deals')
   const [page, setPage] = useState(0)
   const [edit, setEdit] = useState<{ anchor: HTMLElement; lead: Lead } | null>(null)
   const [phoneView, setPhoneView] = usePhoneView('sales')
@@ -60,10 +85,17 @@ export function Sales({
       <div className="section-head">
         <h3>Sales</h3>
         <div className="section-tools section-tools--tight">
-          <PhoneViewPick view={phoneView} onPick={setPhoneView} />
+          <div className="seg">
+            <button className={view === 'deals' ? 'is-on' : ''} onClick={() => setView('deals')}>Deals</button>
+            <button className={view === 'dash' ? 'is-on' : ''} onClick={() => setView('dash')}>Dashboard</button>
+          </div>
+          {view === 'deals' && <PhoneViewPick view={phoneView} onPick={setPhoneView} />}
         </div>
       </div>
 
+      {view === 'dash' && <Dashboard conv={conv} leads={leads} members={members} />}
+
+      {view === 'deals' && (<>
       <DataGrid
         cols={cols} rows={slice} storageKey="sales" phoneView={phoneView}
         empty="No sales yet. A lead becomes a sale the moment its salesperson marks it Converted and records the amount."
@@ -95,6 +127,7 @@ export function Sales({
           onClose={() => setEdit(null)}
         />
       )}
+      </>)}
     </div>
   )
 }

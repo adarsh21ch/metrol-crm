@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isDemo } from '@/data/demo'
-import { supabase, signOut } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { DataGrid, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { LeadsBoard } from '@/components/LeadsBoard'
 import { Menu, type MenuItem } from '@/components/Menu'
-import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
+import { BottomNav, NAV_ICONS, type BottomNavItems } from '@/components/BottomNav'
 import { AccountControls } from '@/components/AccountControls'
+import { ProfileSection } from '@/components/ProfileSection'
 import { DensitySlider } from '@/components/DensitySlider'
 import { Tip } from '@/components/Tip'
 import { Modal } from '@/components/Modal'
 import { Avatar, Chip, EditChip, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
-import { ProfileModal } from '@/modals/ProfileModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
-import { agoDays, count, daysSince, initials, money, pct, plural } from '@/lib/format'
+import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
@@ -26,7 +26,6 @@ import { useAttendance } from '@/data/useAttendance'
 import { PunchCard } from '@/components/PunchCard'
 import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
-import { useTheme } from '@/lib/useTheme'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
 import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod } from '@/lib/hr'
@@ -149,7 +148,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
   const [dismissed, setDismissed] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
   // null = the menu itself. Profile opens on its list of sections, and one of
   // them opens over the top; it does not land you inside Leave by default.
   const [meTab, setMeTab] = usePersistedState<MeTab | null>('member-meTab', null)
@@ -236,7 +234,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const [keyOpen, setKeyOpen] = useState(false)
   // Light/dark is a setting on the Profile tab now, not a sun icon sitting on
   // top of every screen in the app.
-  const { theme, setTheme } = useTheme()
   // Sales' Cards/List lived on a row of its own inside the grid. The law says
   // it belongs on the title's line, so this screen owns it and puts it there.
   const [salesView, setSalesView] = usePhoneView('member-sales')
@@ -476,15 +473,16 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           <div className="brand-name">Metrol Media</div>
         </div>
         <div className="topbar-right">
-          {/* Sign-out is the last thing on the Profile tab now, and the
-              avatar chip was a second door to the same profile that tab
-              already is — "so their space becomes clean". */}
-          <AccountControls ws={ws} variant="topbar" alwaysShow hideSignOut hideUserChip hideTheme
+          {/* What this app did first — sign-out and the avatar chip off the
+              topbar, "so their space becomes clean" — is what every screen
+              does now. AccountControls drops them for any topbar, so there is
+              nothing left here to pass. */}
+          <AccountControls ws={ws} variant="topbar" alwaysShow
                            onRefresh={() => { if (!ws.refreshing) void ws.refresh() }}
                            refreshing={ws.refreshing}
                            extra={<DensitySlider />}
                            roleLabel={ws.departmentName(me?.departmentId ?? null) ?? 'Sales'}
-                           onOpenProfile={() => setProfileOpen(true)} />
+                           onOpenProfile={() => setSec('profile')} />
         </div>
       </div>
 
@@ -548,58 +546,43 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </button>
             </div>
 
-            {/* Profile opens with the same identity card Attendance does —
-                the passport photo the joining form collected, the name, the
-                ID and the designation. Its pencil opens the very profile
-                editor the top-right avatar chip used to, which is what made
-                that chip removable. */}
-            {shownSec === 'profile' && (
-              <div className="emp-head emp-head--slim">
-                {photoUrl
-                  ? <img className="emp-photo" src={photoUrl} alt="" />
-                  : <div className="emp-photo emp-photo--none">{initials(myEmployee?.fullName || me?.name || '?')}</div>}
-                <div className="emp-id">
-                  <h2>{myEmployee?.fullName || me?.name || '—'}</h2>
-                  {/* Somebody HR has not added to the directory yet has no
-                      code and no designation. Their email, not two "No ID"
-                      placeholders that read like a broken record. */}
-                  {myEmployee ? (
-                    <div className="emp-meta">
-                      <span className="emp-code">{myEmployee.employeeCode || 'No ID'}</span>
-                      <span>{myEmployee.designation || 'No designation'}</span>
-                      <span className="emp-dept">{ws.departmentName(myEmployee.departmentId) ?? 'No department'}</span>
-                    </div>
-                  ) : (
-                    <div className="emp-meta" style={{ color: 'var(--ink-3)' }}>{me?.email}</div>
-                  )}
-                </div>
-                <button className="icon-btn" title="Edit my profile" aria-label="Edit my profile"
-                        onClick={() => setProfileOpen(true)}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                  </svg>
-                </button>
-              </div>
-            )}
-
-            {/* Four pills sharing one row, each opening its section underneath
-                — "I don't know why but it is not looking good". A list you tap
-                into instead, which is what a phone does with settings: one row
-                per section, the section opens over the top of it, and a header
-                with a ← brings you back. */}
+            {/* Profile — the same component the owner's and HR's screens
+                render. The identity card, the list of everything about me,
+                the account editor, Appearance and Sign out are one thing in
+                one place now, and this screen no longer owns a private copy
+                of it that the other two could drift away from.
+                It shows on the LANDING view only: opening Leave or Salary
+                used to keep the whole card above the ← header, which on an
+                812px phone is a third of the screen spent saying who you are
+                on a page you opened to read a table. */}
             {shownSec === 'profile' && shownMeTab === null && (
-              <div className="prof-menu">
-                {ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => (
-                  <button className="prof-row" key={t.key} onClick={() => setMeTab(t.key)}>
-                    <span className="l">{t.label}</span>
-                    {t.key === 'leave' && myLeave.some((r) => r.status === 'pending') && (
-                      <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>
-                    )}
-                    <span className="go" aria-hidden="true">›</span>
-                  </button>
-                ))}
-              </div>
+              <ProfileSection
+                ws={ws}
+                photoUrl={photoUrl}
+                fullName={myEmployee?.fullName || me?.name || undefined}
+                subtitle={ws.departmentName(me?.departmentId ?? null) ?? 'Sales'}
+                meta={myEmployee ? (
+                  <div className="emp-meta">
+                    <span className="emp-code">{myEmployee.employeeCode || 'No ID'}</span>
+                    <span>{myEmployee.designation || 'No designation'}</span>
+                    <span className="emp-dept">{ws.departmentName(myEmployee.departmentId) ?? 'No department'}</span>
+                  </div>
+                ) : undefined}
+                rows={[
+                  /* A team lead's Overview gives its tab up to Manage team —
+                     it is a summary of My leads and My sales, and both of
+                     those are tabs of their own, so it is the one that loses
+                     least by being a tap away instead of a tab. */
+                  ...(isLead ? [{ key: 'overview', label: 'Overview', onClick: () => setSec('overview') }] : []),
+                  ...ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => ({
+                    key: t.key,
+                    label: t.label,
+                    badge: t.key === 'leave' ? myLeave.filter((r) => r.status === 'pending').length : undefined,
+                    onClick: () => setMeTab(t.key),
+                  })),
+                  { key: 'terms', label: 'Terms & Conditions', atFoot: true, onClick: () => setMeTab('terms') },
+                ]}
+              />
             )}
 
             {shownSec === 'profile' && shownMeTab !== null && (
@@ -1000,27 +983,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 beside the other profile blocks because Leave renders after
                 Attendance in this file: anything higher would land in the
                 middle of the page on the Leave tab. */}
-            {/* The foot of the menu: the two things that are settings rather
-                than work, and the way out. "Appearance" needs no sentence
-                under it explaining that it changes how the app looks. */}
-            {shownSec === 'profile' && shownMeTab === null && (
-              <div className="prof-foot">
-                <div className="prof-set">
-                  <div className="t">Appearance</div>
-                  <div className="seg">
-                    <button className={theme === 'light' ? 'is-on' : ''} onClick={() => setTheme('light')}>Light</button>
-                    <button className={theme === 'dark' ? 'is-on' : ''} onClick={() => setTheme('dark')}>Dark</button>
-                    <button className={theme === 'system' ? 'is-on' : ''} onClick={() => setTheme('system')}>Auto</button>
-                  </div>
-                </div>
-                <button className="prof-row" onClick={() => setMeTab('terms')}>
-                  <span className="l">Terms &amp; Conditions</span>
-                  <span className="go" aria-hidden="true">›</span>
-                </button>
-                <button className="btn btn--block btn--ghost" onClick={() => void signOut()}>Sign out</button>
-              </div>
-            )}
-
             {shownSec === 'team' && (
               <>
                 <div className="kpis">
@@ -1155,16 +1117,22 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       {/* The same sections as the tab strip above, which is hidden at this
           width: nine of them scrolled sideways and most were never seen. The
           four an employee opens daily are tabs; the rest are behind More. */}
+      {/* Five, and the fifth is Profile. It used to be SIX for a team lead —
+          which pushed Profile into the "More" sheet, so the one tab that is
+          supposed to be in the same place for everybody was the one tab a
+          lead could not find. Manage team takes Overview's slot instead, and
+          Overview is a row inside Profile for them. */}
       <BottomNav
         active={sec}
         items={[
-          { key: 'overview', label: 'Overview', icon: NAV_ICONS.overview, onClick: () => setSec('overview') },
+          isLead
+            ? { key: 'team', label: 'Manage team', short: 'Team', badge: teamRows.length, icon: NAV_ICONS.team, onClick: () => setSec('team') }
+            : { key: 'overview', label: 'Overview', icon: NAV_ICONS.overview, onClick: () => setSec('overview') },
           { key: 'attendance', label: 'Attendance', icon: NAV_ICONS.attendance, onClick: () => setSec('attendance') },
           { key: 'leads', label: 'My leads', short: 'Leads', badge: mine.length, icon: NAV_ICONS.leads, onClick: () => setSec('leads') },
           { key: 'sales', label: 'My sales', short: 'Sales', badge: cv.length, icon: NAV_ICONS.sales, onClick: () => setSec('sales') },
-          ...(isLead ? [{ key: 'team', label: 'Manage team', short: 'Team', badge: teamRows.length, icon: NAV_ICONS.team, onClick: () => setSec('team') }] : []),
           { key: 'profile', label: 'Profile', icon: NAV_ICONS.profile, badge: myLeave.filter((r) => r.status === 'pending').length, onClick: () => setSec('profile') },
-        ]}
+        ] satisfies BottomNavItems}
       />
 
       {keyOpen && (
@@ -1181,7 +1149,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
         </Modal>
       )}
 
-      {profileOpen && <ProfileModal ws={ws} onClose={() => setProfileOpen(false)} />}
 
       {requestingLeave && myEmployee && (
         <LeaveRequestModal
