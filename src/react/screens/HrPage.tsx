@@ -14,6 +14,7 @@ import { Avatar, Chip, Kpi } from '@/components/bits'
 import { count, initials, money } from '@/lib/format'
 import { EmployeeModal } from '@/modals/EmployeeModal'
 import { HrAttendance } from '@/screens/sections/HrAttendance'
+import { EmployeeAttendanceBoard } from '@/components/EmployeeAttendanceBoard'
 import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
@@ -34,7 +35,7 @@ import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
 import { useExitTasks } from '@/data/useExitTasks'
 import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
-import { statusChip, fmtDuration, fmtShift, fmtTime, monthOf, officeToday, summarise } from '@/lib/attendance'
+import { officeToday } from '@/lib/attendance'
 import {
   APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
   type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord,
@@ -778,53 +779,19 @@ export function HrPage({
                     days, which is the question you ask when you are standing on
                     somebody's record page. */}
                 {profTab === 'attendance' && (
-                <div className="section">
-                  <div className="section-head">
-                    <h3>Attendance</h3>
-                    <div className="section-tools section-tools--tight" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-                      Shift {fmtShift(att.shifts.find((sh) => sh.id === open.shiftId)?.startsAt ?? null)}
-                    </div>
-                  </div>
-                  {(() => {
-                    const mine = att.rows
-                      .filter((r) => r.employeeId === open.id)
-                      .sort((a, b) => b.workDate.localeCompare(a.workDate))
-                    const tz = att.settings?.timezone ?? 'Asia/Kolkata'
-                    const month = summarise(mine.filter((r) => monthOf(r.workDate) === monthOf(officeToday(tz))))
-                    if (mine.length === 0) {
-                      return <p style={{ color: 'var(--ink-3)' }}>Nothing recorded yet.</p>
-                    }
-                    return (
-                      <>
-                        <div className="att-sum" style={{ marginBottom: 12 }}>
-                          <div className="att-sum-tile"><div className="n">{month.present}</div><div className="l">Present</div></div>
-                          <div className="att-sum-tile"><div className="n">{month.late}</div><div className="l">Late coming</div></div>
-                          <div className="att-sum-tile"><div className="n">{month.halfDay}</div><div className="l">Half days</div></div>
-                          <div className="att-sum-tile"><div className="n">{month.missing}</div><div className="l">No punch out</div></div>
-                          <div className="att-sum-tile"><div className="n">{fmtDuration(month.workedMinutes)}</div><div className="l">This month</div></div>
-                        </div>
-                        <div className="ov-actions">
-                          {mine.slice(0, 15).map((r) => (
-                            <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
-                              <span className="ov-n">{fmtDate(r.workDate).slice(0, 6)}</span>
-                              <span className="ov-l">
-                                {fmtTime(r.punchInAt, tz)} – {fmtTime(r.punchOutAt, tz)}
-                                <span style={{ color: 'var(--ink-3)' }}>
-                                  {'  ·  '}{fmtDuration(r.workedMinutes)}
-                                  {r.lateMinutes ? ' · ' + r.lateMinutes + ' min late' : ''}
-                                  {r.punchInDistance != null ? ' · ' + Math.round(r.punchInDistance) + ' m away' : ''}
-                                  {r.source === 'hr' ? ' · HR entry' : ''}
-                                </span>
-                              </span>
-                              <Chip cls={statusChip(r.status).cls}>{statusChip(r.status).label}</Chip>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )
-                  })()}
-                </div>
-
+                  // Round 6 follow-up: "the HR also see the same attendance
+                  // dashboard that employee see in his dashboard... exactly
+                  // same" — same component Member.tsx's own Attendance tab
+                  // renders, not a shortened summary. Punching in/out stays
+                  // employee-only, per Adarsh's own words.
+                  <EmployeeAttendanceBoard
+                    employeeId={open.id}
+                    rows={att.rows}
+                    leaves={leave.rows}
+                    holidays={att.holidays}
+                    weekOffs={att.settings?.weekOffs ?? [0]}
+                    timezone={att.settings?.timezone}
+                  />
                 )}
 
                 {profTab === 'leave' && (
