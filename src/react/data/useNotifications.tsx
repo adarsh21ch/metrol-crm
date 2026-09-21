@@ -6,7 +6,7 @@ type Row = Record<string, unknown>
 
 export interface AppNotification {
   id: string
-  type: 'broadcast' | 'birthday' | 'shift_reminder'
+  type: 'broadcast' | 'birthday' | 'shift_reminder' | 'visit_request' | 'wfh_request'
   title: string
   body: string
   createdAt: string
@@ -120,6 +120,27 @@ export function useNotifications(enabled = true) {
 }
 
 export type Notifications = ReturnType<typeof useNotifications>
+
+/**
+ * The other direction — an ordinary employee's visit entry or WFH request
+ * reaching HR, not HR broadcasting down. Not part of the hook above: nothing
+ * here reads `rows` or needs a component around it, and every caller (the
+ * two request modals) already has nothing else from useNotifications loaded.
+ *
+ * Best-effort and silent by design, same reasoning as `broadcast`'s push
+ * call: the request itself is already saved by the time this runs (0028's
+ * notify_approvers() is the in-app row, this is delivery on top of it), so a
+ * failure here must never read to the employee as their request failing.
+ * Errors go to the console for whoever is watching, not to the person who
+ * just filed a visit entry.
+ */
+export async function notifyApprovers(type: 'visit_request' | 'wfh_request', title: string, body: string): Promise<void> {
+  if (isDemo()) return
+  const { error: err } = await supabase.rpc('notify_approvers', { p_type: type, p_title: title, p_body: body })
+  if (err) { console.error('[Metrol CRM] notify_approvers failed:', err.message); return }
+  void supabase.functions.invoke('notify-approvers', { body: { title, body } })
+    .then(({ error: pushErr }) => { if (pushErr) void functionErrorMessage(pushErr).then((m) => console.error('[Metrol CRM] notify-approvers push failed:', m)) })
+}
 
 /* ───────────────────────────────────────────────────────────────────────────
    One feed per session, not one per bell.

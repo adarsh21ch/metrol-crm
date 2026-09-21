@@ -23,6 +23,7 @@ import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useVisitEntries } from '@/data/useVisitEntries'
 import { useWfhRequests } from '@/data/useWfhRequests'
 import { useVisitPurposes } from '@/data/useVisitPurposes'
+import { notifyApprovers } from '@/data/useNotifications'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
@@ -1313,7 +1314,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           onClose={() => setRequestingVisit(false)}
           onSave={async (draft) => {
             const message = await visitEntries.create(draft)
-            if (!message) toast('Visit entry sent.')
+            if (!message) {
+              toast('Visit entry sent.')
+              const purpose = activePurposes.find((p) => p.id === draft.purposeId)?.label ?? 'a visit'
+              void notifyApprovers('visit_request', 'New visit entry request',
+                `${myEmployee.fullName} — ${purpose}. Review it in Attendance → Visit.`)
+            }
             return message
           }}
         />
@@ -1326,7 +1332,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           onClose={() => setRequestingWfh(false)}
           onSave={async (draft) => {
             const message = await wfhRequests.create(draft)
-            if (!message) toast('WFH request sent.')
+            if (!message) {
+              toast('WFH request sent.')
+              void notifyApprovers('wfh_request', 'New work-from-home request',
+                `${myEmployee.fullName} applied for WFH. Review it in Attendance → WFH.`)
+            }
             return message
           }}
         />

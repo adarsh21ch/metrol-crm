@@ -12,7 +12,10 @@ const BELL = (
   </svg>
 )
 
-const TITLE: Record<string, string> = { broadcast: 'From HR', birthday: 'Birthday', shift_reminder: 'Shift reminder' }
+const TITLE: Record<string, string> = {
+  broadcast: 'From HR', birthday: 'Birthday', shift_reminder: 'Shift reminder',
+  visit_request: 'Visit entry', wfh_request: 'Work from home',
+}
 
 /**
  * One bell, mounted once inside AccountControls (rail on desktop, topbar on
