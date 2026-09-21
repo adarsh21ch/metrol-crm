@@ -37,6 +37,10 @@ const toEmployee = (r: Row): Employee => ({
   noticePeriodDays: r.notice_period_days == null ? null : Number(r.notice_period_days),
   monthlySalary: r.monthly_salary == null ? null : Number(r.monthly_salary),
   gender: (r.gender as string | null) ?? null,
+  panNumber: (r.pan_number as string | null) ?? null,
+  workLocation: (r.work_location as string | null) ?? null,
+  basicSalary: r.basic_salary == null ? null : Number(r.basic_salary),
+  tdsCategoryId: (r.tds_category_id as string | null) ?? null,
 })
 
 export type EmployeeDraft = Omit<Employee, 'id' | 'employeeCode' | 'createdAt'>
@@ -73,6 +77,10 @@ const toRow = (p: Partial<EmployeeDraft>): Row => {
   if (p.officeId !== undefined) r.office_id = orNull(p.officeId)
   if (p.monthlySalary !== undefined) r.monthly_salary = p.monthlySalary
   if (p.gender !== undefined) r.gender = orNull(p.gender)
+  if (p.panNumber !== undefined) r.pan_number = orNull(p.panNumber?.trim())
+  if (p.workLocation !== undefined) r.work_location = orNull(p.workLocation?.trim())
+  if (p.basicSalary !== undefined) r.basic_salary = p.basicSalary
+  if (p.tdsCategoryId !== undefined) r.tds_category_id = orNull(p.tdsCategoryId)
   return r
 }
 

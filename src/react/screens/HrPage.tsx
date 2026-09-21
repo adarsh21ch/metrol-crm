@@ -35,6 +35,7 @@ import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useVisitEntries } from '@/data/useVisitEntries'
 import { useWfhRequests } from '@/data/useWfhRequests'
 import { useVisitPurposes } from '@/data/useVisitPurposes'
+import { useTdsCategories } from '@/data/useTdsCategories'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
@@ -156,6 +157,7 @@ export function HrPage({
   const wfhRequests = useWfhRequests(true)
   const visitPurposes = useVisitPurposes(true)
   const activePurposes = visitPurposes.rows.filter((p) => p.isActive)
+  const tdsCategories = useTdsCategories(true)
   const att = useAttendance()
   const applications = useJobApplications()
 
@@ -203,6 +205,8 @@ export function HrPage({
   const [logVisitEmpId, setLogVisitEmpId] = useState('')
   const [logWfhEmpId, setLogWfhEmpId] = useState('')
   const [newPurposeLabel, setNewPurposeLabel] = useState('')
+  const [newTdsLabel, setNewTdsLabel] = useState('')
+  const [newTdsRate, setNewTdsRate] = useState('')
   const [holDate, setHolDate] = useState('')
   const [holName, setHolName] = useState('')
   const [logEmpId, setLogEmpId] = useState('')
@@ -1754,6 +1758,50 @@ export function HrPage({
                             empty="No payslips yet."
                             foot={<div className="grid-foot"><span>{count(salary.rows.length, 'payslip')}</span></div>} />
                 </div>
+
+                {/* Payroll phase 1 (2026-09-21). Contract and Professional to
+                    start — HR's own list, rate and all. Assigning nobody to a
+                    category (or retiring it here) is how TDS gets turned off,
+                    company-wide or for one person, without a separate switch. */}
+                <div className="section">
+                  <div className="section-head"><h3>TDS categories</h3></div>
+                  <Tip tipKey="hr-tds-categories">
+                    What an employee's TDS is worked out from, and at what rate — set here, picked on their record.
+                    Nobody assigned to a category, or the category retired, means no TDS for that person.
+                  </Tip>
+                  <div className="hol-add">
+                    <input className="input" type="text" aria-label="New category" placeholder="e.g. Salaried"
+                           value={newTdsLabel} onChange={(e) => setNewTdsLabel(e.target.value)} />
+                    <input className="input" type="number" min={0} max={100} step={0.01} aria-label="Rate percent"
+                           placeholder="Rate %" style={{ maxWidth: 100 }}
+                           value={newTdsRate} onChange={(e) => setNewTdsRate(e.target.value)} />
+                    <button className="btn btn--sm btn--primary" disabled={!newTdsLabel.trim() || newTdsRate === ''}
+                            onClick={() => void tdsCategories.add(newTdsLabel, Number(newTdsRate)).then((m) => {
+                              toast(m ?? 'Category added.')
+                              if (!m) { setNewTdsLabel(''); setNewTdsRate('') }
+                            })}>
+                      Add category
+                    </button>
+                  </div>
+                  {tdsCategories.rows.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No TDS categories set up yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {tdsCategories.rows.map((c) => (
+                        <div className="ov-row" key={c.id} style={{ cursor: 'default' }}>
+                          <span className="ov-l">
+                            <strong>{c.label}</strong> · {c.ratePercent}%
+                            {!c.isActive && <span style={{ color: 'var(--ink-3)' }}>  ·  retired</span>}
+                          </span>
+                          <button className="btn btn--sm" style={{ marginLeft: 10 }}
+                                  onClick={() => void tdsCategories.setActive(c.id, !c.isActive).then((m) => toast(m ?? (c.isActive ? 'Category retired.' : 'Category restored.')))}>
+                            {c.isActive ? 'Retire' : 'Restore'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </>
             )}
 
@@ -1947,11 +1995,13 @@ export function HrPage({
       )}
 
       {adding && (
-        <EmployeeModal ws={ws} employee={null} employees={hr.rows} shifts={att.shifts} offices={att.offices} prefill={adding}
+        <EmployeeModal ws={ws} employee={null} employees={hr.rows} shifts={att.shifts} offices={att.offices}
+                       tdsCategories={tdsCategories.rows} prefill={adding}
                        onClose={() => setAdding(null)} onSave={saveNew} />
       )}
       {editing && (
         <EmployeeModal ws={ws} employee={editing} employees={hr.rows} shifts={att.shifts} offices={att.offices}
+                       tdsCategories={tdsCategories.rows}
                        onClose={() => setEditing(null)} onSave={saveEdit} />
       )}
 

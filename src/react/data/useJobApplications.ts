@@ -81,6 +81,7 @@ const toApp = (r: Row): JobApplication => ({
   maritalStatus: str(r.marital_status),
   dependents: str(r.dependents),
   aadhaarNumber: str(r.aadhaar_number),
+  panNumber: str(r.pan_number),
   presentAddress: str(r.present_address),
   permanentAddress: str(r.permanent_address),
   pincode: str(r.pincode),
@@ -150,6 +151,7 @@ export interface ApplicationSubmission {
   maritalStatus: string
   dependents: string
   aadhaarNumber: string
+  panNumber: string
   phone: string
   email: string
   positionInterest: string
@@ -324,6 +326,7 @@ export function useJobApplications(enabled = true) {
       marital_status: form.maritalStatus,
       dependents: form.dependents.trim(),
       aadhaar_number: form.aadhaarNumber.trim(),
+      pan_number: form.panNumber.trim(),
       phone: form.phone.trim(),
       email: form.email.trim(),
       position_interest: form.positionInterest.trim(),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isDemo } from '@/data/demo'
 import { supabase } from '@/lib/supabase'
 import { DataGrid, usePhoneView, type GridCol } from '@/components/DataGrid'
@@ -185,6 +185,17 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // one row (their own) to anybody who is not HR, the owner, or a team lead.
   const staff = useEmployees(true)
   const myEmployee = staff.rows.find((e) => e.profileId === me?.id) ?? null
+  /** Payroll phase 1 (0029) — the one column an employee may write on their
+   *  own employees row. update_my_pan() is scoped so it can only ever touch
+   *  the caller's own pan_number, so this has no business going through
+   *  staff.update (HR/owner only) at all. */
+  const saveMyPan = useCallback(async (pan: string): Promise<string | null> => {
+    if (isDemo()) { return 'PAN cannot be saved in demo mode.' }
+    const { error: err } = await supabase.rpc('update_my_pan', { p_pan: pan })
+    if (err) return err.message
+    await staff.reload()
+    return null
+  }, [staff])
   const leave = useLeaveRequests(true)
   // Round 7 — same shape as leave, neither one a leave type: see useVisitEntries.ts.
   const visitEntries = useVisitEntries(true)
@@ -615,6 +626,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 photoUrl={photoUrl}
                 fullName={myEmployee?.fullName || me?.name || undefined}
                 subtitle={ws.departmentName(me?.departmentId ?? null) ?? 'Sales'}
+                pan={myEmployee ? myEmployee.panNumber : undefined}
+                onSavePan={myEmployee ? saveMyPan : undefined}
                 meta={myEmployee ? (
                   <div className="emp-meta">
                     <span className="emp-code">{myEmployee.employeeCode || 'No ID'}</span>

@@ -263,6 +263,7 @@ export function ApplicationReviewModal({
           <Fld l="Marital status" v={app.maritalStatus} />
           <Fld l="Dependents" v={app.dependents} />
           <Fld l="Aadhaar number" v={app.aadhaarNumber} />
+          <Fld l="PAN number" v={app.panNumber} />
         </div>
 
         <div className="rev-sec">Contact &amp; address</div>

@@ -54,6 +54,35 @@ export interface Employee {
    *  (T&C 3.7) offerable to the people it is actually for, automatically,
    *  instead of a company-wide switch. Null for anyone added before this. */
   gender: string | null
+  /** Payroll phase 1 (0029). Copied from the application on approval, same
+   *  as gender — or self-entered later via update_my_pan() by anyone who
+   *  joined before this existed. Null until somebody has. */
+  panNumber: string | null
+  /** HR's own text, not tied to the punch-in branch list — a contractor may
+   *  have a work location with no geofence behind it at all. */
+  workLocation: string | null
+  /** A reference figure HR can fill in; nothing in this build computes from
+   *  it yet — Adarsh's own words, 2026-09-21. */
+  basicSalary: number | null
+  /** Which of HR's tds_categories (0029) this person's TDS is worked out
+   *  from. Null means no TDS is deducted — deliberately how "HR disables
+   *  TDS" for one person is expressed, rather than a separate switch. */
+  tdsCategoryId: string | null
+}
+
+/* ---------------------------------------------------- Payroll phase 1: TDS */
+
+/** HR's own list — "Contract" (1%) and "Professional" (10%) to start
+ *  (0029's seed), editable without a deploy: HR can rename, re-rate, or
+ *  retire any of them. isActive rather than deleted, same reasoning as
+ *  VisitPurpose: a person already assigned to a category must keep reading
+ *  it even after HR stops offering it on new assignments. */
+export interface TdsCategory {
+  id: string
+  label: string
+  ratePercent: number
+  sortOrder: number
+  isActive: boolean
 }
 
 export const EMPLOYMENT: Record<EmploymentType, string> = {
@@ -416,6 +445,7 @@ export interface JobApplication {
   maritalStatus: string
   dependents: string
   aadhaarNumber: string
+  panNumber: string
   presentAddress: string
   permanentAddress: string
   pincode: string

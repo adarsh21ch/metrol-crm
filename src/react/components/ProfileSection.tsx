@@ -47,7 +47,7 @@ const PENCIL = (
  * identical everywhere, which is the whole point.
  */
 export function ProfileSection({
-  ws, rows, subtitle, photoUrl, fullName, meta,
+  ws, rows, subtitle, photoUrl, fullName, meta, pan, onSavePan,
 }: {
   ws: Workspace
   rows: ProfileRow[]
@@ -58,6 +58,12 @@ export function ProfileSection({
   fullName?: string
   /** Employee code, designation, department — whatever this role can show. */
   meta?: React.ReactNode
+  /** Payroll phase 1 (0029) — this person's own PAN, and how to save a
+   *  change to it. Omitted entirely (not just blank) where the caller has
+   *  no employee record to attach one to, so the field never appears for
+   *  somebody it would silently fail for. */
+  pan?: string | null
+  onSavePan?: (pan: string) => Promise<string | null>
 }) {
   const me = ws.me
   const { theme, setTheme } = useTheme()
@@ -76,7 +82,7 @@ export function ProfileSection({
           <button className="btn btn--sm" onClick={() => setAccount(false)} aria-label="Back to profile">←</button>
           <h3>Account</h3>
         </div>
-        <AccountPanel ws={ws} />
+        <AccountPanel ws={ws} pan={pan} onSavePan={onSavePan} />
       </>
     )
   }
@@ -153,9 +159,27 @@ export function ProfileSection({
  * are unchanged — `ws.updateMe`, `ws.uploadAvatar`, `ws.removeAvatar`,
  * `ws.changePassword` and the two push helpers all behave exactly as they did.
  */
-export function AccountPanel({ ws }: { ws: Workspace }) {
+export function AccountPanel({
+  ws, pan, onSavePan,
+}: {
+  ws: Workspace
+  pan?: string | null
+  onSavePan?: (pan: string) => Promise<string | null>
+}) {
   const me = ws.me
   const fileRef = useRef<HTMLInputElement>(null)
+  const [panInput, setPanInput] = useState(pan ?? '')
+  const [savingPan, setSavingPan] = useState(false)
+  const [panMsg, setPanMsg] = useState<{ text: string; bad?: boolean } | null>(null)
+  const panValid = /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panInput.trim())
+
+  async function savePan() {
+    if (!onSavePan || !panValid) return
+    setSavingPan(true); setPanMsg(null)
+    const err = await onSavePan(panInput.trim())
+    setSavingPan(false)
+    setPanMsg(err ? { text: err, bad: true } : { text: 'Saved.' })
+  }
 
   const [name, setName] = useState(me?.name ?? '')
   const [phone, setPhone] = useState(me?.phone ?? '')
@@ -261,6 +285,23 @@ export function AccountPanel({ ws }: { ws: Workspace }) {
           {savingProfile ? 'Saving…' : 'Save changes'}
         </button>
       </form>
+
+      {onSavePan && (
+        <div className="auth-form" style={{ borderTop: '1px dashed var(--line)', paddingTop: 14 }}>
+          <div className="auth-alt-label">PAN number</div>
+          <div className="field">
+            <label htmlFor="pfPan">PAN</label>
+            <input className="input" id="pfPan" placeholder="ABCDE1234F" maxLength={10}
+                   value={panInput} onChange={(e) => setPanInput(e.target.value.toUpperCase())} />
+          </div>
+          {panInput.trim() && !panValid && <p className="auth-err">That does not look like a PAN — it should read like ABCDE1234F.</p>}
+          {panMsg && <p className={panMsg.bad ? 'auth-err' : 'imp-result is-ok'}>{panMsg.text}</p>}
+          <button className="btn btn--sm" type="button" disabled={savingPan || !panValid || panInput.trim() === (pan ?? '')}
+                  onClick={() => void savePan()}>
+            {savingPan ? 'Saving…' : 'Save PAN'}
+          </button>
+        </div>
+      )}
 
       {pushSupported() && (
         <div className="auth-form" style={{ borderTop: '1px dashed var(--line)', paddingTop: 14 }}>

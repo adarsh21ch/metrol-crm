@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, EmployeeDocument, ExitTask, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
+import type { Employee, EmployeeDocument, ExitTask, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
 import { workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
@@ -172,6 +172,7 @@ export const demoEmployees: Employee[] = [
     status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(400), shiftId: 'sh1', officeId: 'off1',
     offerExtendedOn: '2024-01-25', offerAcceptedOn: '2024-01-28',
     resignationDate: null, noticePeriodDays: null, monthlySalary: 45000, gender: 'Female',
+    panNumber: 'AKLPS1234F', workLocation: 'Indore HQ', basicSalary: 25000, tdsCategoryId: null,
   },
   ...demoMembers.map((m, i) => ({
     id: 'e' + (i + 1),
@@ -212,6 +213,12 @@ export const demoEmployees: Employee[] = [
     // Round 6: one female salesperson so the demo shows Period leave actually
     // being offered, not just an empty state.
     gender: i === 1 ? 'Female' : 'Male',
+    // Payroll phase 1: e1 (Mohit Verma, contract) shows a filled TDS category
+    // and PAN; the rest show what "not set yet" looks like.
+    panNumber: i === 0 ? 'CBCPC3986J' : null,
+    workLocation: i === 0 ? 'Noida-10' : null,
+    basicSalary: i === 0 ? 20000 : null,
+    tdsCategoryId: i === 0 ? 'tds1' : null,
   })),
 ]
 
@@ -283,6 +290,13 @@ export const demoLeaveRequests: LeaveRequest[] = [
     reason: 'Extended trip, balance already used', status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(68), decisionNote: 'Approved without pay.',
     createdAt: iso(70),
   },
+]
+
+/** Payroll phase 1 — ?demo's TDS categories, same two HR starts with in the
+ *  real database (0029's seed). e1 (Mohit Verma) is assigned tds1. */
+export const demoTdsCategories: TdsCategory[] = [
+  { id: 'tds1', label: 'Contract', ratePercent: 1, sortOrder: 1, isActive: true },
+  { id: 'tds2', label: 'Professional', ratePercent: 10, sortOrder: 2, isActive: true },
 ]
 
 /** Round 7 — ?demo's visit-purpose dropdown, same three HR starts with in the
@@ -544,7 +558,7 @@ export const demoAttendance: AttendanceRow[] = (() => {
 const APP_BLANK = {
   firstName: '', lastName: '', fatherOrHusband: '', gender: '', dateOfBirth: null,
   placeOfBirth: '', nationality: 'Indian', religion: '', maritalStatus: '', dependents: '',
-  aadhaarNumber: '', presentAddress: '', permanentAddress: '', pincode: '',
+  aadhaarNumber: '', panNumber: 'BNZPK5678L', presentAddress: '', permanentAddress: '', pincode: '',
   education: [], technicalQualification: '', employmentHistory: [],
   bankName: '', bankAccountName: '', bankAccountNo: '', bankIfsc: '',
   languages: [], referenceName: '', referenceDepartment: '',

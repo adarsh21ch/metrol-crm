@@ -44,7 +44,7 @@ interface Draft {
   firstName: string; lastName: string; fatherOrHusband: string
   gender: string; dateOfBirth: string; placeOfBirth: string
   nationality: string; religion: string; maritalStatus: string; dependents: string
-  aadhaarNumber: string; phone: string; email: string; positionInterest: string
+  aadhaarNumber: string; panNumber: string; phone: string; email: string; positionInterest: string
   presentAddress: string; permanentAddress: string; sameAddress: boolean; pincode: string
   education: EducationRow[]; technicalQualification: string
   employmentHistory: EmploymentRow[]; noPreviousEmployment: boolean
@@ -58,7 +58,7 @@ const EMPTY: Draft = {
   firstName: '', lastName: '', fatherOrHusband: '',
   gender: '', dateOfBirth: '', placeOfBirth: '',
   nationality: 'Indian', religion: '', maritalStatus: '', dependents: '',
-  aadhaarNumber: '', phone: '', email: '', positionInterest: '',
+  aadhaarNumber: '', panNumber: '', phone: '', email: '', positionInterest: '',
   presentAddress: '', permanentAddress: '', sameAddress: false, pincode: '',
   education: [blankEducation()], technicalQualification: '',
   employmentHistory: [], noPreviousEmployment: false,
@@ -170,6 +170,8 @@ export function ApplyPage() {
       if (d.phone.length !== 10) return 'Enter the 10 digits of your mobile number.'
       if (!d.email.trim()) return 'An email address is required.'
       if (!/^\S+@\S+\.\S+$/.test(d.email.trim())) return 'That email address does not look right.'
+      if (!d.panNumber.trim()) return 'PAN number is required.'
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(d.panNumber.trim())) return 'That PAN number does not look right — it should read like ABCDE1234F.'
       if (!d.presentAddress.trim()) return 'Present address is required.'
       if (!d.pincode.trim()) return 'Pincode is required.'
     }
@@ -205,7 +207,7 @@ export function ApplyPage() {
       firstName: d.firstName, lastName: d.lastName, fatherOrHusband: d.fatherOrHusband,
       gender: d.gender, dateOfBirth: d.dateOfBirth, placeOfBirth: d.placeOfBirth,
       nationality: d.nationality, religion: d.religion, maritalStatus: d.maritalStatus,
-      dependents: d.dependents, aadhaarNumber: d.aadhaarNumber,
+      dependents: d.dependents, aadhaarNumber: d.aadhaarNumber, panNumber: d.panNumber.trim(),
       // Stored complete — HR, the employee record and any future WhatsApp
       // link all want a dialable number, not ten bare digits.
       phone: d.phone ? `+91 ${d.phone}` : '',
@@ -385,6 +387,11 @@ export function ApplyPage() {
                     <label htmlFor="apAadhaar">Aadhaar number</label>
                     <input className="input" id="apAadhaar" inputMode="numeric" placeholder="12 digits"
                            value={d.aadhaarNumber} onChange={(e) => set('aadhaarNumber', e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="apPan">PAN number<Req /></label>
+                    <input className="input" id="apPan" placeholder="ABCDE1234F" maxLength={10}
+                           value={d.panNumber} onChange={(e) => set('panNumber', e.target.value.toUpperCase())} />
                   </div>
                   <div className="field">
                     <label htmlFor="apPin">Pincode<Req /></label>

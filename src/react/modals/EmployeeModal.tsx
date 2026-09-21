@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
-import { EMPLOYMENT, EMP_STATUS, todayISO, type Employee, type EmployeeStatus, type EmploymentType } from '@/lib/hr'
+import { EMPLOYMENT, EMP_STATUS, todayISO, type Employee, type EmployeeStatus, type EmploymentType, type TdsCategory } from '@/lib/hr'
 import { fmtShift, type OfficeLocation, type Shift } from '@/lib/attendance'
 import type { EmployeeDraft } from '@/data/useEmployees'
 import type { Workspace } from '@/data/useWorkspace'
@@ -32,6 +32,10 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
   officeId: null,
   monthlySalary: null,
   gender: null,
+  panNumber: null,
+  workLocation: null,
+  basicSalary: null,
+  tdsCategoryId: null,
   ...prefill,
 })
 
@@ -41,7 +45,7 @@ const blank = (prefill?: Partial<EmployeeDraft>): EmployeeDraft => ({
  * resigned and the record stays.
  */
 export function EmployeeModal({
-  ws, employee, employees, shifts, offices, prefill, onClose, onSave,
+  ws, employee, employees, shifts, offices, tdsCategories, prefill, onClose, onSave,
 }: {
   ws: Workspace
   /** null adds a new record. */
@@ -52,6 +56,10 @@ export function EmployeeModal({
   /** The branches. Which one somebody is assigned to decides where their
    *  punches are measured from. */
   offices?: OfficeLocation[]
+  /** Payroll phase 1 (0029) — HR's own TDS categories. Retired ones are
+   *  still offered if this person is already assigned to one, same as a
+   *  retired visit purpose stays readable on an old request. */
+  tdsCategories?: TdsCategory[]
   prefill?: Partial<EmployeeDraft>
   onClose: () => void
   onSave: (draft: EmployeeDraft) => Promise<string | null>
@@ -321,6 +329,37 @@ export function EmployeeModal({
                 : `₹${f.monthlySalary.toLocaleString('en-IN')} a month`}
             </p>
           )}
+        </div>
+
+        <div className="field">
+          <label htmlFor="emBasic">Basic salary (₹)</label>
+          <input className="input" id="emBasic" type="number" min={0} placeholder="Not set"
+                 value={f.basicSalary == null ? '' : f.basicSalary}
+                 onChange={(e) => set('basicSalary', e.target.value === '' ? null : Number(e.target.value))} />
+        </div>
+
+        <div className="field">
+          <label htmlFor="emPan">PAN number</label>
+          <input className="input" id="emPan" placeholder="ABCDE1234F" maxLength={10}
+                 value={f.panNumber ?? ''}
+                 onChange={(e) => set('panNumber', e.target.value.toUpperCase() || null)} />
+        </div>
+
+        <div className="field">
+          <label htmlFor="emWorkLoc">Work location</label>
+          <input className="input" id="emWorkLoc" placeholder="e.g. Noida" value={f.workLocation ?? ''}
+                 onChange={(e) => set('workLocation', e.target.value || null)} />
+        </div>
+
+        <div className="field">
+          <label htmlFor="emTds">TDS category</label>
+          <select className="input" id="emTds" value={f.tdsCategoryId ?? ''}
+                  onChange={(e) => set('tdsCategoryId', e.target.value || null)}>
+            <option value="">No TDS</option>
+            {(tdsCategories ?? [])
+              .filter((c) => c.isActive || c.id === f.tdsCategoryId)
+              .map((c) => <option key={c.id} value={c.id}>{c.label} — {c.ratePercent}%{!c.isActive ? ' (retired)' : ''}</option>)}
+          </select>
         </div>
 
         <div className="field">

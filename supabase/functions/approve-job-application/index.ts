@@ -178,6 +178,9 @@ Deno.serve(async (req: Request) => {
     // Round 6 (0026): the only reason Period leave could ever be a per-person
     // rule instead of one company-wide switch — nothing stored this before.
     gender: app.gender ?? null,
+    // Payroll phase 1 (0029) — the typed PAN, not the uploaded photo of the
+    // card (pan_path, already on the application since 0017).
+    pan_number: app.pan_number ?? null,
     office_id: officeId,
     shift_id: shiftId,
     annual_leave_days: annualLeaveDays,
