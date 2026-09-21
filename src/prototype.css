@@ -1745,6 +1745,19 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
    where ← has to go back to. Same direction as .seg-cards above. */
 .on-phone{display:none}
 @media (max-width:860px){ .on-phone{display:inline-flex} }
+/* The inverse — a control that belongs in the topbar on a desktop (where the
+   rail already carries sign-out and the account chip) but stays out of the
+   phone topbar, where it lives in Profile instead. Adarsh's own words,
+   2026-09-21: "on mobile phone is okay in profile tab... in desktop we can
+   put in the top right corner." */
+.on-desktop{display:inline-flex}
+@media (max-width:860px){ .on-desktop{display:none} }
+/* Screens with a rail (HrPage, Projects, OwnerProfile, ProjectShell,
+   TeamPage) now want their topbar-account visible on a desktop too, not only
+   below 860px — that is where the bell and (on-desktop) the theme toggle
+   live now. Screens with no rail (Member) are unaffected: they already force
+   this with --always, which this does not touch. */
+@media (min-width:861px){ .topbar-account--desktop{display:flex} }
 .prof-row{
   display:flex;align-items:center;gap:10px;width:100%;text-align:left;
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
@@ -1930,14 +1943,18 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
    cannot wrap, so the button stays where it belongs. */
 .emp-head--slim{
   display:grid; grid-template-columns:auto minmax(0,1fr) auto;
-  padding:10px 14px; gap:12px; margin-bottom:12px; align-items:center;
+  padding:22px 20px; gap:16px; margin-bottom:14px; align-items:center;
 }
 /* Top-right, not middle-right — it belongs to the name it sits beside, and
    on a phone the meta under that name runs to two lines. */
 .emp-head--slim > .btn, .emp-head--slim > .icon-btn{ align-self:start }
-.emp-head--slim .emp-photo{ width:46px; height:46px }
-.emp-head--slim h2{ font-size:17px; margin:0 }
-.emp-head--slim .emp-meta{ font-size:12px; margin-top:2px }
+/* A little taller than wide, not a square — the same call a real ID badge
+   makes, and it reads less like a cropped thumbnail. Adarsh's own words,
+   2026-09-21: "the photo should become large... looks much more classy." */
+.emp-head--slim .emp-photo{ width:72px; height:84px; border-radius:12px }
+.emp-head--slim .emp-photo--none{ font-size:26px }
+.emp-head--slim h2{ font-size:21px; margin:0 }
+.emp-head--slim .emp-meta{ font-size:13px; margin-top:4px; gap:10px }
 
 /* --------------------------------------------------- today, in one strip */
 .punch-bar{

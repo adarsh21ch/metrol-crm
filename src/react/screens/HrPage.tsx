@@ -30,6 +30,7 @@ import { ApplicationReviewModal } from '@/modals/ApplicationReviewModal'
 import { useLeaveBoard, useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays, type LeaveChoice } from '@/lib/leaveRules'
+import { daysInCalendarMonth } from '@/lib/payroll'
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
 import { useJobApplications } from '@/data/useJobApplications'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
@@ -487,11 +488,45 @@ export function HrPage({
   const paidThisMonth = salary.rows.filter((r) => r.status === 'paid' && r.period === currentPeriodStr)
   const payrollThisMonth = salary.rows.filter((r) => r.period === currentPeriodStr).reduce((t, r) => t + r.netAmount, 0)
 
+  /** Every column Adarsh's own reference sheet (2026-09-21) has, in the same
+   *  order — HR reads this the same way it reads that sheet. Most of it is
+   *  looked up from the employee record (PAN, work location, CTC…) rather
+   *  than snapshotted on the payslip: this is a live read of who they are
+   *  today, the same choice send-payslip-email already makes. What genuinely
+   *  varies month to month (paid days, encashment, incentive, TDS) lives on
+   *  the payslip row itself (0030). */
   const salaryCols: GridCol<SalaryRecord>[] = [
-    { key: 'who', label: 'Employee', width: 190, render: (r) => employeeName(r.employeeId) },
-    { key: 'period', label: 'Month', width: 110, render: (r) => fmtPeriod(r.period) },
-    { key: 'gross', label: 'Gross', width: 120, render: (r) => <span className="cell-money">{money(r.grossAmount)}</span> },
-    { key: 'net', label: 'Net', width: 120, render: (r) => <span className="cell-money">{money(r.netAmount)}</span> },
+    { key: 'idx', label: '#', width: 48, render: (_r, i) => <span className="cell-idx">{i + 1}</span> },
+    { key: 'who', label: 'Employee', width: 170, render: (r) => employeeName(r.employeeId) },
+    { key: 'period', label: 'Month', width: 100, render: (r) => fmtPeriod(r.period) },
+    { key: 'joined', label: 'Joining date', width: 120, render: (r) => fmtDate(hr.rows.find((e) => e.id === r.employeeId)?.dateOfJoining ?? null) },
+    { key: 'dept', label: 'Department', width: 140, render: (r) => ws.departmentName(hr.rows.find((e) => e.id === r.employeeId)?.departmentId ?? null) ?? <span className="cell-dash">—</span> },
+    { key: 'pan', label: 'PAN', width: 120, render: (r) => hr.rows.find((e) => e.id === r.employeeId)?.panNumber || <span className="cell-dash">—</span> },
+    { key: 'loc', label: 'Work location', width: 130, render: (r) => hr.rows.find((e) => e.id === r.employeeId)?.workLocation || <span className="cell-dash">—</span> },
+    {
+      key: 'tdsCat', label: 'TDS category', width: 130,
+      render: (r) => {
+        const emp = hr.rows.find((e) => e.id === r.employeeId)
+        const cat = tdsCategories.rows.find((c) => c.id === emp?.tdsCategoryId)
+        return cat ? `${cat.label} · ${cat.ratePercent}%` : <span className="cell-dash">—</span>
+      },
+    },
+    { key: 'ctcY', label: 'Gross CTC (yearly)', width: 140, render: (r) => { const s = hr.rows.find((e) => e.id === r.employeeId)?.monthlySalary; return s != null ? money(s * 12) : <span className="cell-dash">—</span> } },
+    { key: 'basic', label: 'Basic salary', width: 120, render: (r) => { const s = hr.rows.find((e) => e.id === r.employeeId)?.basicSalary; return s != null ? money(s) : <span className="cell-dash">—</span> } },
+    { key: 'ctcM', label: 'Gross CTC (monthly)', width: 140, render: (r) => { const s = hr.rows.find((e) => e.id === r.employeeId)?.monthlySalary; return s != null ? money(s) : <span className="cell-dash">—</span> } },
+    { key: 'totalDays', label: "Total /M day's", width: 110, render: (r) => daysInCalendarMonth(r.period) },
+    { key: 'workDays', label: 'Working day/M', width: 110, render: (r) => r.paidDays ?? <span className="cell-dash">—</span> },
+    { key: 'encDays', label: 'Leave encashment / week off days', width: 150, render: (r) => r.leaveEncashmentDays },
+    { key: 'totalWork', label: "Total working day's + encashment", width: 160, render: (r) => (r.paidDays ?? 0) + r.leaveEncashmentDays },
+    { key: 'encAmt', label: 'Leave encashment amount', width: 150, render: (r) => <span className="cell-money">{money(r.leaveEncashmentAmount)}</span> },
+    { key: 'grossSalary', label: 'Gross salary', width: 120, render: (r) => <span className="cell-money">{money(r.grossAmount - r.incentive)}</span> },
+    { key: 'incentive', label: 'Incentive', width: 100, render: (r) => <span className="cell-money">{money(r.incentive)}</span> },
+    { key: 'gross', label: 'Gross payable', width: 120, render: (r) => <span className="cell-money">{money(r.grossAmount)}</span> },
+    { key: 'otherDed', label: 'Other deduction', width: 120, render: (r) => <span className="cell-money">{money(r.otherDeduction)}</span> },
+    { key: 'netGross', label: 'Net gross payable', width: 130, render: (r) => <span className="cell-money">{money(r.grossAmount - r.otherDeduction)}</span> },
+    { key: 'tds', label: 'TDS deduction', width: 120, render: (r) => <span className="cell-money">{money(r.tdsAmount)}</span> },
+    { key: 'net', label: 'Net payable salary', width: 130, render: (r) => <span className="cell-money cell-strong">{money(r.netAmount)}</span> },
+    { key: 'remarks', label: 'Remarks', width: 200, render: (r) => r.notes || <span className="cell-dash">—</span> },
     { key: 'status', label: 'Status', width: 110, render: (r) => <Chip cls={SALARY_STATUS[r.status].cls}>{SALARY_STATUS[r.status].label}</Chip> },
     {
       key: 'sent', label: 'Emailed', width: 100,
@@ -735,7 +770,7 @@ export function HrPage({
         </div>
         <div className="topbar-right">
           {onBackToProjects && <button className="btn btn--sm" onClick={onBackToProjects}>← Projects</button>}
-          <AccountControls ws={ws} variant="topbar" roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'}
+          <AccountControls ws={ws} variant="topbar" hasRail roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'}
                            onOpenProfile={() => { setSection('profile'); setOpenId(null) }} />
         </div>
       </div>

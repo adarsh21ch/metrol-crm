@@ -73,13 +73,15 @@ const HEAD: Record<MemberSec, { title: string; sub: string }> = {
    screen, and all four are the same subject: me. They are one tab now, with
    these inside it — which is what takes the phone's tab bar down to five and
    removes the More sheet for everybody who is not a team lead. */
-type MeTab = 'leave' | 'visit' | 'wfh' | 'salary' | 'onboarding' | 'exit' | 'terms'
+type MeTab = 'leave' | 'salary' | 'onboarding' | 'exit' | 'terms'
+/* Leave, Visit entries and Work from home were three rows here — three
+   separate taps to reach "apply, HR decides" shapes that only ever differ in
+   what they are called. Adarsh's own words, 2026-09-21: "why three different
+   options... unnecessarily occupying space." One row now ('leave', relabelled
+   "Requests"); reqView below is the switch inside it. */
+type ReqView = 'leave' | 'visit' | 'wfh'
 const ME_TABS: { key: MeTab; label: string }[] = [
-  { key: 'leave', label: 'Leave' },
-  // Round 7 — same "apply, HR decides" shape as Leave, but neither one is a
-  // leave type: a visit or a WFH day never touches the paid-leave balance.
-  { key: 'visit', label: 'Visit entries' },
-  { key: 'wfh', label: 'Work from home' },
+  { key: 'leave', label: 'Requests' },
   { key: 'salary', label: 'Salary' },
   { key: 'onboarding', label: 'Onboarding' },
   { key: 'exit', label: 'Exit' },
@@ -163,6 +165,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // null = the menu itself. Profile opens on its list of sections, and one of
   // them opens over the top; it does not land you inside Leave by default.
   const [meTab, setMeTab] = usePersistedState<MeTab | null>('member-meTab', null)
+  const [reqView, setReqView] = usePersistedState<ReqView>('member-reqView', 'leave')
   // Board (the card view) is the default open — it's the one built for a
   // phone-in-hand, work-the-queue flow. Whichever view someone actually picks
   // is remembered per-browser via pickView below, so a salesperson who prefers
@@ -646,9 +649,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   ...ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => ({
                     key: t.key,
                     label: t.label,
-                    badge: t.key === 'leave' ? myLeave.filter((r) => r.status === 'pending').length
-                      : t.key === 'visit' ? myVisits.filter((r) => r.status === 'pending').length
-                      : t.key === 'wfh' ? myWfh.filter((r) => r.status === 'pending').length
+                    badge: t.key === 'leave'
+                      ? myLeave.filter((r) => r.status === 'pending').length
+                        + myVisits.filter((r) => r.status === 'pending').length
+                        + myWfh.filter((r) => r.status === 'pending').length
                       : undefined,
                     onClick: () => setMeTab(t.key),
                   })),
@@ -664,7 +668,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   : (ME_TABS.find((t) => t.key === shownMeTab)?.label ?? '')}</h3>
                 {/* The month stepper is a filter for Leave, so it rides on
                     Leave's own header rather than a band of its own. */}
-                {shownMeTab === 'leave' && myEmployee && (
+                {shownMeTab === 'leave' && reqView === 'leave' && myEmployee && (
                   <div className="month-step">
                     <button className="btn btn--sm" aria-label="Previous month"
                             onClick={() => setLeaveMonth((m) => addMonths(m, -1))}>←</button>
@@ -673,6 +677,22 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             onClick={() => setLeaveMonth((m) => addMonths(m, 1))}>→</button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {shownSec === 'profile' && shownMeTab === 'leave' && myEmployee && (
+              <div className="section-tools" style={{ marginBottom: 14 }}>
+                <div className="seg">
+                  <button className={reqView === 'leave' ? 'is-on' : ''} onClick={() => setReqView('leave')}>
+                    Leave{myLeave.filter((r) => r.status === 'pending').length > 0 ? ` (${myLeave.filter((r) => r.status === 'pending').length})` : ''}
+                  </button>
+                  <button className={reqView === 'visit' ? 'is-on' : ''} onClick={() => setReqView('visit')}>
+                    Visit{myVisits.filter((r) => r.status === 'pending').length > 0 ? ` (${myVisits.filter((r) => r.status === 'pending').length})` : ''}
+                  </button>
+                  <button className={reqView === 'wfh' ? 'is-on' : ''} onClick={() => setReqView('wfh')}>
+                    WFH{myWfh.filter((r) => r.status === 'pending').length > 0 ? ` (${myWfh.filter((r) => r.status === 'pending').length})` : ''}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -937,7 +957,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {shownSec === 'profile' && shownMeTab === 'leave' && (
+            {shownSec === 'profile' && shownMeTab === 'leave' && reqView === 'leave' && (
               <>
                 {!myEmployee ? (
                   <div className="ov-card">
@@ -1052,7 +1072,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             {/* Round 7 — same list shape as Leave's "My requests", but no
                 balance KPIs above it: a visit or a WFH day has no balance to
                 report against. */}
-            {shownSec === 'profile' && shownMeTab === 'visit' && myEmployee && (
+            {shownSec === 'profile' && shownMeTab === 'leave' && reqView === 'visit' && myEmployee && (
               <>
                 {visitEntries.error && <div className="auth-err" style={{ marginBottom: 14 }}>{visitEntries.error}</div>}
                 <div className="section">
@@ -1090,7 +1110,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {shownSec === 'profile' && shownMeTab === 'wfh' && myEmployee && (
+            {shownSec === 'profile' && shownMeTab === 'leave' && reqView === 'wfh' && myEmployee && (
               <>
                 {wfhRequests.error && <div className="auth-err" style={{ marginBottom: 14 }}>{wfhRequests.error}</div>}
                 <div className="section">

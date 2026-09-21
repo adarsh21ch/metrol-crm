@@ -116,7 +116,7 @@ export function ProjectShell({
           <option value="__team">Team</option>
         </select>
         <div className="topbar-right">
-          <AccountControls ws={ws} variant="topbar" extra={<DensitySlider />} roleLabel={ws.me?.email ?? 'Owner'}
+          <AccountControls ws={ws} variant="topbar" hasRail extra={<DensitySlider />} roleLabel={ws.me?.email ?? 'Owner'}
                            onOpenProfile={onOpenProfile} />
         </div>
       </div>

@@ -209,7 +209,7 @@ export function TeamPage({
           <div className="brand-name">Metrol Media</div>
         </div>
         <div className="topbar-right">
-          <AccountControls ws={ws} variant="topbar" roleLabel={ws.me?.email ?? 'Owner'}
+          <AccountControls ws={ws} variant="topbar" hasRail roleLabel={ws.me?.email ?? 'Owner'}
                            onOpenProfile={onOpenProfile} />
         </div>
       </div>

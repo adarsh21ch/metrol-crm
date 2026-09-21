@@ -27,7 +27,7 @@ const SIGN_OUT = (
  * exactly one is ever on screen and neither can drift from the other.
  */
 export function AccountControls({
-  ws, roleLabel, onOpenProfile, variant, extra, alwaysShow, onRefresh, refreshing,
+  ws, roleLabel, onOpenProfile, variant, extra, alwaysShow, hasRail, onRefresh, refreshing,
 }: {
   ws: Workspace
   /** What to print under the name — "Owner", "HR", a department. Each screen
@@ -39,6 +39,13 @@ export function AccountControls({
   /** The employee's own app has no rail at all, so its topbar block is the
    *  only one there is and must stay visible on a desktop too. */
   alwaysShow?: boolean
+  /** True on every screen that renders a <Rail> alongside this (HrPage,
+   *  Projects, OwnerProfile, ProjectShell, TeamPage) — 2026-09-21: the bell
+   *  and theme toggle move OUT of the rail's foot and into this component's
+   *  topbar copy, visible on a desktop too rather than mobile-only, so the
+   *  corner beside the brand name is not sitting empty on every one of them.
+   *  Sign-out and the account chip stay exactly where they were, rail-only. */
+  hasRail?: boolean
   /** Screen-specific controls that belong beside the account block rather than
    *  in the page (the density slider on the employee's own app). */
   extra?: React.ReactNode
@@ -66,7 +73,7 @@ export function AccountControls({
   const n = useNotificationFeed()
   return (
     <div className={variant === 'rail' ? 'rail-foot'
-        : 'topbar-account' + (alwaysShow ? ' topbar-account--always' : '')}>
+        : 'topbar-account' + (alwaysShow ? ' topbar-account--always' : '') + (hasRail ? ' topbar-account--desktop' : '')}>
       <div className="acct-row">
         {onRefresh && (
           <IconBtn title={refreshing ? 'Refreshing…' : 'Refresh'} onClick={onRefresh}>
@@ -76,8 +83,11 @@ export function AccountControls({
             </svg>
           </IconBtn>
         )}
-        {full && <ThemeToggle />}
-        <NotificationBell ws={ws} n={n} isPrivileged={isPrivileged} />
+        {/* Desktop-only (a rail already exists below 860px only in the sense
+            that it's CSS-hidden there too) — on a phone this stays in
+            Profile, unchanged. */}
+        {!full && hasRail && <span className="on-desktop"><ThemeToggle /></span>}
+        {!full && <NotificationBell ws={ws} n={n} isPrivileged={isPrivileged} />}
         {extra}
         {full && <IconBtn title="Sign out" onClick={() => void signOut()}>{SIGN_OUT}</IconBtn>}
       </div>
