@@ -304,6 +304,11 @@ export function metersBetween(lat1: number, lng1: number, lat2: number, lng2: nu
 export type DayKind =
   | 'present' | 'late' | 'half_day' | 'in_progress' | 'no_punch_out'
   | 'leave' | 'holiday' | 'week_off' | 'absent' | 'future'
+  /** Round 7: an approved visit entry or work-from-home request covering this
+   *  day — a present-kind-of-day, never absent, never touching the leave
+   *  balance (0027). Its own kind rather than folded into 'leave': the point
+   *  Adarsh made is that these are NOT leave. */
+  | 'visit' | 'wfh'
   /** Before they joined or after their last day. Not an absence — nobody was
    *  expecting them. Rendered blank, like a day that has not happened yet. */
   | 'outside'
@@ -352,6 +357,8 @@ export const DAY_KIND: Record<DayKind, { label: string; cls: string }> = {
   holiday:     { label: 'Holiday',      cls: 'cal--holiday' },
   week_off:    { label: 'Weekly off',   cls: 'cal--holiday' },
   absent:      { label: 'Absent',       cls: 'cal--absent' },
+  visit:       { label: 'Visit entry',  cls: 'cal--visit' },
+  wfh:         { label: 'Work from home', cls: 'cal--wfh' },
   future:      { label: '',             cls: 'cal--future' },
   outside:     { label: '',             cls: 'cal--future' },
 }
@@ -407,6 +414,14 @@ export function buildCalendar(opts: {
   /** Leave requests for this ONE employee. Status is filtered here, not by
    *  the caller, so nobody can pass pending leave in by accident. */
   leaves: { startDate: string; endDate: string; status: string; leaveType?: string; createdAt?: string }[]
+  /** Round 7: this ONE employee's visit entries and WFH requests. Same rule —
+   *  only 'approved' ever colours a day, filtered here so a pending one can
+   *  never be passed in by accident. */
+  /** `label` is what the remark column shows — the caller already has the
+   *  purpose name loaded for the picker, so it is passed in rather than
+   *  looked up again in here. */
+  visits?: { startDate: string; endDate: string; status: string; label?: string }[]
+  wfh?: { startDate: string; endDate: string; status: string }[]
   today: string
   /** Lates 1..N in a month are free (attendance_settings.free_lates_per_month).
    *  Unknown → no late is ever turned into a half day on screen. */
@@ -426,6 +441,11 @@ export function buildCalendar(opts: {
     .filter((l) => l.status === 'approved')
     .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
   const leaveOn = (d: string) => approved.find((l) => d >= l.startDate && d <= l.endDate)
+
+  const approvedVisits = (opts.visits ?? []).filter((v) => v.status === 'approved')
+  const visitOn = (d: string) => approvedVisits.find((v) => d >= v.startDate && d <= v.endDate)
+  const approvedWfh = (opts.wfh ?? []).filter((w) => w.status === 'approved')
+  const wfhOn = (d: string) => approvedWfh.find((w) => d >= w.startDate && d <= w.endDate)
 
   // L1, L2… per calendar month, over every row rather than the visible range.
   const lateNo = new Map<string, number>()
@@ -490,6 +510,13 @@ export function buildCalendar(opts: {
       continue
     }
 
+    // Round 7: a present-kind-of-day, never absent — see 0027's matching
+    // check in leave_month_summary, so the square somebody looks at and the
+    // day payroll counts as worked cannot disagree.
+    const onVisit = visitOn(d)
+    if (onVisit) { out.push({ date: d, kind: 'visit', remark: onVisit.label ?? '', ...blank }); continue }
+    if (wfhOn(d)) { out.push({ date: d, kind: 'wfh', remark: 'Work from home', ...blank }); continue }
+
     if (d >= today) { out.push({ date: d, kind: 'future', remark: '', ...blank }); continue }
     out.push({ date: d, kind: 'absent', remark: '', ...blank })
   }
@@ -499,12 +526,16 @@ export function buildCalendar(opts: {
 export interface CalendarTotals {
   present: number; late: number; halfDay: number; leave: number
   holiday: number; absent: number; workedMinutes: number
+  /** Round 7 — kept apart from `present` on purpose: paid and not absent,
+   *  same as present for what it means for salary, but a different fact
+   *  about the day, worth its own tile rather than hidden inside one. */
+  visit: number; wfh: number
 }
 
 /** Counted off the SAME list the table and the grid render, so the tiles can
  *  never disagree with the days underneath them. */
 export function calendarTotals(days: CalendarDay[]): CalendarTotals {
-  const t: CalendarTotals = { present: 0, late: 0, halfDay: 0, leave: 0, holiday: 0, absent: 0, workedMinutes: 0 }
+  const t: CalendarTotals = { present: 0, late: 0, halfDay: 0, leave: 0, holiday: 0, absent: 0, workedMinutes: 0, visit: 0, wfh: 0 }
   for (const d of days) {
     if (d.row) t.workedMinutes += d.row.workedMinutes || 0
     // Late counts ARRIVALS, whatever the day became — "how many times was I
@@ -516,6 +547,8 @@ export function calendarTotals(days: CalendarDay[]): CalendarTotals {
       case 'leave': t.leave++; break
       case 'holiday': case 'week_off': t.holiday++; break
       case 'absent': t.absent++; break
+      case 'visit': t.visit++; break
+      case 'wfh': t.wfh++; break
     }
   }
   return t

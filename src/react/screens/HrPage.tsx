@@ -19,6 +19,10 @@ import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
+import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
+import { VisitEntryDecisionModal, purposeLabelOf } from '@/modals/VisitEntryDecisionModal'
+import { WfhRequestModal } from '@/modals/WfhRequestModal'
+import { WfhDecisionModal } from '@/modals/WfhDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
 import { DocumentUploadModal } from '@/modals/DocumentUploadModal'
 import { ApplicationReviewModal } from '@/modals/ApplicationReviewModal'
@@ -28,6 +32,9 @@ import { addMonths, firstOfMonth, fmtDays, type LeaveChoice } from '@/lib/leaveR
 import { useEmployees, type EmployeeDraft } from '@/data/useEmployees'
 import { useJobApplications } from '@/data/useJobApplications'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
+import { useVisitEntries } from '@/data/useVisitEntries'
+import { useWfhRequests } from '@/data/useWfhRequests'
+import { useVisitPurposes } from '@/data/useVisitPurposes'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
@@ -37,8 +44,8 @@ import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { officeToday } from '@/lib/attendance'
 import {
-  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
-  type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord,
+  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
+  type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest,
   HR_DEPARTMENT,
 } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
@@ -141,6 +148,14 @@ export function HrPage({
   const leave = useLeaveRequests(true, (row) => {
     setLeaveAlerts((p) => [{ id: row.id, request: row }, ...p])
   })
+  // Round 7 — same shape as leave, deliberately no alert stack of their own:
+  // that live banner was built for leave specifically and Adarsh did not ask
+  // for it here; the pending counts on the toggle and the rail already
+  // surface a new one the next time HR is on this screen.
+  const visitEntries = useVisitEntries(true)
+  const wfhRequests = useWfhRequests(true)
+  const visitPurposes = useVisitPurposes(true)
+  const activePurposes = visitPurposes.rows.filter((p) => p.isActive)
   const att = useAttendance()
   const applications = useJobApplications()
 
@@ -161,7 +176,7 @@ export function HrPage({
      the other as an approval workflow. One tab, two views — Day keeps the QR
      poster/branch machinery, Leave keeps the approve/reject/close-the-month
      workflow, neither is simplified to fit inside the other. */
-  const [attView, setAttView] = usePersistedState<'day' | 'leave'>('hr-attView', 'day')
+  const [attView, setAttView] = usePersistedState<'day' | 'leave' | 'visit' | 'wfh'>('hr-attView', 'day')
   /* Which tab of somebody's profile is open. Reset by openEmployee below, so
      opening a second person never lands you on the first one's Salary tab. */
   const [profTab, setProfTab] = usePersistedState<ProfileTab>('hr-profTab', 'overview')
@@ -181,6 +196,13 @@ export function HrPage({
   const [loggingFor, setLoggingFor] = useState<string | null>(null)
   const loggingForCompOff = useCompOffBalance(loggingFor)
   const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
+  const [decidingVisit, setDecidingVisit] = useState<{ request: VisitEntry; action: 'approved' | 'rejected' } | null>(null)
+  const [decidingWfh, setDecidingWfh] = useState<{ request: WfhRequest; action: 'approved' | 'rejected' } | null>(null)
+  const [loggingVisitFor, setLoggingVisitFor] = useState<string | null>(null)
+  const [loggingWfhFor, setLoggingWfhFor] = useState<string | null>(null)
+  const [logVisitEmpId, setLogVisitEmpId] = useState('')
+  const [logWfhEmpId, setLogWfhEmpId] = useState('')
+  const [newPurposeLabel, setNewPurposeLabel] = useState('')
   const [holDate, setHolDate] = useState('')
   const [holName, setHolName] = useState('')
   const [logEmpId, setLogEmpId] = useState('')
@@ -327,6 +349,8 @@ export function HrPage({
      one Attendance tab, same as Joining does for pending applications, and
      the Day/Leave toggle inside the tab decides which of the two you see. */
   const pendingLeave = leave.rows.filter((r) => r.status === 'pending')
+  const pendingVisit = visitEntries.rows.filter((r) => r.status === 'pending')
+  const pendingWfh = wfhRequests.rows.filter((r) => r.status === 'pending')
 
   /* One switch, rendered into whichever half is showing — NOT two copies, and
      not a band of its own above the heading. Both halves are full screens with
@@ -355,12 +379,19 @@ export function HrPage({
       <button className={attView === 'leave' ? 'is-on' : ''} onClick={() => setAttView('leave')}>
         Leave{pendingLeave.length > 0 ? ` (${pendingLeave.length})` : ''}
       </button>
+      <button className={attView === 'visit' ? 'is-on' : ''} onClick={() => setAttView('visit')}>
+        Visit{pendingVisit.length > 0 ? ` (${pendingVisit.length})` : ''}
+      </button>
+      <button className={attView === 'wfh' ? 'is-on' : ''} onClick={() => setAttView('wfh')}>
+        WFH{pendingWfh.length > 0 ? ` (${pendingWfh.length})` : ''}
+      </button>
     </div>
   )
+  const pendingAllAttendance = pendingLeave.length + pendingVisit.length + pendingWfh.length
   const railItems: RailItem[] = [
     { key: 'dashboard', label: 'Dashboard', icon: DASH_ICON, onClick: () => { setSection('dashboard'); setOpenId(null) } },
     {
-      key: 'attendance', label: pendingLeave.length ? `Attendance (${pendingLeave.length})` : 'Attendance',
+      key: 'attendance', label: pendingAllAttendance ? `Attendance (${pendingAllAttendance})` : 'Attendance',
       icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) },
     },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
@@ -539,6 +570,65 @@ export function HrPage({
   const decideLeave = async (id: string, status: 'approved' | 'rejected', note?: string) => {
     const message = await leave.decide(id, status, ws.me?.id ?? '', note)
     if (!message) toast(status === 'approved' ? 'Leave approved.' : 'Leave rejected.')
+    return message
+  }
+
+  const visitCols: GridCol<VisitEntry>[] = [
+    { key: 'who', label: 'Employee', width: 190, render: (r) => employeeName(r.employeeId) },
+    { key: 'when', label: 'Dates', width: 190, render: (r) => r.startDate === r.endDate ? fmtDate(r.startDate) : `${fmtDate(r.startDate)} – ${fmtDate(r.endDate)}` },
+    { key: 'days', label: 'Days', width: 72, render: (r) => r.daysCount },
+    { key: 'type', label: 'Type', width: 100, render: (r) => <Chip cls="chip--mute">{VISIT_TYPE[r.visitType].label}</Chip> },
+    { key: 'purpose', label: 'Purpose', width: 220, render: (r) => `${purposeLabelOf(visitPurposes.rows, r.purposeId)}${r.detail ? ' · ' + r.detail : ''}` },
+    { key: 'status', label: 'Status', width: 120, render: (r) => <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip> },
+    {
+      key: 'act', label: '', width: 180,
+      render: (r) => r.status === 'pending' ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn--sm btn--primary" onClick={() => setDecidingVisit({ request: r, action: 'approved' })}>Approve</button>
+          <button className="btn btn--sm" onClick={() => setDecidingVisit({ request: r, action: 'rejected' })}>Reject</button>
+        </div>
+      ) : r.decisionNote ? <span className="cell-mute">{r.decisionNote}</span> : null,
+    },
+  ]
+
+  const logVisit = async (draft: Parameters<typeof visitEntries.create>[0]) => {
+    const message = await visitEntries.create(draft)
+    if (!message) toast('Visit entry logged.')
+    return message
+  }
+
+  const decideVisit = async (id: string, status: 'approved' | 'rejected', note?: string) => {
+    const message = await visitEntries.decide(id, status, ws.me?.id ?? '', note)
+    if (!message) toast(status === 'approved' ? 'Visit entry approved.' : 'Visit entry rejected.')
+    return message
+  }
+
+  const wfhCols: GridCol<WfhRequest>[] = [
+    { key: 'who', label: 'Employee', width: 190, render: (r) => employeeName(r.employeeId) },
+    { key: 'when', label: 'Dates', width: 190, render: (r) => `${fmtDate(r.startDate)} – ${fmtDate(r.endDate)}` },
+    { key: 'days', label: 'Days', width: 72, render: (r) => r.daysCount },
+    { key: 'reason', label: 'Reason', width: 220, render: (r) => r.reason || <span className="cell-dash">—</span> },
+    { key: 'status', label: 'Status', width: 120, render: (r) => <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip> },
+    {
+      key: 'act', label: '', width: 180,
+      render: (r) => r.status === 'pending' ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn--sm btn--primary" onClick={() => setDecidingWfh({ request: r, action: 'approved' })}>Approve</button>
+          <button className="btn btn--sm" onClick={() => setDecidingWfh({ request: r, action: 'rejected' })}>Reject</button>
+        </div>
+      ) : r.decisionNote ? <span className="cell-mute">{r.decisionNote}</span> : null,
+    },
+  ]
+
+  const logWfh = async (draft: Parameters<typeof wfhRequests.create>[0]) => {
+    const message = await wfhRequests.create(draft)
+    if (!message) toast('WFH request logged.')
+    return message
+  }
+
+  const decideWfh = async (id: string, status: 'approved' | 'rejected', note?: string) => {
+    const message = await wfhRequests.decide(id, status, ws.me?.id ?? '', note)
+    if (!message) toast(status === 'approved' ? 'WFH approved.' : 'WFH rejected.')
     return message
   }
 
@@ -788,6 +878,9 @@ export function HrPage({
                     employeeId={open.id}
                     rows={att.rows}
                     leaves={leave.rows}
+                    visits={visitEntries.rows}
+                    wfh={wfhRequests.rows}
+                    visitPurposes={visitPurposes.rows}
                     holidays={att.holidays}
                     weekOffs={att.settings?.weekOffs ?? [0]}
                     timezone={att.settings?.timezone}
@@ -964,11 +1057,11 @@ export function HrPage({
                 <div className="ov-card">
                   <div className="ov-head">
                     <h4>Waiting on a decision</h4>
-                    <span className="ov-cta">{pending.length + pendingApps.length}</span>
+                    <span className="ov-cta">{pending.length + pendingVisit.length + pendingWfh.length + pendingApps.length}</span>
                   </div>
-                  {pending.length + pendingApps.length === 0 ? (
+                  {pending.length + pendingVisit.length + pendingWfh.length + pendingApps.length === 0 ? (
                     <p style={{ color: 'var(--ink-3)' }}>
-                      Nothing is waiting on you. No leave requests and no applications are pending.
+                      Nothing is waiting on you. No requests and no applications are pending.
                     </p>
                   ) : (
                     <div className="ov-actions">
@@ -980,6 +1073,25 @@ export function HrPage({
                             {' '}{count(r.daysCount, 'day')} from {fmtDate(r.startDate)}
                           </span>
                           <span className="ov-cta"><Chip cls={LEAVE_STATUS[r.status].cls}>Leave</Chip> decide →</span>
+                        </button>
+                      ))}
+                      {pendingVisit.slice(0, 5).map((r) => (
+                        <button className="ov-row" key={r.id} onClick={() => { setSection('attendance'); setAttView('visit'); setOpenId(null) }}>
+                          <span className="ov-n">{initials(employeeName(r.employeeId))}</span>
+                          <span className="ov-l">
+                            {employeeName(r.employeeId)} — {purposeLabelOf(visitPurposes.rows, r.purposeId).toLowerCase()},
+                            {' '}{count(r.daysCount, 'day')} from {fmtDate(r.startDate)}
+                          </span>
+                          <span className="ov-cta"><Chip cls={LEAVE_STATUS[r.status].cls}>Visit</Chip> decide →</span>
+                        </button>
+                      ))}
+                      {pendingWfh.slice(0, 5).map((r) => (
+                        <button className="ov-row" key={r.id} onClick={() => { setSection('attendance'); setAttView('wfh'); setOpenId(null) }}>
+                          <span className="ov-n">{initials(employeeName(r.employeeId))}</span>
+                          <span className="ov-l">
+                            {employeeName(r.employeeId)} — WFH, {count(r.daysCount, 'day')} from {fmtDate(r.startDate)}
+                          </span>
+                          <span className="ov-cta"><Chip cls={LEAVE_STATUS[r.status].cls}>WFH</Chip> decide →</span>
                         </button>
                       ))}
                       {pendingApps.slice(0, 5).map((a) => (
@@ -1349,7 +1461,7 @@ export function HrPage({
                 {attView === 'day' ? (
                   <HrAttendance att={att} employees={hr.rows} toast={toast} leave={leave.rows}
                                 onOpenLeave={() => setAttView('leave')} viewToggle={attToggle} />
-                ) : (
+                ) : attView === 'leave' ? (
               <>
                 <div className="page-head">
                   <h1>Leave</h1>
@@ -1495,6 +1607,109 @@ export function HrPage({
                       ))}
                     </div>
                   )}
+                </div>
+              </>
+                ) : attView === 'visit' ? (
+              <>
+                <div className="page-head">
+                  <h1>Visit entries</h1>
+                  <div className="section-tools">{attToggle}</div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="Pending" value={pendingVisit.length} sub="waiting on a decision" />
+                  <Kpi label="Total requests" value={visitEntries.rows.length} sub="all time, all statuses" />
+                </div>
+
+                {visitEntries.error && <div className="auth-err" style={{ marginBottom: 14 }}>{visitEntries.error}</div>}
+
+                <div className="section">
+                  <div className="section-head">
+                    <h3>All requests</h3>
+                    <div className="section-tools">
+                      <select className="input" value={logVisitEmpId} onChange={(e) => setLogVisitEmpId(e.target.value)}>
+                        <option value="">Log visit for…</option>
+                        {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                      </select>
+                      <button className="btn btn--sm btn--primary" disabled={!logVisitEmpId} onClick={() => setLoggingVisitFor(logVisitEmpId)}>Log visit</button>
+                    </div>
+                  </div>
+                  <DataGrid cols={visitCols} rows={[...visitEntries.rows].sort((a, b) => b.startDate.localeCompare(a.startDate))}
+                            storageKey="hr-visit" phoneView="list"
+                            empty="No visit entries yet."
+                            foot={<div className="grid-foot"><span>{count(visitEntries.rows.length, 'request')}</span></div>} />
+                </div>
+
+                {/* Round 7 — HR's own dropdown for "what kind of visit is
+                    this". Lives here for the same reason Holidays lives inside
+                    Leave: this is the page somebody is already on when they
+                    think about it. */}
+                <div className="section">
+                  <div className="section-head"><h3>Purposes</h3></div>
+                  <Tip tipKey="hr-visit-purposes">
+                    What shows in the Purpose dropdown when somebody applies for a visit entry. Retiring one keeps
+                    every past request readable — it just stops being offered on new ones.
+                  </Tip>
+                  <div className="hol-add">
+                    <input className="input" type="text" aria-label="New purpose" placeholder="e.g. Vendor visit"
+                           value={newPurposeLabel} onChange={(e) => setNewPurposeLabel(e.target.value)} />
+                    <button className="btn btn--sm btn--primary" disabled={!newPurposeLabel.trim()}
+                            onClick={() => void visitPurposes.add(newPurposeLabel).then((m) => {
+                              toast(m ?? 'Purpose added.')
+                              if (!m) setNewPurposeLabel('')
+                            })}>
+                      Add purpose
+                    </button>
+                  </div>
+                  {visitPurposes.rows.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No purposes set up yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {visitPurposes.rows.map((p) => (
+                        <div className="ov-row" key={p.id} style={{ cursor: 'default' }}>
+                          <span className="ov-l">
+                            <strong>{p.label}</strong>
+                            {!p.isActive && <span style={{ color: 'var(--ink-3)' }}>  ·  retired</span>}
+                          </span>
+                          <button className="btn btn--sm" style={{ marginLeft: 10 }}
+                                  onClick={() => void visitPurposes.setActive(p.id, !p.isActive).then((m) => toast(m ?? (p.isActive ? 'Purpose retired.' : 'Purpose restored.')))}>
+                            {p.isActive ? 'Retire' : 'Restore'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+                ) : (
+              <>
+                <div className="page-head">
+                  <h1>Work from home</h1>
+                  <div className="section-tools">{attToggle}</div>
+                </div>
+
+                <div className="kpis">
+                  <Kpi accent label="Pending" value={pendingWfh.length} sub="waiting on a decision" />
+                  <Kpi label="Total requests" value={wfhRequests.rows.length} sub="all time, all statuses" />
+                </div>
+
+                {wfhRequests.error && <div className="auth-err" style={{ marginBottom: 14 }}>{wfhRequests.error}</div>}
+
+                <div className="section">
+                  <div className="section-head">
+                    <h3>All requests</h3>
+                    <div className="section-tools">
+                      <select className="input" value={logWfhEmpId} onChange={(e) => setLogWfhEmpId(e.target.value)}>
+                        <option value="">Log WFH for…</option>
+                        {hr.rows.filter((e) => e.status !== 'resigned').map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                      </select>
+                      <button className="btn btn--sm btn--primary" disabled={!logWfhEmpId} onClick={() => setLoggingWfhFor(logWfhEmpId)}>Log WFH</button>
+                    </div>
+                  </div>
+                  <DataGrid cols={wfhCols} rows={[...wfhRequests.rows].sort((a, b) => b.startDate.localeCompare(a.startDate))}
+                            storageKey="hr-wfh" phoneView="list"
+                            empty="No WFH requests yet."
+                            foot={<div className="grid-foot"><span>{count(wfhRequests.rows.length, 'request')}</span></div>} />
                 </div>
               </>
                 )}
@@ -1656,6 +1871,27 @@ export function HrPage({
       {deciding && (
         <LeaveDecisionModal request={deciding.request} action={deciding.action} employeeName={employeeName(deciding.request.employeeId)}
                              onClose={() => setDeciding(null)} onDecide={decideLeave} />
+      )}
+
+      {loggingVisitFor && (
+        <VisitEntryRequestModal employeeId={loggingVisitFor} purposes={activePurposes}
+                                 weekOffs={att.settings?.weekOffs ?? [0]} holidays={att.holidays}
+                                 onClose={() => setLoggingVisitFor(null)} onSave={logVisit} />
+      )}
+      {decidingVisit && (
+        <VisitEntryDecisionModal request={decidingVisit.request} action={decidingVisit.action}
+                                  employeeName={employeeName(decidingVisit.request.employeeId)}
+                                  purposeLabel={purposeLabelOf(visitPurposes.rows, decidingVisit.request.purposeId)}
+                                  onClose={() => setDecidingVisit(null)} onDecide={decideVisit} />
+      )}
+      {loggingWfhFor && (
+        <WfhRequestModal employeeId={loggingWfhFor} weekOffs={att.settings?.weekOffs ?? [0]} holidays={att.holidays}
+                          onClose={() => setLoggingWfhFor(null)} onSave={logWfh} />
+      )}
+      {decidingWfh && (
+        <WfhDecisionModal request={decidingWfh.request} action={decidingWfh.action}
+                           employeeName={employeeName(decidingWfh.request.employeeId)}
+                           onClose={() => setDecidingWfh(null)} onDecide={decideWfh} />
       )}
 
       {addingSalaryFor && (

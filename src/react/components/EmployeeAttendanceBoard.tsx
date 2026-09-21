@@ -6,7 +6,7 @@ import {
   monthStart, monthEnd, addDays, DAY_KIND,
   type AttendanceRow, type Holiday,
 } from '@/lib/attendance'
-import { fmtDate, type LeaveRequest } from '@/lib/hr'
+import { fmtDate, type LeaveRequest, type VisitEntry, type VisitPurpose, type WfhRequest } from '@/lib/hr'
 
 type AttRange = 'this' | 'last' | 'custom'
 
@@ -34,13 +34,18 @@ const TimeCell = ({ iso, tz }: { iso: string | null; tz: string }) => {
  * kind of thing... is not for HR."
  */
 export function EmployeeAttendanceBoard({
-  employeeId, rows, leaves, holidays, weekOffs, timezone,
+  employeeId, rows, leaves, visits, wfh, visitPurposes, holidays, weekOffs, timezone,
 }: {
   employeeId: string
   /** Every attendance row this person has — not pre-filtered to a range; the
    *  range picker below decides that. */
   rows: AttendanceRow[]
   leaves: LeaveRequest[]
+  /** Round 7 — optional so a caller mid-migration (before 0027 tables have
+   *  data) does not have to pass empty arrays explicitly. */
+  visits?: VisitEntry[]
+  wfh?: WfhRequest[]
+  visitPurposes?: VisitPurpose[]
   holidays: Holiday[]
   weekOffs: number[]
   timezone?: string
@@ -52,6 +57,11 @@ export function EmployeeAttendanceBoard({
     [rows, employeeId],
   )
   const myLeave = useMemo(() => leaves.filter((r) => r.employeeId === employeeId), [leaves, employeeId])
+  const myVisits = useMemo(() => (visits ?? [])
+    .filter((v) => v.employeeId === employeeId)
+    .map((v) => ({ ...v, label: (visitPurposes ?? []).find((p) => p.id === v.purposeId)?.label ?? 'Visit entry' })),
+  [visits, visitPurposes, employeeId])
+  const myWfh = useMemo(() => (wfh ?? []).filter((w) => w.employeeId === employeeId), [wfh, employeeId])
 
   const [attFrom, setAttFrom] = useState(() => monthStart(today))
   const [attTo, setAttTo] = useState(() => monthEnd(today))
@@ -67,8 +77,8 @@ export function EmployeeAttendanceBoard({
   }
 
   const calendar = useMemo(() => buildCalendar({
-    from: attFrom, to: attTo, rows: myAtt, holidays, weekOffs, leaves: myLeave, today,
-  }), [attFrom, attTo, myAtt, holidays, weekOffs, myLeave, today])
+    from: attFrom, to: attTo, rows: myAtt, holidays, weekOffs, leaves: myLeave, visits: myVisits, wfh: myWfh, today,
+  }), [attFrom, attTo, myAtt, holidays, weekOffs, myLeave, myVisits, myWfh, today])
   const totals = useMemo(() => calendarTotals(calendar), [calendar])
 
   return (
@@ -122,6 +132,8 @@ export function EmployeeAttendanceBoard({
         <div className="att-sum-tile"><div className="n">{totals.late}</div><div className="l">Late coming</div></div>
         <div className="att-sum-tile"><div className="n">{totals.halfDay}</div><div className="l">Half days</div></div>
         <div className="att-sum-tile"><div className="n">{totals.leave}</div><div className="l">Leave</div></div>
+        <div className="att-sum-tile"><div className="n">{totals.visit}</div><div className="l">Visit</div></div>
+        <div className="att-sum-tile"><div className="n">{totals.wfh}</div><div className="l">WFH</div></div>
         <div className="att-sum-tile"><div className="n">{totals.absent}</div><div className="l">Absent</div></div>
         <div className="att-sum-tile"><div className="n">{fmtDuration(totals.workedMinutes)}</div><div className="l">Worked</div></div>
       </div>
@@ -170,6 +182,8 @@ export function EmployeeAttendanceBoard({
             <span><i style={{ background: 'var(--cal-present)' }} />Present</span>
             <span><i style={{ background: 'var(--cal-late)' }} />Late / half day</span>
             <span><i style={{ background: 'var(--cal-leave)' }} />Leave</span>
+            <span><i style={{ background: 'var(--cal-visit)' }} />Visit entry</span>
+            <span><i style={{ background: 'var(--cal-wfh)' }} />Work from home</span>
             <span><i style={{ background: 'var(--cal-absent)' }} />Absent</span>
             <span><i className="cal-key-holiday" />Holiday or weekly off</span>
           </div>

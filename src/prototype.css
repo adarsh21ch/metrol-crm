@@ -1771,6 +1771,8 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
   --cal-late:#D97706;    --cal-late-2:#B45309;
   --cal-leave:#4F46E5;   --cal-leave-2:#4338CA;
   --cal-absent:#E11D48;  --cal-absent-2:#BE123C;
+  --cal-visit:#0D9488;   --cal-visit-2:#0F766E;
+  --cal-wfh:#2563EB;     --cal-wfh-2:#1D4ED8;
 }
 .cal-strip{
   display:flex;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch;
@@ -1802,10 +1804,14 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
 .cal--present{background:linear-gradient(155deg,var(--cal-present),var(--cal-present-2));color:#fff}
 .cal--absent{background:linear-gradient(155deg,var(--cal-absent),var(--cal-absent-2));color:#fff}
 .cal--leave{background:linear-gradient(155deg,var(--cal-leave),var(--cal-leave-2));color:#fff}
+/* Round 7 — present-kind-of-days, but their own colour: a visit or a WFH day
+   is not Leave and must not be mistaken for it at a glance. */
+.cal--visit{background:linear-gradient(155deg,var(--cal-visit),var(--cal-visit-2));color:#fff}
+.cal--wfh{background:linear-gradient(155deg,var(--cal-wfh),var(--cal-wfh-2));color:#fff}
 /* Amber holds enough contrast on its own — white on top of it is the one
    combination that reads worse, not better. */
 .cal--late,.cal--half{background:linear-gradient(155deg,var(--cal-late),var(--cal-late-2));color:#2B1C02}
-.cal--present .dw,.cal--absent .dw,.cal--leave .dw,.cal--late .dw,.cal--half .dw{opacity:.8;color:inherit}
+.cal--present .dw,.cal--absent .dw,.cal--leave .dw,.cal--late .dw,.cal--half .dw,.cal--visit .dw,.cal--wfh .dw{opacity:.8;color:inherit}
 /* Not a colour — a "closed" hatch, so a holiday cannot be mistaken for
    somebody's own good or bad day. */
 .cal--holiday{

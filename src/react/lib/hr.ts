@@ -174,6 +174,68 @@ export function workingDaysBetween(
   return out
 }
 
+/* ---------------------------------------------------- Round 7: visit & WFH */
+
+/** HR's own dropdown, not a hard-coded list — Shoot / Client meeting / Branch
+ *  visit today, more or fewer once HR edits it. isActive rather than deleted:
+ *  an old visit_entries row keeps reading the purpose it was filed under even
+ *  after HR retires it from the picker. */
+export interface VisitPurpose {
+  id: string
+  label: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export type VisitType = 'full_day' | 'half_day' | 'custom'
+
+export const VISIT_TYPE: Record<VisitType, { label: string }> = {
+  full_day: { label: 'Full day' },
+  half_day: { label: 'Half day' },
+  custom: { label: 'Custom' },
+}
+
+/** A day away from the office for work — a shoot, a client meeting, a branch
+ *  visit — applied for and approved exactly like leave, but deliberately its
+ *  own table: it does not spend annual_leave_days and carries fields (a
+ *  purpose, a detail) leave has no use for. See migration 0027. */
+export interface VisitEntry {
+  id: string
+  employeeId: string
+  purposeId: string | null
+  /** Which client, which branch, where the shoot is — free text beside the
+   *  purpose. */
+  detail: string
+  visitType: VisitType
+  startDate: string
+  endDate: string
+  /** Working days, same rule leave uses — half day is always 0.5. Set by
+   *  0027's trigger, never trusted from the client. */
+  daysCount: number
+  status: LeaveStatus
+  decidedBy: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  createdAt: string
+}
+
+/** A stretch of days worked from home — same apply/approve shape as leave and
+ *  visit entries, its own table because it is neither: it does not spend the
+ *  paid-leave balance and has no purpose/type fields to carry. */
+export interface WfhRequest {
+  id: string
+  employeeId: string
+  startDate: string
+  endDate: string
+  daysCount: number
+  reason: string
+  status: LeaveStatus
+  decidedBy: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  createdAt: string
+}
+
 /* ------------------------------------------------------------ Phase 3: salary */
 
 export type SalaryStatus = 'pending' | 'paid'

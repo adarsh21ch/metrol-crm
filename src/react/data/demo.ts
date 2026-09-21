@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, EmployeeDocument, ExitTask, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord } from '@/lib/hr'
+import type { Employee, EmployeeDocument, ExitTask, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
 import { workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
@@ -282,6 +282,48 @@ export const demoLeaveRequests: LeaveRequest[] = [
     daysCount: wdays(YEAR + '-07-06', YEAR + '-07-07'), leaveType: 'unpaid',
     reason: 'Extended trip, balance already used', status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(68), decisionNote: 'Approved without pay.',
     createdAt: iso(70),
+  },
+]
+
+/** Round 7 — ?demo's visit-purpose dropdown, same three HR starts with in the
+ *  real database (0027's seed). */
+export const demoVisitPurposes: VisitPurpose[] = [
+  { id: 'vp1', label: 'Shoot', sortOrder: 1, isActive: true },
+  { id: 'vp2', label: 'Client meeting', sortOrder: 2, isActive: true },
+  { id: 'vp3', label: 'Branch visit', sortOrder: 3, isActive: true },
+]
+
+/** One of each state, spread across the same people demoLeaveRequests uses,
+ *  so a visit day and a leave day can both show up on one month's strip. */
+export const demoVisitEntries: VisitEntry[] = [
+  {
+    id: 've1', employeeId: 'e1', purposeId: 'vp2', detail: 'Nova Motors — quarterly review',
+    visitType: 'full_day', startDate: YEAR + '-09-08', endDate: YEAR + '-09-08', daysCount: 1,
+    status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(12), decisionNote: null, createdAt: iso(13),
+  },
+  {
+    id: 've2', employeeId: 'e2', purposeId: 'vp1', detail: 'Product shoot, Andheri studio',
+    visitType: 'half_day', startDate: YEAR + '-11-04', endDate: YEAR + '-11-04', daysCount: 0.5,
+    status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null, createdAt: iso(0),
+  },
+  {
+    id: 've3', employeeId: 'e3', purposeId: 'vp3', detail: 'Pune branch — quarterly audit',
+    visitType: 'custom', startDate: YEAR + '-06-16', endDate: YEAR + '-06-18',
+    daysCount: wdays(YEAR + '-06-16', YEAR + '-06-18'),
+    status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(95), decisionNote: null, createdAt: iso(97),
+  },
+]
+
+export const demoWfhRequests: WfhRequest[] = [
+  {
+    id: 'wf1', employeeId: 'e1', startDate: YEAR + '-08-20', endDate: YEAR + '-08-21',
+    daysCount: wdays(YEAR + '-08-20', YEAR + '-08-21'), reason: 'Internet installation at the office building',
+    status: 'approved', decidedBy: HR_PERSON.id, decidedAt: iso(30), decisionNote: null, createdAt: iso(32),
+  },
+  {
+    id: 'wf2', employeeId: 'e4', startDate: YEAR + '-11-10', endDate: YEAR + '-11-10',
+    daysCount: wdays(YEAR + '-11-10', YEAR + '-11-10'), reason: 'Waiting for a delivery, cannot leave home',
+    status: 'pending', decidedBy: null, decidedAt: null, decisionNote: null, createdAt: iso(0),
   },
 ]
 

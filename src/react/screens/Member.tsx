@@ -14,10 +14,15 @@ import { Avatar, Chip, EditChip, Kpi } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
+import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
+import { WfhRequestModal } from '@/modals/WfhRequestModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
+import { useVisitEntries } from '@/data/useVisitEntries'
+import { useWfhRequests } from '@/data/useWfhRequests'
+import { useVisitPurposes } from '@/data/useVisitPurposes'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
@@ -28,7 +33,7 @@ import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
-import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, fmtDate, fmtPeriod } from '@/lib/hr'
+import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, fmtDate, fmtPeriod } from '@/lib/hr'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
@@ -66,9 +71,13 @@ const HEAD: Record<MemberSec, { title: string; sub: string }> = {
    screen, and all four are the same subject: me. They are one tab now, with
    these inside it — which is what takes the phone's tab bar down to five and
    removes the More sheet for everybody who is not a team lead. */
-type MeTab = 'leave' | 'salary' | 'onboarding' | 'exit' | 'terms'
+type MeTab = 'leave' | 'visit' | 'wfh' | 'salary' | 'onboarding' | 'exit' | 'terms'
 const ME_TABS: { key: MeTab; label: string }[] = [
   { key: 'leave', label: 'Leave' },
+  // Round 7 — same "apply, HR decides" shape as Leave, but neither one is a
+  // leave type: a visit or a WFH day never touches the paid-leave balance.
+  { key: 'visit', label: 'Visit entries' },
+  { key: 'wfh', label: 'Work from home' },
   { key: 'salary', label: 'Salary' },
   { key: 'onboarding', label: 'Onboarding' },
   { key: 'exit', label: 'Exit' },
@@ -176,6 +185,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const staff = useEmployees(true)
   const myEmployee = staff.rows.find((e) => e.profileId === me?.id) ?? null
   const leave = useLeaveRequests(true)
+  // Round 7 — same shape as leave, neither one a leave type: see useVisitEntries.ts.
+  const visitEntries = useVisitEntries(true)
+  const wfhRequests = useWfhRequests(true)
+  const visitPurposes = useVisitPurposes(true)
+  const activePurposes = useMemo(() => visitPurposes.rows.filter((p) => p.isActive), [visitPurposes.rows])
   // Attendance is the one HR table an ordinary employee writes to every day —
   // through punch_in()/punch_out(), never directly. RLS hands back only their
   // own rows, so `att.rows` here IS their history, not a filtered view of
@@ -184,6 +198,18 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const myLeave = useMemo(
     () => (myEmployee ? leave.rows.filter((r) => r.employeeId === myEmployee.id) : []),
     [leave.rows, myEmployee],
+  )
+  const myVisits = useMemo(
+    () => (myEmployee ? visitEntries.rows.filter((r) => r.employeeId === myEmployee.id) : []),
+    [visitEntries.rows, myEmployee],
+  )
+  const myVisitsWithLabel = useMemo(
+    () => myVisits.map((v) => ({ ...v, label: visitPurposes.rows.find((p) => p.id === v.purposeId)?.label ?? 'Visit entry' })),
+    [myVisits, visitPurposes.rows],
+  )
+  const myWfh = useMemo(
+    () => (myEmployee ? wfhRequests.rows.filter((r) => r.employeeId === myEmployee.id) : []),
+    [wfhRequests.rows, myEmployee],
   )
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
 
@@ -256,12 +282,20 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     holidays: att.holidays,
     weekOffs: att.settings?.weekOffs ?? [0],
     leaves: myLeave,
+    visits: myVisitsWithLabel,
+    wfh: myWfh,
     today: officeToday(tz),
-  }), [attFrom, attTo, myAtt, att.holidays, att.settings, myLeave, tz])
+  }), [attFrom, attTo, myAtt, att.holidays, att.settings, myLeave, myVisitsWithLabel, myWfh, tz])
   const totals = useMemo(() => calendarTotals(calendar), [calendar])
 
 
   const [requestingLeave, setRequestingLeave] = useState(false)
+  const [requestingVisit, setRequestingVisit] = useState(false)
+  const [requestingWfh, setRequestingWfh] = useState(false)
+  // The Attendance tab's title-line "Apply ▾" button — one control standing
+  // in for three, per THE LAYOUT LAW: a phone has no room left on that line
+  // for three separate buttons once the range picker is already on it.
+  const [applyAnchor, setApplyAnchor] = useState<HTMLElement | null>(null)
   // No create/update calls live on this screen at all — RLS (0010) refuses
   // every write to salary_records for anybody but the owner or HR, so this is
   // read-only by construction, not just by omission.
@@ -521,9 +555,26 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 </div>
               )}
               {sec === 'attendance' && myEmployee && (
-                <button className="btn btn--sm btn--primary head-cta" onClick={() => setRequestingLeave(true)}>
-                  Request leave
+                <button className="btn btn--sm btn--primary head-cta"
+                        onClick={(e) => setApplyAnchor(e.currentTarget)}>
+                  Apply ▾
                 </button>
+              )}
+              {applyAnchor && (
+                <Menu
+                  anchor={applyAnchor}
+                  items={[
+                    { value: 'leave', label: 'Leave' },
+                    { value: 'visit', label: 'Visit entry' },
+                    { value: 'wfh', label: 'Work from home' },
+                  ]}
+                  onPick={(v) => {
+                    if (v === 'leave') setRequestingLeave(true)
+                    else if (v === 'visit') setRequestingVisit(true)
+                    else setRequestingWfh(true)
+                  }}
+                  onClose={() => setApplyAnchor(null)}
+                />
               )}
             </div>
 
@@ -579,7 +630,10 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   ...ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => ({
                     key: t.key,
                     label: t.label,
-                    badge: t.key === 'leave' ? myLeave.filter((r) => r.status === 'pending').length : undefined,
+                    badge: t.key === 'leave' ? myLeave.filter((r) => r.status === 'pending').length
+                      : t.key === 'visit' ? myVisits.filter((r) => r.status === 'pending').length
+                      : t.key === 'wfh' ? myWfh.filter((r) => r.status === 'pending').length
+                      : undefined,
                     onClick: () => setMeTab(t.key),
                   })),
                   { key: 'terms', label: 'Terms & Conditions', atFoot: true, onClick: () => setMeTab('terms') },
@@ -803,6 +857,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                         <div className="att-sum-tile"><div className="n">{totals.late}</div><div className="l">Late coming</div></div>
                         <div className="att-sum-tile"><div className="n">{totals.halfDay}</div><div className="l">Half days</div></div>
                         <div className="att-sum-tile"><div className="n">{totals.leave}</div><div className="l">Leave</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.visit}</div><div className="l">Visit</div></div>
+                        <div className="att-sum-tile"><div className="n">{totals.wfh}</div><div className="l">WFH</div></div>
                         <div className="att-sum-tile"><div className="n">{totals.absent}</div><div className="l">Absent</div></div>
                         <div className="att-sum-tile"><div className="n">{fmtDuration(totals.workedMinutes)}</div><div className="l">Worked</div></div>
                       </div>
@@ -977,6 +1033,84 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
+            {/* Round 7 — same list shape as Leave's "My requests", but no
+                balance KPIs above it: a visit or a WFH day has no balance to
+                report against. */}
+            {shownSec === 'profile' && shownMeTab === 'visit' && myEmployee && (
+              <>
+                {visitEntries.error && <div className="auth-err" style={{ marginBottom: 14 }}>{visitEntries.error}</div>}
+                <div className="section">
+                  <div className="section-head">
+                    <h3>My requests</h3>
+                    <div className="section-tools">
+                      <button className="btn btn--sm btn--primary" onClick={() => setRequestingVisit(true)}>Apply for visit entry</button>
+                    </div>
+                  </div>
+                  {myVisitsWithLabel.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No requests yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {[...myVisitsWithLabel].sort((a, b) => b.startDate.localeCompare(a.startDate)).map((r) => (
+                        <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                          <span className="ov-n">{r.daysCount}d</span>
+                          <span className="ov-l">
+                            <strong>{r.label}</strong> · {VISIT_TYPE[r.visitType].label} · {fmtDate(r.startDate)}
+                            {r.endDate !== r.startDate ? ` – ${fmtDate(r.endDate)}` : ''}
+                            {r.detail ? ' · ' + r.detail : ''}
+                            {r.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {r.decisionNote}</span> : null}
+                          </span>
+                          <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip>
+                          {r.status === 'pending' && (
+                            <button className="btn btn--sm" style={{ marginLeft: 10 }}
+                                    onClick={() => void visitEntries.cancel(r.id).then((m) => toast(m ?? 'Request cancelled.'))}>
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {shownSec === 'profile' && shownMeTab === 'wfh' && myEmployee && (
+              <>
+                {wfhRequests.error && <div className="auth-err" style={{ marginBottom: 14 }}>{wfhRequests.error}</div>}
+                <div className="section">
+                  <div className="section-head">
+                    <h3>My requests</h3>
+                    <div className="section-tools">
+                      <button className="btn btn--sm btn--primary" onClick={() => setRequestingWfh(true)}>Apply for work from home</button>
+                    </div>
+                  </div>
+                  {myWfh.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No requests yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {[...myWfh].sort((a, b) => b.startDate.localeCompare(a.startDate)).map((r) => (
+                        <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                          <span className="ov-n">{r.daysCount}d</span>
+                          <span className="ov-l">
+                            <strong>Work from home</strong> · {fmtDate(r.startDate)} – {fmtDate(r.endDate)}
+                            {r.reason ? ' · ' + r.reason : ''}
+                            {r.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {r.decisionNote}</span> : null}
+                          </span>
+                          <Chip cls={LEAVE_STATUS[r.status].cls}>{LEAVE_STATUS[r.status].label}</Chip>
+                          {r.status === 'pending' && (
+                            <button className="btn btn--sm" style={{ marginLeft: 10 }}
+                                    onClick={() => void wfhRequests.cancel(r.id).then((m) => toast(m ?? 'Request cancelled.'))}>
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
             {/* Sign out lives on Profile now, not as an icon in the top bar
                 — "the last item, after scrolling", on the one tab that is
                 about you. Gated on the section only, so it is the end of
@@ -1144,6 +1278,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             <span><i style={{ background: 'var(--cal-present)' }} />Present</span>
             <span><i style={{ background: 'var(--cal-late)' }} />Late / half day</span>
             <span><i style={{ background: 'var(--cal-leave)' }} />Leave</span>
+            <span><i style={{ background: 'var(--cal-visit)' }} />Visit entry</span>
+            <span><i style={{ background: 'var(--cal-wfh)' }} />Work from home</span>
             <span><i style={{ background: 'var(--cal-absent)' }} />Absent</span>
             <span><i className="cal-key-holiday" />Holiday or weekly off</span>
           </div>
@@ -1164,6 +1300,33 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           onSave={async (draft) => {
             const message = await leave.create(draft)
             if (!message) toast('Leave request sent.')
+            return message
+          }}
+        />
+      )}
+      {requestingVisit && myEmployee && (
+        <VisitEntryRequestModal
+          employeeId={myEmployee.id}
+          purposes={activePurposes}
+          weekOffs={att.settings?.weekOffs ?? [0]}
+          holidays={att.holidays}
+          onClose={() => setRequestingVisit(false)}
+          onSave={async (draft) => {
+            const message = await visitEntries.create(draft)
+            if (!message) toast('Visit entry sent.')
+            return message
+          }}
+        />
+      )}
+      {requestingWfh && myEmployee && (
+        <WfhRequestModal
+          employeeId={myEmployee.id}
+          weekOffs={att.settings?.weekOffs ?? [0]}
+          holidays={att.holidays}
+          onClose={() => setRequestingWfh(false)}
+          onSave={async (draft) => {
+            const message = await wfhRequests.create(draft)
+            if (!message) toast('WFH request sent.')
             return message
           }}
         />
