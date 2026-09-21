@@ -24,6 +24,7 @@ import { VisitEntryDecisionModal, purposeLabelOf } from '@/modals/VisitEntryDeci
 import { WfhRequestModal } from '@/modals/WfhRequestModal'
 import { WfhDecisionModal } from '@/modals/WfhDecisionModal'
 import { SalaryRecordModal } from '@/modals/SalaryRecordModal'
+import { SalarySlipModal } from '@/modals/SalarySlipModal'
 import { DocumentUploadModal } from '@/modals/DocumentUploadModal'
 import { ApplicationReviewModal } from '@/modals/ApplicationReviewModal'
 import { useLeaveBoard, useLeaveMonth } from '@/data/useLeaveMonths'
@@ -212,6 +213,7 @@ export function HrPage({
   const [logEmpId, setLogEmpId] = useState('')
   const [addingSalaryFor, setAddingSalaryFor] = useState<string | null>(null)
   const [editingSalary, setEditingSalary] = useState<SalaryRecord | null>(null)
+  const [viewingSlip, setViewingSlip] = useState<SalaryRecord | null>(null)
   const [salaryEmpId, setSalaryEmpId] = useState('')
   const [emailingSalary, setEmailingSalary] = useState<string | null>(null)
   const [newTaskLabel, setNewTaskLabel] = useState('')
@@ -496,14 +498,15 @@ export function HrPage({
       render: (r) => (r.payslipSentCount > 0 ? <Chip cls="chip--good">Sent</Chip> : <Chip cls="chip--mute">Not sent</Chip>),
     },
     {
-      key: 'act', label: '', width: 260,
+      key: 'act', label: '', width: 340,
       render: (r) => (
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {r.status === 'pending' && (
             <button className="btn btn--sm btn--primary" onClick={() => void salary.markPaid(r.id, ws.me?.id ?? '').then((m) => toast(m ?? 'Marked paid.'))}>
               Mark paid
             </button>
           )}
+          <button className="btn btn--sm" onClick={() => setViewingSlip(r)}>View slip</button>
           <button className="btn btn--sm" onClick={() => setEditingSalary(r)}>Edit</button>
           <button className="btn btn--sm" disabled={emailingSalary === r.id}
                   onClick={() => {
@@ -1944,11 +1947,18 @@ export function HrPage({
 
       {addingSalaryFor && (
         <SalaryRecordModal employeeId={addingSalaryFor} employee={hr.rows.find((e) => e.id === addingSalaryFor) ?? null}
+                            tdsCategories={tdsCategories.rows}
                             record={null} onClose={() => setAddingSalaryFor(null)} onSave={saveSalaryNew} />
       )}
       {editingSalary && (
         <SalaryRecordModal employeeId={editingSalary.employeeId} employee={hr.rows.find((e) => e.id === editingSalary.employeeId) ?? null}
+                            tdsCategories={tdsCategories.rows}
                             record={editingSalary} onClose={() => setEditingSalary(null)} onSave={saveSalaryEdit} />
+      )}
+      {viewingSlip && (
+        <SalarySlipModal record={viewingSlip} employee={hr.rows.find((e) => e.id === viewingSlip.employeeId) ?? null}
+                          employeeName={employeeName(viewingSlip.employeeId)} internal
+                          onClose={() => setViewingSlip(null)} />
       )}
 
       {uploadingFor && (

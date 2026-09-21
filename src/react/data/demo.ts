@@ -355,16 +355,21 @@ const monthsAgo = (n: number) => {
 export const demoSalaryRecords: SalaryRecord[] = demoEmployees.flatMap((e, i) => {
   const gross = 25000 + i * 6000
   const net = Math.round(gross * 0.92)
+  const tdsAmount = gross - net
   return [
     {
       id: 'sl-' + e.id + '-1', employeeId: e.id, period: monthsAgo(1), grossAmount: gross, netAmount: net,
       status: 'paid' as const, paidAt: iso(20), paidBy: HR_PERSON.id, notes: '', createdAt: iso(25),
       payslipSentCount: 1, payslipSentAt: iso(20),
+      paidDays: 26, leaveEncashmentDays: 0, leaveEncashmentAmount: 0, incentive: 0,
+      otherDeduction: 0, tdsRatePercent: 8, tdsAmount,
     },
     {
       id: 'sl-' + e.id + '-0', employeeId: e.id, period: monthsAgo(0), grossAmount: gross, netAmount: net,
       status: 'pending' as const, paidAt: null, paidBy: null, notes: '', createdAt: iso(1),
       payslipSentCount: 0, payslipSentAt: null,
+      paidDays: 26, leaveEncashmentDays: 0, leaveEncashmentAmount: 0, incentive: 0,
+      otherDeduction: 0, tdsRatePercent: 8, tdsAmount,
     },
   ]
 })

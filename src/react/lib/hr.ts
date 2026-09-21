@@ -288,6 +288,18 @@ export interface SalaryRecord {
    *  means never emailed; a resend just increments the count again. */
   payslipSentCount: number
   payslipSentAt: string | null
+  /** Payroll phase 2 (0030) — the itemized breakdown behind grossAmount
+   *  (= grossPayable) and netAmount (= netPayable). tdsRatePercent is null
+   *  when no TDS category was assigned that month — never shown to the
+   *  employee themselves, Adarsh's own words: the category and rate stay
+   *  internal, only the deducted amount is theirs to see. */
+  paidDays: number | null
+  leaveEncashmentDays: number
+  leaveEncashmentAmount: number
+  incentive: number
+  otherDeduction: number
+  tdsRatePercent: number | null
+  tdsAmount: number
 }
 
 export const SALARY_STATUS: Record<SalaryStatus, { label: string; cls: string }> = {

@@ -16,6 +16,7 @@ import { HistoryModal } from '@/modals/HistoryModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
 import { WfhRequestModal } from '@/modals/WfhRequestModal'
+import { SalarySlipModal } from '@/modals/SalarySlipModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { useEmployees } from '@/data/useEmployees'
@@ -34,7 +35,7 @@ import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
-import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, fmtDate, fmtPeriod } from '@/lib/hr'
+import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, fmtDate, fmtPeriod, type SalaryRecord } from '@/lib/hr'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
@@ -301,6 +302,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const totals = useMemo(() => calendarTotals(calendar), [calendar])
 
 
+  const [viewingSlip, setViewingSlip] = useState<SalaryRecord | null>(null)
   const [requestingLeave, setRequestingLeave] = useState(false)
   const [requestingVisit, setRequestingVisit] = useState(false)
   const [requestingWfh, setRequestingWfh] = useState(false)
@@ -744,11 +746,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   <div className="section">
                     <div className="ov-actions">
                       {[...mySalary].sort((a, b) => b.period.localeCompare(a.period)).map((r) => (
-                        <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                        <button className="ov-row" key={r.id} onClick={() => setViewingSlip(r)}>
                           <span className="ov-n">{fmtPeriod(r.period)}</span>
                           <span className="ov-l">Net {money(r.netAmount)} · Gross {money(r.grossAmount)}</span>
                           <Chip cls={SALARY_STATUS[r.status].cls}>{SALARY_STATUS[r.status].label}</Chip>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1353,6 +1355,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             return message
           }}
         />
+      )}
+      {viewingSlip && (
+        <SalarySlipModal record={viewingSlip} employee={myEmployee}
+                          employeeName={myEmployee?.fullName ?? me?.name ?? ''}
+                          onClose={() => setViewingSlip(null)} />
       )}
     </div>
   )

@@ -1322,6 +1322,27 @@ table.hist .what{font-weight:500}
    The employee page is label/value pairs, not a table: one person's record
    reads as a form, and a two-column grid keeps it scannable without inventing
    a new visual language for this module. */
+/* Payroll phase 2 — the formatted salary slip. A card, not a table: this is
+   the one screen in the app meant to be read top to bottom like a document,
+   by an employee who may never open another payslip that week. */
+.slip{ display:flex; flex-direction:column; gap:16px; }
+.slip-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  padding-bottom:14px; border-bottom:1px solid var(--line); }
+.slip-brand{ font-size:17px; font-weight:700; color:var(--ink); }
+.slip-period{ font-size:12.5px; color:var(--ink-3); margin-top:2px; }
+.slip-sec-title{ font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); margin-bottom:8px; }
+.slip-grid{ display:flex; flex-direction:column; gap:6px; }
+.slip-row{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; font-size:14px; }
+.slip-l{ color:var(--ink-2); }
+.slip-l.muted{ color:var(--ink-3); }
+.slip-v{ color:var(--ink); font-variant-numeric:tabular-nums; }
+.slip-v.strong{ font-weight:700; }
+.slip-net{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 16px; border-radius:10px; background:var(--surface-2); border:1px solid var(--line);
+  font-size:17px; font-weight:700; color:var(--ink); }
+.slip-foot{ margin:0; font-size:12px; color:var(--ink-3); line-height:1.5; }
+.slip-foot.muted{ opacity:.75; }
+
 .hr-fields{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px 26px; }
 .hr-fld .l{ font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px; }
 .hr-fld .v{ font-size:14px; color:var(--ink); overflow-wrap:anywhere; }

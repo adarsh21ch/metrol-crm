@@ -89,16 +89,33 @@ Deno.serve(async (req: Request) => {
   if (!to) return json({ error: `${emp.full_name} has no email address on file to send this to.` }, 400)
 
   const period = fmtPeriod(String(slip.period))
+  const rupee = (n: unknown) => '&#8377;' + Number(n ?? 0).toLocaleString('en-IN')
   const notesHtml = slip.notes
-    ? `<p style="color:#555">${escapeHtml(String(slip.notes))}</p>`
+    ? `<p style="color:#555;font-size:13px">${escapeHtml(String(slip.notes))}</p>`
     : ''
+
+  // Itemized, payroll phase 2 (2026-09-21) — same rule the app's own slip
+  // view follows: an employee's copy shows the TDS AMOUNT, never the
+  // category or rate that produced it. A row is left out entirely rather
+  // than printed as a zero, same as the app's own SalarySlipModal.
+  const paidDays = slip.paid_days != null ? String(slip.paid_days) : '—'
+  const rows: string[] = [
+    `<tr><td>Paid days</td><td>${escapeHtml(paidDays)}</td></tr>`,
+  ]
+  if (Number(slip.leave_encashment_days) > 0) {
+    rows.push(`<tr><td>Leave encashment (${slip.leave_encashment_days} day(s))</td><td>${rupee(slip.leave_encashment_amount)}</td></tr>`)
+  }
+  if (Number(slip.incentive) > 0) rows.push(`<tr><td>Incentive</td><td>${rupee(slip.incentive)}</td></tr>`)
+  rows.push(`<tr><td><strong>Gross payable</strong></td><td><strong>${rupee(slip.gross_amount)}</strong></td></tr>`)
+  if (Number(slip.other_deduction) > 0) rows.push(`<tr><td>Other deduction</td><td>&minus; ${rupee(slip.other_deduction)}</td></tr>`)
+  if (Number(slip.tds_amount) > 0) rows.push(`<tr><td>TDS</td><td>&minus; ${rupee(slip.tds_amount)}</td></tr>`)
+  rows.push(`<tr><td style="padding-top:10px"><strong>Net payable</strong></td><td style="padding-top:10px"><strong>${rupee(slip.net_amount)}</strong></td></tr>`)
 
   const html = `
     <p>Hi ${escapeHtml(emp.full_name)},</p>
-    <p>Your payslip for <strong>${escapeHtml(period)}</strong> is ready.</p>
+    <p>Your salary slip for <strong>${escapeHtml(period)}</strong> is ready.</p>
     <table cellpadding="6" style="border-collapse:collapse">
-      <tr><td>Gross amount</td><td><strong>&#8377;${Number(slip.gross_amount).toLocaleString('en-IN')}</strong></td></tr>
-      <tr><td>Net amount</td><td><strong>&#8377;${Number(slip.net_amount).toLocaleString('en-IN')}</strong></td></tr>
+      ${rows.join('\n      ')}
       <tr><td>Status</td><td>${slip.status === 'paid' ? 'Paid' : 'Being processed'}</td></tr>
     </table>
     ${notesHtml}

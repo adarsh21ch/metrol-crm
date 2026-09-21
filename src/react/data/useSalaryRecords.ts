@@ -20,6 +20,13 @@ const toSalaryRecord = (r: Row): SalaryRecord => ({
   createdAt: str(r.created_at),
   payslipSentCount: Number(r.payslip_sent_count) || 0,
   payslipSentAt: (r.payslip_sent_at as string | null) ?? null,
+  paidDays: r.paid_days == null ? null : Number(r.paid_days),
+  leaveEncashmentDays: Number(r.leave_encashment_days) || 0,
+  leaveEncashmentAmount: Number(r.leave_encashment_amount) || 0,
+  incentive: Number(r.incentive) || 0,
+  otherDeduction: Number(r.other_deduction) || 0,
+  tdsRatePercent: r.tds_rate_percent == null ? null : Number(r.tds_rate_percent),
+  tdsAmount: Number(r.tds_amount) || 0,
 })
 
 export interface SalaryDraft {
@@ -28,6 +35,13 @@ export interface SalaryDraft {
   grossAmount: number
   netAmount: number
   notes: string
+  paidDays: number | null
+  leaveEncashmentDays: number
+  leaveEncashmentAmount: number
+  incentive: number
+  otherDeduction: number
+  tdsRatePercent: number | null
+  tdsAmount: number
 }
 
 /**
@@ -93,6 +107,9 @@ export function useSalaryRecords(enabled = true) {
         createdAt: new Date().toISOString(),
         payslipSentCount: 0,
         payslipSentAt: null,
+        paidDays: draft.paidDays, leaveEncashmentDays: draft.leaveEncashmentDays,
+        leaveEncashmentAmount: draft.leaveEncashmentAmount, incentive: draft.incentive,
+        otherDeduction: draft.otherDeduction, tdsRatePercent: draft.tdsRatePercent, tdsAmount: draft.tdsAmount,
       }, ...p])
       return null
     }
@@ -104,6 +121,13 @@ export function useSalaryRecords(enabled = true) {
         gross_amount: draft.grossAmount,
         net_amount: draft.netAmount,
         notes: draft.notes.trim() || null,
+        paid_days: draft.paidDays,
+        leave_encashment_days: draft.leaveEncashmentDays,
+        leave_encashment_amount: draft.leaveEncashmentAmount,
+        incentive: draft.incentive,
+        other_deduction: draft.otherDeduction,
+        tds_rate_percent: draft.tdsRatePercent,
+        tds_amount: draft.tdsAmount,
       })
       .select('*').single()
     if (err) return err.message
@@ -116,6 +140,13 @@ export function useSalaryRecords(enabled = true) {
     if (patch.grossAmount !== undefined) row.gross_amount = patch.grossAmount
     if (patch.netAmount !== undefined) row.net_amount = patch.netAmount
     if (patch.notes !== undefined) row.notes = patch.notes.trim() || null
+    if (patch.paidDays !== undefined) row.paid_days = patch.paidDays
+    if (patch.leaveEncashmentDays !== undefined) row.leave_encashment_days = patch.leaveEncashmentDays
+    if (patch.leaveEncashmentAmount !== undefined) row.leave_encashment_amount = patch.leaveEncashmentAmount
+    if (patch.incentive !== undefined) row.incentive = patch.incentive
+    if (patch.otherDeduction !== undefined) row.other_deduction = patch.otherDeduction
+    if (patch.tdsRatePercent !== undefined) row.tds_rate_percent = patch.tdsRatePercent
+    if (patch.tdsAmount !== undefined) row.tds_amount = patch.tdsAmount
     if (isDemo()) {
       setRows((p) => p.map((r) => (r.id === id ? { ...r, ...patch } : r)))
       return null
