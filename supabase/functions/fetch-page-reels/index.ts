@@ -145,7 +145,17 @@ Deno.serve(async (req: Request) => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: [handle], resultsLimit: RESULTS_LIMIT }),
+        // includeSharesCount is an explicit opt-in on this actor — without it
+        // the shares field simply never appears, which is exactly what real
+        // data showed (likes and comments present on all 25 reels, views AND
+        // shares absent on all 25). Views appear to ride the same extra
+        // fetch, so this is the one input change worth making before
+        // reading the raw payload again.
+        body: JSON.stringify({
+          username: [handle],
+          resultsLimit: RESULTS_LIMIT,
+          includeSharesCount: true,
+        }),
       },
     )
   } catch {
