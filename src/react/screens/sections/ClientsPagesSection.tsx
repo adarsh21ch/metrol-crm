@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Chip } from '@/components/bits'
 import { Tip } from '@/components/Tip'
+import { isDemo } from '@/data/demo'
+import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { CONTENT_MARKETING_DEPARTMENT, INCENTIVE_PAGE_TYPE } from '@/lib/hr'
 import type { IncentivePageType } from '@/lib/hr'
 import type { Clients } from '@/data/useClients'
@@ -8,6 +10,15 @@ import type { Pages } from '@/data/usePages'
 import type { PageAssignments } from '@/data/usePageAssignments'
 import type { Employees } from '@/data/useEmployees'
 import type { Workspace } from '@/data/useWorkspace'
+
+interface FetchedProfile {
+  handle: string
+  fullName: string
+  biography: string
+  profilePicUrl: string
+  followersCount: number | null
+  verified: boolean
+}
 
 /**
  * HR's admin for Clients, Pages and who manages them (0032). Owner/HR only —
@@ -36,15 +47,44 @@ export function ClientsPagesSection({
   const [newPageHandle, setNewPageHandle] = useState('')
   const [newPageLabel, setNewPageLabel] = useState('')
   const [assigningPageId, setAssigningPageId] = useState<string | null>(null)
+  const [fetchingProfile, setFetchingProfile] = useState(false)
+  const [fetchErr, setFetchErr] = useState<string | null>(null)
+  const [fetchedProfile, setFetchedProfile] = useState<FetchedProfile | null>(null)
 
   const cmDeptId = ws.departments.find((d) => d.name === CONTENT_MARKETING_DEPARTMENT)?.id ?? null
   const roster = staff.rows.filter((e) => e.status === 'active' && (!cmDeptId || e.departmentId === cmDeptId))
   const nameOf = (employeeId: string) => staff.rows.find((e) => e.id === employeeId)?.fullName ?? 'Former employee'
 
+  const resetPageForm = () => {
+    setNewPageType('main'); setNewPageHandle(''); setNewPageLabel('')
+    setFetchErr(null); setFetchedProfile(null)
+  }
+
+  /** Paste a profile link, a bare @handle, or a plain username — the Edge
+   *  Function's own actor call takes any of the three (Adarsh, 2026-09-22:
+   *  "paste the client insta profile link... we fetch all the details after
+   *  it"). Normalizes the handle and offers the fetched name as the label;
+   *  the extra details (followers, verified, bio) are shown so what was
+   *  fetched is visible, even though this table only has a column for the
+   *  two that actually matter to the rest of the app. */
+  const fetchProfile = async () => {
+    if (!newPageHandle.trim()) return
+    if (isDemo()) { setFetchErr('Not available in demo mode — type the handle directly.'); return }
+    setFetchingProfile(true); setFetchErr(null); setFetchedProfile(null)
+    const { data, error: err } = await supabase.functions.invoke('fetch-instagram-profile', { body: { url: newPageHandle.trim() } })
+    const message = err ? await functionErrorMessage(err) : data?.error ? String(data.error) : null
+    setFetchingProfile(false)
+    if (message) { setFetchErr(message); return }
+    const profile = data as FetchedProfile
+    setFetchedProfile(profile)
+    setNewPageHandle(profile.handle)
+    if (!newPageLabel.trim() && profile.fullName) setNewPageLabel(profile.fullName)
+  }
+
   const addPage = async (clientId: string) => {
     const message = await pages.add({ clientId, pageType: newPageType, instagramHandle: newPageHandle, label: newPageLabel })
     toast(message ?? 'Page added.')
-    if (!message) { setAddingPageFor(null); setNewPageType('main'); setNewPageHandle(''); setNewPageLabel('') }
+    if (!message) { setAddingPageFor(null); resetPageForm() }
   }
 
   return (
@@ -74,7 +114,8 @@ export function ClientsPagesSection({
               <div className="ov-head">
                 <h4>{c.name}{!c.isActive && <Chip cls="chip--mute">Retired</Chip>}</h4>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn--sm" onClick={() => setAddingPageFor(addingPageFor === c.id ? null : c.id)}>
+                  <button className="btn btn--sm"
+                          onClick={() => { setAddingPageFor(addingPageFor === c.id ? null : c.id); resetPageForm() }}>
                     + Add page
                   </button>
                   <button className="btn btn--sm"
@@ -85,20 +126,41 @@ export function ClientsPagesSection({
               </div>
 
               {addingPageFor === c.id && (
-                <div className="hol-add" style={{ padding: '0 16px 14px' }}>
-                  <div className="seg seg--form" role="group" aria-label="Page type">
-                    {(Object.keys(INCENTIVE_PAGE_TYPE) as IncentivePageType[]).map((t) => (
-                      <button key={t} type="button" className={newPageType === t ? 'is-on' : ''}
-                              aria-pressed={newPageType === t} onClick={() => setNewPageType(t)}>
-                        {INCENTIVE_PAGE_TYPE[t]}
-                      </button>
-                    ))}
+                <div style={{ padding: '0 16px 14px' }}>
+                  <div className="hol-add">
+                    <div className="seg seg--form" role="group" aria-label="Page type">
+                      {(Object.keys(INCENTIVE_PAGE_TYPE) as IncentivePageType[]).map((t) => (
+                        <button key={t} type="button" className={newPageType === t ? 'is-on' : ''}
+                                aria-pressed={newPageType === t} onClick={() => setNewPageType(t)}>
+                          {INCENTIVE_PAGE_TYPE[t]}
+                        </button>
+                      ))}
+                    </div>
+                    <input className="input" type="text" aria-label="Instagram profile link or handle"
+                           placeholder="Paste the profile link, or type @handle" value={newPageHandle}
+                           onChange={(e) => { setNewPageHandle(e.target.value); setFetchedProfile(null); setFetchErr(null) }} />
+                    <button className="btn btn--sm" disabled={!newPageHandle.trim() || fetchingProfile}
+                            onClick={() => void fetchProfile()}>
+                      {fetchingProfile ? 'Fetching…' : 'Fetch details'}
+                    </button>
+                    <input className="input" type="text" aria-label="Label (optional)" placeholder="Label (optional)"
+                           value={newPageLabel} onChange={(e) => setNewPageLabel(e.target.value)} />
+                    <button className="btn btn--sm btn--primary" onClick={() => void addPage(c.id)}>Save page</button>
                   </div>
-                  <input className="input" type="text" aria-label="Instagram handle" placeholder="@handle"
-                         value={newPageHandle} onChange={(e) => setNewPageHandle(e.target.value)} />
-                  <input className="input" type="text" aria-label="Label (optional)" placeholder="Label (optional)"
-                         value={newPageLabel} onChange={(e) => setNewPageLabel(e.target.value)} />
-                  <button className="btn btn--sm btn--primary" onClick={() => void addPage(c.id)}>Save page</button>
+                  {fetchErr && <p className="punch-note" style={{ color: 'var(--bad)' }}>{fetchErr}</p>}
+                  {fetchedProfile && (
+                    <div className="td-flex" style={{ gap: 10, marginTop: 4 }}>
+                      {fetchedProfile.profilePicUrl && (
+                        <img src={fetchedProfile.profilePicUrl} alt="" width={32} height={32} style={{ borderRadius: '50%' }} />
+                      )}
+                      <span className="punch-note">
+                        <strong>{fetchedProfile.fullName || fetchedProfile.handle}</strong>
+                        {fetchedProfile.verified ? ' ✓' : ''}
+                        {fetchedProfile.followersCount != null ? ` · ${fetchedProfile.followersCount.toLocaleString('en-IN')} followers` : ''}
+                        {fetchedProfile.biography ? ` · ${fetchedProfile.biography}` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
