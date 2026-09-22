@@ -31,10 +31,11 @@ export function PageDetailModal({
   client: Client | null
   reels: PageReel[]
   onClose: () => void
-  onRefresh: () => Promise<{ message: string | null; matchedClaims: number }>
+  onRefresh: () => Promise<{ message: string | null; matchedClaims: number; debugSample?: Record<string, unknown> | null }>
 }) {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+  const [debugSample, setDebugSample] = useState<Record<string, unknown> | null>(null)
 
   const sorted = [...reels].sort((a, b) => (b.views ?? -1) - (a.views ?? -1))
   const totalViews = reels.reduce((t, r) => t + (r.views ?? 0), 0)
@@ -42,11 +43,16 @@ export function PageDetailModal({
   const lastFetched = reels.reduce<string | null>((latest, r) => (!latest || r.fetchedAt > latest ? r.fetchedAt : latest), null)
 
   const refresh = async () => {
-    setBusy(true); setNote(null)
-    const { message, matchedClaims } = await onRefresh()
+    setBusy(true); setNote(null); setDebugSample(null)
+    const { message, matchedClaims, debugSample: sample } = await onRefresh()
     setBusy(false)
     if (message) { setNote(message); return }
     setNote(matchedClaims > 0 ? `Refreshed — ${matchedClaims} claim${matchedClaims === 1 ? '' : 's'} updated with fresh views.` : 'Refreshed.')
+    // TEMPORARY, 2026-09-22 — see fetch-page-reels' own note. Shows the raw
+    // fields Apify actually sent for one reel so the real "views" field name
+    // can be read off it directly, screenshotted, and sent back — remove
+    // once views are confirmed working.
+    if (sample) setDebugSample(sample)
   }
 
   return (
@@ -64,6 +70,16 @@ export function PageDetailModal({
       }
     >
       {note && <p className="punch-note" style={{ marginBottom: 14 }}>{note}</p>}
+      {debugSample && (
+        <div style={{ marginBottom: 14, padding: 10, border: '1px solid var(--line)', borderRadius: 6, background: 'var(--bg-2)' }}>
+          <p className="punch-note" style={{ marginBottom: 6 }}>
+            Debug — one reel's raw fields from Apify (screenshot this and send it back):
+          </p>
+          <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
+            {JSON.stringify(debugSample, null, 2)}
+          </pre>
+        </div>
+      )}
 
       <div className="kpis" style={{ marginBottom: 18 }}>
         <Kpi accent label="Reels tracked" value={reels.length} sub={lastFetched ? `last fetched ${fmtDate(lastFetched)}` : 'never fetched'} />

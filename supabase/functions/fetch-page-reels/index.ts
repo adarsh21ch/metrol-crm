@@ -160,5 +160,15 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ fetched: rows.length, matchedClaims })
+  // TEMPORARY, 2026-09-22: views keeps coming back null even after two
+  // corrected field-name guesses, live, on a real account. Rather than
+  // guess a third time, hand back the actual raw keys/values Apify sent for
+  // one reel — visible right in the same popup — so the real field name can
+  // be read off it directly instead of guessed at again. Remove this once
+  // views are confirmed working.
+  const sampleKeys = items[0] && typeof items[0] === 'object'
+    ? Object.fromEntries(Object.entries(items[0] as Record<string, unknown>).filter(([, v]) => typeof v === 'number' || typeof v === 'string').slice(0, 30))
+    : null
+
+  return json({ fetched: rows.length, matchedClaims, debugSample: sampleKeys })
 })

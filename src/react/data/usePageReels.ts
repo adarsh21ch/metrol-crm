@@ -53,13 +53,17 @@ export function usePageReels(enabled = true) {
    *  returns whatever the function said about matched claims — the caller
    *  decides whether to also reload incentive claims (Member.tsx and
    *  ClientsPagesSection both already have that hook in scope). */
-  const refresh = useCallback(async (pageId: string): Promise<{ message: string | null; matchedClaims: number }> => {
+  const refresh = useCallback(async (pageId: string): Promise<{ message: string | null; matchedClaims: number; debugSample?: Record<string, unknown> | null }> => {
     if (isDemo()) return { message: 'Not available in demo mode.', matchedClaims: 0 }
     const { data, error: err } = await supabase.functions.invoke('fetch-page-reels', { body: { pageId } })
     const message = err ? await functionErrorMessage(err) : data?.error ? String(data.error) : null
     if (message) return { message, matchedClaims: 0 }
     await load(true)
-    return { message: data?.warning ? String(data.warning) : null, matchedClaims: Number(data?.matchedClaims ?? 0) }
+    return {
+      message: data?.warning ? String(data.warning) : null,
+      matchedClaims: Number(data?.matchedClaims ?? 0),
+      debugSample: (data?.debugSample as Record<string, unknown> | null) ?? null,
+    }
   }, [load])
 
   return { rows, loading, error, reload: () => load(true), refresh, clearError: () => setError(null) }
