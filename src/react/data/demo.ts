@@ -29,7 +29,7 @@ export const demoDepartments: Department[] = [
   { id: 'd6', name: 'AI Staff', sortOrder: 6, isActive: true },
   { id: 'd7', name: 'Human Resources', sortOrder: 7, isActive: true },
   { id: 'd8', name: 'Performance Marketing', sortOrder: 8, isActive: true },
-  { id: 'd9', name: 'Social Media', sortOrder: 9, isActive: true },
+  { id: 'd9', name: 'Content and Marketing', sortOrder: 9, isActive: true },
 ]
 
 const MEMBER_NAMES = ['Mohit Verma', 'Priya Nair', 'Arjun Mehta', 'Sneha Kulkarni', 'Imran Shaikh']
