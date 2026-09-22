@@ -37,6 +37,26 @@ charts") — that was the right call for that round; this is the next one.
   already list pages — this is the entry point that needs to become
   clickable, not a new list to build.
 
+## This also closes a gap Adarsh hit within the hour: "views not checked yet"
+
+Every submitted claim on the live site shows "views not checked yet" and
+"Below threshold" — correct today, because nothing fetches a reel's view
+count automatically yet (INCENTIVE-PLAN.md's own Step 5, still unbuilt).
+That is the SAME data this dashboard fetches. Build them together:
+
+- `fetch-page-reels` (below) should, after upserting `page_reels`, also look
+  for any `incentive_claims` row whose `reel_url` matches a fetched reel's
+  URL for that page, and `update views = <fetched views>` on it — the
+  existing `set_incentive_tier` trigger (0031/0032) already recomputes the
+  tier the moment `views` changes, so a claim goes from "Below threshold" to
+  a real tier with no HR typing required, the moment its page is refreshed.
+- This does not replace HR's manual "Save views" button in
+  `IncentiveClaimReviewModal` — Apify can be down, a reel can be private, a
+  claim's URL can not-quite-match; manual stays the fallback, exactly as
+  INCENTIVE-PLAN.md's own reasoning already says ("HR's manual verify is
+  therefore not a nicety — it is the fallback the feature needs to keep
+  working on a bad day").
+
 ## The two Apify actors involved
 
 Checked directly against Apify's own listing, 2026-09-22:
