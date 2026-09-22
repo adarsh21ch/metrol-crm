@@ -5,7 +5,11 @@ import { count } from '@/lib/format'
 import { INCENTIVE_PAGE_TYPE } from '@/lib/hr'
 import type { Client, Page, PageReel } from '@/lib/hr'
 
-const VIRAL_THRESHOLD = 10_000_000
+/* The same two thresholds incentive_rules pays on (0031) — a reel clears 1M
+ * or 10M and earns its tier. Naming them here keeps the dashboard answering
+ * the question the incentive system actually asks: which reels qualified. */
+const TIER_1M = 1_000_000
+const TIER_10M = 10_000_000
 
 const num = (n: number | null) => (n == null ? '—' : n.toLocaleString('en-IN'))
 /** -1 is Instagram's own signal that the creator hid the count, not missing
@@ -28,6 +32,7 @@ function engagement(r: PageReel): number | null {
 }
 
 type Sort = 'views' | 'likes' | 'recent'
+type Tier = 'all' | '1m' | '10m'
 
 /**
  * One Instagram page's own dashboard — a real screen, not a popup
@@ -53,14 +58,16 @@ export function PageDashboard({
   const [note, setNote] = useState<string | null>(null)
   const [debugSample, setDebugSample] = useState<Record<string, unknown> | null>(null)
   const [sort, setSort] = useState<Sort>('views')
+  const [tier, setTier] = useState<Tier>('all')
   const [gridView, setGridView] = usePhoneView('page-reels')
 
   const sorted = useMemo(() => {
-    const list = [...reels]
+    const floor = tier === '10m' ? TIER_10M : tier === '1m' ? TIER_1M : 0
+    const list = reels.filter((r) => (floor === 0 ? true : (r.views ?? 0) >= floor))
     if (sort === 'recent') return list.sort((a, b) => (b.postedAt ?? '').localeCompare(a.postedAt ?? ''))
     if (sort === 'likes') return list.sort((a, b) => (b.likes ?? -1) - (a.likes ?? -1))
     return list.sort((a, b) => (b.views ?? -1) - (a.views ?? -1))
-  }, [reels, sort])
+  }, [reels, sort, tier])
 
   const totals = useMemo(() => {
     const views = reels.reduce((t, r) => t + (r.views ?? 0), 0)
@@ -70,7 +77,8 @@ export function PageDashboard({
     const rated = reels.map(engagement).filter((e): e is number => e != null)
     return {
       views, likes, comments, shares,
-      viral: reels.filter((r) => (r.views ?? 0) >= VIRAL_THRESHOLD).length,
+      over1m: reels.filter((r) => (r.views ?? 0) >= TIER_1M).length,
+      viral: reels.filter((r) => (r.views ?? 0) >= TIER_10M).length,
       avgEngagement: rated.length ? rated.reduce((t, e) => t + e, 0) / rated.length : null,
       lastFetched: reels.reduce<string | null>((latest, r) => (!latest || r.fetchedAt > latest ? r.fetchedAt : latest), null),
     }
@@ -152,13 +160,17 @@ export function PageDashboard({
         </div>
       )}
 
+      {/* The last two are the incentive tiers, and they are buttons: clicking
+          one filters the table to the reels that actually qualified, which is
+          the question HR and the creator both open this screen to answer. */}
       <div className="kpis">
-        <Kpi accent label="Reels" value={reels.length} sub={totals.lastFetched ? `fetched ${fmtDate(totals.lastFetched)}` : 'never fetched'} />
+        <Kpi accent label="Reels" value={reels.length} active={tier === 'all'} onClick={() => setTier('all')}
+             sub={totals.lastFetched ? `fetched ${fmtDate(totals.lastFetched)}` : 'never fetched'} />
         <Kpi label="Views" value={num(totals.views)} sub="" />
         <Kpi label="Likes" value={num(totals.likes)} sub="" />
-        <Kpi label="Comments" value={num(totals.comments)} sub="" />
         <Kpi label="Engagement" value={totals.avgEngagement == null ? '—' : `${totals.avgEngagement.toFixed(1)}%`} sub="" />
-        <Kpi accent label="10M+" value={totals.viral} sub="" />
+        <Kpi label="1M+" value={totals.over1m} sub="" active={tier === '1m'} onClick={() => setTier('1m')} />
+        <Kpi accent label="10M+" value={totals.viral} sub="" active={tier === '10m'} onClick={() => setTier('10m')} />
       </div>
 
       <DataGrid
@@ -166,10 +178,16 @@ export function PageDashboard({
         rows={sorted}
         storageKey="page-reels"
         phoneView={gridView}
-        empty="No reels pulled yet — press Refresh reels to fetch this page's latest ones."
+        empty={tier === 'all'
+          ? "No reels pulled yet — press Refresh reels to fetch this page's latest ones."
+          : `No reel on this page has crossed ${tier === '10m' ? '10M' : '1M'} views yet.`}
         foot={
           <div className="grid-foot">
-            <span>{count(reels.length, 'reel')} · {num(totals.views)} views · {num(totals.likes)} likes</span>
+            <span>
+              {tier === 'all'
+                ? `${count(reels.length, 'reel')} · ${num(totals.views)} views · ${num(totals.likes)} likes`
+                : `${count(sorted.length, 'reel')} past ${tier === '10m' ? '10M' : '1M'} views, of ${reels.length}`}
+            </span>
             <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span>
           </div>
         }

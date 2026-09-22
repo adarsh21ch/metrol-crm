@@ -138,34 +138,37 @@ Deno.serve(async (req: Request) => {
   const handle = String(page.instagram_handle ?? '').replace(/^@/, '').trim()
   if (!handle) return json({ error: 'This page has no Instagram handle on file yet — add one first.' }, 400)
 
-  let apifyRes: Response
-  try {
-    apifyRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${APIFY_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // includeSharesCount is an explicit opt-in on this actor — without it
-        // the shares field simply never appears, which is exactly what real
-        // data showed (likes and comments present on all 25 reels, views AND
-        // shares absent on all 25). Views appear to ride the same extra
-        // fetch, so this is the one input change worth making before
-        // reading the raw payload again.
-        body: JSON.stringify({
-          username: [handle],
-          resultsLimit: RESULTS_LIMIT,
-          includeSharesCount: true,
-        }),
-      },
-    )
-  } catch {
-    return json({ error: 'Could not reach Instagram right now. Try again in a moment.' }, 502)
+  /** One synchronous Apify actor run, returning its dataset items. */
+  const runActor = async (actorId: string, input: unknown): Promise<{ items: ApifyReel[] | null; status: number }> => {
+    try {
+      const res = await fetch(
+        `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${APIFY_API_KEY}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) },
+      )
+      if (!res.ok) return { items: null, status: res.status }
+      const data = await res.json()
+      return { items: Array.isArray(data) ? (data as ApifyReel[]) : null, status: res.status }
+    } catch {
+      return { items: null, status: 0 }
+    }
   }
-  if (!apifyRes.ok) return json({ error: `Instagram lookup failed (${apifyRes.status}). Check the handle and try again.` }, 502)
 
-  let items: ApifyReel[]
-  try { items = await apifyRes.json() } catch { return json({ error: 'Instagram returned something unexpected.' }, 502) }
-  if (!Array.isArray(items) || items.length === 0) {
+  // includeSharesCount is an explicit opt-in on this actor — without it the
+  // shares field never appears at all.
+  const reelRun = await runActor('apify~instagram-reel-scraper', {
+    username: [handle],
+    resultsLimit: RESULTS_LIMIT,
+    includeSharesCount: true,
+  })
+  if (!reelRun.items) {
+    return json({
+      error: reelRun.status
+        ? `Instagram lookup failed (${reelRun.status}). Check the handle and try again.`
+        : 'Could not reach Instagram right now. Try again in a moment.',
+    }, 502)
+  }
+  const items = reelRun.items
+  if (items.length === 0) {
     return json({ fetched: 0, matchedClaims: 0, warning: 'No reels came back for this handle — it may be private or have none.' })
   }
 
@@ -189,6 +192,41 @@ Deno.serve(async (req: Request) => {
       fetched_at: new Date().toISOString(),
     }
   }).filter((r) => r.short_code && r.reel_url)
+
+  /* The reel scraper returns no play counts AT ALL — proven on 25 real
+   * reels (likes and comments on every one, views and shares on none) and
+   * confirmed by its own input form, which offers transcript, downloads and
+   * shares but nothing for views. Apify's flagship instagram-scraper DOES
+   * carry them, so when the reel run comes back without a single view this
+   * fetches the same profile's posts from that actor and merges the counts
+   * in by shortCode — the one id both actors agree on.
+   *
+   * Only runs when it has to: a page whose reels already carry views never
+   * pays for the second run. */
+  let viewSource: 'reels' | 'posts' | null = rows.some((r) => r.views != null) ? 'reels' : null
+  let postItems: ApifyReel[] | null = null
+  if (!viewSource) {
+    const postRun = await runActor('apify~instagram-scraper', {
+      directUrls: [`https://www.instagram.com/${handle}/`],
+      resultsType: 'posts',
+      resultsLimit: RESULTS_LIMIT,
+      addParentData: false,
+    })
+    postItems = postRun.items
+    if (postItems?.length) {
+      const viewsByCode = new Map<string, number>()
+      for (const p of postItems) {
+        const code = str(p.shortCode) ?? str(p.code) ?? ''
+        const v = findNumber(p, VIEW_PATTERNS)
+        if (code && v != null) viewsByCode.set(code, v)
+      }
+      for (const row of rows) {
+        const v = viewsByCode.get(row.short_code)
+        if (v != null) row.views = v
+      }
+      if (rows.some((r) => r.views != null)) viewSource = 'posts'
+    }
+  }
 
   const { error: upsertErr } = await admin.from('page_reels').upsert(rows, { onConflict: 'page_id,short_code' })
   if (upsertErr) return json({ error: upsertErr.message }, 500)
@@ -219,13 +257,17 @@ Deno.serve(async (req: Request) => {
   // which is the only case where the raw shape still needs looking at. Once
   // views come through, this stops being sent and the box stops appearing.
   const noViews = rows.length > 0 && rows.every((r) => r.views == null)
-  const debugSample = noViews && items[0] && typeof items[0] === 'object'
+  // Shows whichever payload was tried LAST — if the posts fallback also came
+  // back without views, its shape is the one worth looking at, not the reel
+  // scraper's, which is already known not to carry them.
+  const sampleSource = postItems?.[0] ?? items[0]
+  const debugSample = noViews && sampleSource && typeof sampleSource === 'object'
     ? Object.fromEntries(
-        Object.entries(items[0] as Record<string, unknown>)
+        Object.entries(sampleSource as Record<string, unknown>)
           .map(([k, v]) => [k, v && typeof v === 'object' ? JSON.stringify(v).slice(0, 120) : v])
           .slice(0, 40),
       )
     : null
 
-  return json({ fetched: rows.length, matchedClaims, debugSample })
+  return json({ fetched: rows.length, matchedClaims, viewSource, debugSample })
 })
