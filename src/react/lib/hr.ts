@@ -129,6 +129,25 @@ export interface PageAssignment {
   assignedAt: string
 }
 
+/** One reel Apify has fetched for a page (0034) — a cache, keyed on
+ *  page_id + shortCode, overwritten on every refresh rather than kept as
+ *  history. Any field can be null: Apify does not always return every
+ *  metric for every reel. */
+export interface PageReel {
+  id: string
+  pageId: string
+  shortCode: string
+  reelUrl: string
+  caption: string | null
+  views: number | null
+  likes: number | null
+  comments: number | null
+  shares: number | null
+  thumbnailUrl: string | null
+  postedAt: string | null
+  fetchedAt: string
+}
+
 /* ------------------------------------------------- Department incentives */
 
 export type IncentivePageType = 'main' | 'fan'

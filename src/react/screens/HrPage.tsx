@@ -44,6 +44,7 @@ import { useIncentivePayouts } from '@/data/useIncentivePayouts'
 import { useClients } from '@/data/useClients'
 import { usePages } from '@/data/usePages'
 import { usePageAssignments } from '@/data/usePageAssignments'
+import { usePageReels } from '@/data/usePageReels'
 import { IncentiveClaimReviewModal } from '@/modals/IncentiveClaimReviewModal'
 import { IncentiveRulesModal } from '@/modals/IncentiveRulesModal'
 import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
@@ -183,6 +184,7 @@ export function HrPage({
   const clients = useClients(true)
   const pages = usePages(true)
   const pageAssignments = usePageAssignments(true)
+  const pageReels = usePageReels(true)
   const clientOf = (clientId: string) => clients.rows.find((c) => c.id === clientId) ?? null
   const pageOf = (pageId: string | null) => (pageId ? pages.rows.find((p) => p.id === pageId) ?? null : null)
   const pageLabel = (pageId: string | null) => {
@@ -1549,7 +1551,7 @@ export function HrPage({
                   {backToProfile}
                   <h1>Clients & Pages</h1>
                 </div>
-                <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} staff={hr} toast={toast} />
+                <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} staff={hr} toast={toast} />
               </>
             )}
 

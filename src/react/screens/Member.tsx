@@ -16,6 +16,7 @@ import { HistoryModal } from '@/modals/HistoryModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
 import { IncentiveClaimModal, type ClaimablePage } from '@/modals/IncentiveClaimModal'
+import { PageDetailModal } from '@/modals/PageDetailModal'
 import { WfhRequestModal } from '@/modals/WfhRequestModal'
 import { SalarySlipModal } from '@/modals/SalarySlipModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
@@ -29,6 +30,7 @@ import { useIncentivePayouts } from '@/data/useIncentivePayouts'
 import { useClients } from '@/data/useClients'
 import { usePages } from '@/data/usePages'
 import { usePageAssignments } from '@/data/usePageAssignments'
+import { usePageReels } from '@/data/usePageReels'
 import { useWfhRequests } from '@/data/useWfhRequests'
 import { useVisitPurposes } from '@/data/useVisitPurposes'
 import { notifyApprovers } from '@/data/useNotifications'
@@ -259,6 +261,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     [incentiveClaims.rows, myEmployee],
   )
   const [submittingIncentive, setSubmittingIncentive] = useState(false)
+  const [openPageId, setOpenPageId] = useState<string | null>(null)
 
   /* Content & Marketing department (0032) — the dashboard this screen shows
    *  for Overview, and whether My leads/My sales belong on this person's tab
@@ -270,6 +273,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const clients = useClients(true)
   const pages = usePages(true)
   const pageAssignments = usePageAssignments(true)
+  const pageReels = usePageReels(true)
   const clientOf = useCallback((clientId: string) => clients.rows.find((c) => c.id === clientId) ?? null, [clients.rows])
   const pageOf = useCallback((pageId: string | null) => (pageId ? pages.rows.find((p) => p.id === pageId) ?? null : null), [pages.rows])
   const pageLabel = useCallback((pageId: string | null) => {
@@ -1388,7 +1392,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                     HR. Same component HR's own Clients & Pages screen uses —
                     one place this logic lives, not two — now reachable here
                     too because 0033 widened the RLS to match. */}
-                <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} staff={staff} toast={toast} />
+                <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} staff={staff} toast={toast} />
 
                 <div className="ov-card">
                   <div className="ov-head"><h4>Department claims</h4></div>
@@ -1544,11 +1548,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 ) : (
                   <div className="ov-actions">
                     {myPages.map((p) => (
-                      <div className="ov-row" key={p.pageId} style={{ cursor: 'default' }}>
+                      <button className="ov-row" key={p.pageId} onClick={() => setOpenPageId(p.pageId)}>
                         <span className="ov-n">{INCENTIVE_PAGE_TYPE[p.pageType][0]}</span>
                         <span className="ov-l">{p.clientName} — {INCENTIVE_PAGE_TYPE[p.pageType]}</span>
-                        <span className="ov-cta">{p.instagramHandle || '—'}</span>
-                      </div>
+                        <span className="ov-cta">{p.instagramHandle || '—'} →</span>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1731,6 +1735,15 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             }
             return message
           }}
+        />
+      )}
+      {openPageId && pages.rows.find((p) => p.id === openPageId) && (
+        <PageDetailModal
+          page={pages.rows.find((p) => p.id === openPageId)!}
+          client={clientOf(pages.rows.find((p) => p.id === openPageId)!.clientId)}
+          reels={pageReels.rows.filter((r) => r.pageId === openPageId)}
+          onClose={() => setOpenPageId(null)}
+          onRefresh={() => pageReels.refresh(openPageId)}
         />
       )}
       {viewingSlip && (

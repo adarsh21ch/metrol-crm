@@ -1,10 +1,10 @@
-# Page analytics dashboard — the brief, not built yet
+# Page analytics dashboard — BUILT, 2026-09-22
 
-Adarsh's brief, 2026-09-22, given right after the "paste a link, fetch the
-client's profile" feature went live (see CONTENT-MARKETING-DASHBOARD-PLAN.md
-— this builds on top of it, same day). Nothing below is built. Read this
-file in full before starting; it exists so a fresh session does not have to
-re-derive the brief.
+Adarsh's brief, given right after the "paste a link, fetch the client's
+profile" feature went live (see CONTENT-MARKETING-DASHBOARD-PLAN.md — this
+builds on top of it, same day). Built same day, same session, on Adarsh's
+explicit "build it, deploy it" — see "What shipped" near the bottom. The
+rest of this file is kept as the original brief for reference.
 
 ## What triggered this
 
@@ -119,6 +119,39 @@ Adarsh's call, not an assumption:
 
 Cost, stated plainly to Adarsh: this session was already well past $75 by
 the time this was asked for, on top of the full Clients/Pages/incentive
-rework it had just shipped. He chose a fresh session over continuing here.
-Nothing here is blocking anything live — the profile-fetch feature works
-today: this is a genuine "next" feature, not a fix to something broken.
+rework it had just shipped. He first chose a fresh session — then, in the
+same conversation minutes later, asked to build it there anyway ("so
+everything should not feel incomplete"). Built as scoped above, same
+session.
+
+## What shipped
+
+Exactly the recommended shape, reels only, on-demand refresh (no answer was
+given on the three cost questions, so the safe defaults in this file were
+used): `0034_page_reels.sql` (the table + RLS), `fetch-page-reels` Edge
+Function (`apify/instagram-reel-scraper`, `resultsLimit: 25`, also fills in
+`incentive_claims.views` for any matching `reel_url` on the same page — the
+"views not checked yet" fix), and `PageDetailModal.tsx` — reachable by
+clicking a page row from My pages (employee), the department head's roster,
+or HR's Clients & Pages (all three go through the one shared
+`ClientsPagesSection.tsx` / `Member.tsx` wiring). KPI row (reels tracked,
+total views, 10M+ count), reels sorted by views, thumbnail + caption +
+posted date + views/likes/comments per row, "Refresh reels" button.
+
+Verified in the browser, `?demo=1` (as=cm and as=hr), desktop and 375px:
+the modal opens from all the intended entry points, the KPI numbers and the
+10M+ count are correct against the demo fixture, sorting by views is
+correct (the null-views reel sorts last), the demo-mode guard on Refresh
+shows its message rather than making a real network call. `npm run
+typecheck`, `npm run build`, and `deno check` on the new function are all
+clean.
+
+**Not deployed yet** — `fetch-page-reels` needs the same manual step every
+function in this app does: paste it into Supabase Dashboard → Edge
+Functions → New function → name it exactly `fetch-page-reels` → Deploy. It
+reuses the `APIFY_API_KEY` secret already set; no new secret needed.
+
+**Not answered, defaults used instead — worth Adarsh's eyes:** how many
+reels per fetch (shipped: 25), refresh cadence (shipped: on-demand button
+only, never automatic), and whether posts (not just reels) should be
+tracked too (shipped: reels only, per the plan's own v1 recommendation).

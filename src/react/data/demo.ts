@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Client, Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, Page, PageAssignment, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
+import type { Client, Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, Page, PageAssignment, PageReel, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
 import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
@@ -369,6 +369,31 @@ export const demoPages: Page[] = [
 export const demoPageAssignments: PageAssignment[] = [
   { id: 'pa1', pageId: 'pg1', employeeId: 'e6', assignedAt: iso(60) },
   { id: 'pa2', pageId: 'pg3', employeeId: 'e6', assignedAt: iso(30) },
+]
+
+/** Per-reel analytics (0034) — three reels on the cafe's main page: one
+ *  ordinary, one genuinely viral (past the 10M line the dashboard's own KPI
+ *  counts), and one with no views at all yet, so the dashboard's "—" case
+ *  is visible without hunting for it. */
+export const demoPageReels: PageReel[] = [
+  {
+    id: 'pr1', pageId: 'pg1', shortCode: 'demo1',
+    reelUrl: 'https://instagram.com/reel/demo1', caption: 'Our new filter coffee — three ways.',
+    views: 640_000, likes: 41_000, comments: 820, shares: 310,
+    thumbnailUrl: null, postedAt: iso(20), fetchedAt: iso(1),
+  },
+  {
+    id: 'pr2', pageId: 'pg1', shortCode: 'demo2',
+    reelUrl: 'https://instagram.com/reel/demo2', caption: 'POV: you walked in during weekend brunch rush.',
+    views: 12_400_000, likes: 980_000, comments: 14_200, shares: 52_000,
+    thumbnailUrl: null, postedAt: iso(9), fetchedAt: iso(1),
+  },
+  {
+    id: 'pr3', pageId: 'pg1', shortCode: 'demo3',
+    reelUrl: 'https://instagram.com/reel/demo3', caption: 'Behind the counter, 6am prep.',
+    views: null, likes: null, comments: null, shares: null,
+    thumbnailUrl: null, postedAt: iso(1), fetchedAt: iso(1),
+  },
 ]
 
 /** ?demo's incentive claims — three states HR's review list needs to show:

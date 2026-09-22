@@ -3,11 +3,13 @@ import { Chip } from '@/components/bits'
 import { Tip } from '@/components/Tip'
 import { isDemo } from '@/data/demo'
 import { functionErrorMessage, supabase } from '@/lib/supabase'
+import { PageDetailModal } from '@/modals/PageDetailModal'
 import { CONTENT_MARKETING_DEPARTMENT, INCENTIVE_PAGE_TYPE } from '@/lib/hr'
-import type { IncentivePageType } from '@/lib/hr'
+import type { IncentivePageType, Page } from '@/lib/hr'
 import type { Clients } from '@/data/useClients'
 import type { Pages } from '@/data/usePages'
 import type { PageAssignments } from '@/data/usePageAssignments'
+import type { PageReels } from '@/data/usePageReels'
 import type { Employees } from '@/data/useEmployees'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -32,12 +34,13 @@ interface FetchedProfile {
  * Clients later, that filter is the one line to widen, not this whole screen.
  */
 export function ClientsPagesSection({
-  ws, clients, pages, pageAssignments, staff, toast,
+  ws, clients, pages, pageAssignments, pageReels, staff, toast,
 }: {
   ws: Workspace
   clients: Clients
   pages: Pages
   pageAssignments: PageAssignments
+  pageReels: PageReels
   staff: Employees
   toast: (m: string) => void
 }) {
@@ -47,6 +50,7 @@ export function ClientsPagesSection({
   const [newPageHandle, setNewPageHandle] = useState('')
   const [newPageLabel, setNewPageLabel] = useState('')
   const [assigningPageId, setAssigningPageId] = useState<string | null>(null)
+  const [openPage, setOpenPage] = useState<Page | null>(null)
   const [fetchingProfile, setFetchingProfile] = useState(false)
   const [fetchErr, setFetchErr] = useState<string | null>(null)
   const [fetchedProfile, setFetchedProfile] = useState<FetchedProfile | null>(null)
@@ -173,11 +177,12 @@ export function ClientsPagesSection({
                     const assignable = roster.filter((e) => !holders.some((h) => h.employeeId === e.id))
                     return (
                       <div className="ov-row" key={p.id} style={{ cursor: 'default', flexWrap: 'wrap' }}>
-                        <span className="ov-l">
+                        <button className="ov-l" style={{ background: 'none', border: 0, textAlign: 'left', cursor: 'pointer', color: 'inherit', font: 'inherit', padding: 0 }}
+                                onClick={() => setOpenPage(p)}>
                           {INCENTIVE_PAGE_TYPE[p.pageType]}{p.instagramHandle ? ` — ${p.instagramHandle}` : ''}
                           {p.label ? ` (${p.label})` : ''}
                           {!p.isActive && <Chip cls="chip--mute">Retired</Chip>}
-                        </span>
+                        </button>
                         <span className="ov-cta" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           {holders.map((h) => (
                             <Chip key={h.id} cls="chip--mute">
@@ -217,6 +222,16 @@ export function ClientsPagesSection({
             </div>
           )
         })
+      )}
+
+      {openPage && (
+        <PageDetailModal
+          page={openPage}
+          client={clients.rows.find((c) => c.id === openPage.clientId) ?? null}
+          reels={pageReels.rows.filter((r) => r.pageId === openPage.id)}
+          onClose={() => setOpenPage(null)}
+          onRefresh={() => pageReels.refresh(openPage.id)}
+        />
       )}
     </div>
   )
