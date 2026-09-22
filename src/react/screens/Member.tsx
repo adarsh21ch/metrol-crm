@@ -16,7 +16,7 @@ import { HistoryModal } from '@/modals/HistoryModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
 import { IncentiveClaimModal, type ClaimablePage } from '@/modals/IncentiveClaimModal'
-import { PageDetailModal } from '@/modals/PageDetailModal'
+import { PageDashboard } from '@/screens/sections/PageDashboard'
 import { WfhRequestModal } from '@/modals/WfhRequestModal'
 import { SalarySlipModal } from '@/modals/SalarySlipModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
@@ -1536,7 +1536,22 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             {/* Content & Marketing's own "leads" slot: the pages they hold,
                 not a sales table — see the tab strip above for why this
                 shares the section key. */}
-            {sec === 'leads' && isContentMarketing && (
+            {/* A page's own dashboard takes the whole tab rather than opening
+                over the list in a popup — it is that page's entire
+                performance history, which a dialog cannot hold. */}
+            {sec === 'leads' && isContentMarketing && openPageId && pages.rows.find((p) => p.id === openPageId) && (
+              <div className="section">
+                <PageDashboard
+                  page={pages.rows.find((p) => p.id === openPageId)!}
+                  client={clientOf(pages.rows.find((p) => p.id === openPageId)!.clientId)}
+                  reels={pageReels.rows.filter((r) => r.pageId === openPageId)}
+                  onBack={() => setOpenPageId(null)}
+                  onRefresh={() => pageReels.refresh(openPageId)}
+                />
+              </div>
+            )}
+
+            {sec === 'leads' && isContentMarketing && !openPageId && (
               <div className="section">
                 {myPages.length === 0 ? (
                   <div className="banner">
@@ -1735,15 +1750,6 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             }
             return message
           }}
-        />
-      )}
-      {openPageId && pages.rows.find((p) => p.id === openPageId) && (
-        <PageDetailModal
-          page={pages.rows.find((p) => p.id === openPageId)!}
-          client={clientOf(pages.rows.find((p) => p.id === openPageId)!.clientId)}
-          reels={pageReels.rows.filter((r) => r.pageId === openPageId)}
-          onClose={() => setOpenPageId(null)}
-          onRefresh={() => pageReels.refresh(openPageId)}
         />
       )}
       {viewingSlip && (

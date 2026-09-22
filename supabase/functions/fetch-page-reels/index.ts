@@ -36,13 +36,52 @@ function json(body: unknown, status = 200) {
 // whatever Apify actually calls it, today or after it changes again.
 type ApifyReel = Record<string, unknown>
 
-function findNumber(r: ApifyReel, patterns: RegExp[]): number | null {
-  for (const [key, value] of Object.entries(r)) {
-    if (typeof value !== 'number') continue
-    if (patterns.some((p) => p.test(key))) return value
+/** A count can arrive as a plain number, a numeric string, or Instagram's own
+ *  GraphQL wrapper shape ({ count: 42 }) — all three are the same fact. */
+function asNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value)
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const c = (value as Record<string, unknown>).count
+    if (typeof c === 'number') return c
   }
   return null
 }
+
+/** Searches an object (and, up to 3 levels, its nested objects) for the first
+ *  key matching `pattern` that carries a usable number. Nested because
+ *  Instagram's own payloads bury counts inside sub-objects, and two rounds of
+ *  guessing flat camelCase field names were both wrong on real data. */
+function pickNumber(obj: unknown, pattern: RegExp, depth = 0): number | null {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj) || depth > 3) return null
+  const entries = Object.entries(obj as Record<string, unknown>)
+  for (const [key, value] of entries) {
+    if (!pattern.test(key)) continue
+    const n = asNumber(value)
+    if (n != null) return n
+  }
+  for (const [, value] of entries) {
+    const hit = pickNumber(value, pattern, depth + 1)
+    if (hit != null) return hit
+  }
+  return null
+}
+
+/** Patterns are tried in order, so the most specific name wins over a loose
+ *  substring match — "videoViewCount" before anything merely containing
+ *  "view". */
+function findNumber(r: ApifyReel, patterns: RegExp[]): number | null {
+  for (const pattern of patterns) {
+    const hit = pickNumber(r, pattern)
+    if (hit != null) return hit
+  }
+  return null
+}
+
+const VIEW_PATTERNS = [/videoview/i, /video_view/i, /viewcount/i, /view_count/i, /videoplay/i, /video_play/i, /playcount/i, /play_count/i, /view/i, /play/i]
+const LIKE_PATTERNS = [/likescount/i, /likes_count/i, /likecount/i, /like/i]
+const COMMENT_PATTERNS = [/commentscount/i, /comments_count/i, /commentcount/i, /comment/i]
+const SHARE_PATTERNS = [/sharescount/i, /shares_count/i, /reshare/i, /share/i]
 
 // Lower than the plan's original 25 (2026-09-22, live): a real 25-reel scrape
 // ran long enough that the connection to this function was cut before it
@@ -131,10 +170,10 @@ Deno.serve(async (req: Request) => {
       caption: str(r.caption),
       // -1 is a real Instagram value here, not missing data — a creator can
       // hide their like count and the API reports exactly -1 for that.
-      views: findNumber(r, [/view/i, /play/i]),
-      likes: findNumber(r, [/like/i]),
-      comments: findNumber(r, [/comment/i]),
-      shares: findNumber(r, [/share/i]),
+      views: findNumber(r, VIEW_PATTERNS),
+      likes: findNumber(r, LIKE_PATTERNS),
+      comments: findNumber(r, COMMENT_PATTERNS),
+      shares: findNumber(r, SHARE_PATTERNS),
       thumbnail_url: str(r.displayUrl) ?? str(r.thumbnailUrl),
       posted_at: str(r.timestamp),
       fetched_at: new Date().toISOString(),
@@ -166,9 +205,17 @@ Deno.serve(async (req: Request) => {
   // one reel — visible right in the same popup — so the real field name can
   // be read off it directly instead of guessed at again. Remove this once
   // views are confirmed working.
-  const sampleKeys = items[0] && typeof items[0] === 'object'
-    ? Object.fromEntries(Object.entries(items[0] as Record<string, unknown>).filter(([, v]) => typeof v === 'number' || typeof v === 'string').slice(0, 30))
+  // Self-clearing: only returned when NOT ONE reel produced a view count,
+  // which is the only case where the raw shape still needs looking at. Once
+  // views come through, this stops being sent and the box stops appearing.
+  const noViews = rows.length > 0 && rows.every((r) => r.views == null)
+  const debugSample = noViews && items[0] && typeof items[0] === 'object'
+    ? Object.fromEntries(
+        Object.entries(items[0] as Record<string, unknown>)
+          .map(([k, v]) => [k, v && typeof v === 'object' ? JSON.stringify(v).slice(0, 120) : v])
+          .slice(0, 40),
+      )
     : null
 
-  return json({ fetched: rows.length, matchedClaims, debugSample: sampleKeys })
+  return json({ fetched: rows.length, matchedClaims, debugSample })
 })

@@ -3,7 +3,7 @@ import { Chip } from '@/components/bits'
 import { Tip } from '@/components/Tip'
 import { isDemo } from '@/data/demo'
 import { functionErrorMessage, supabase } from '@/lib/supabase'
-import { PageDetailModal } from '@/modals/PageDetailModal'
+import { PageDashboard } from '@/screens/sections/PageDashboard'
 import { CONTENT_MARKETING_DEPARTMENT, INCENTIVE_PAGE_TYPE } from '@/lib/hr'
 import type { IncentivePageType, Page } from '@/lib/hr'
 import type { Clients } from '@/data/useClients'
@@ -89,6 +89,24 @@ export function ClientsPagesSection({
     const message = await pages.add({ clientId, pageType: newPageType, instagramHandle: newPageHandle, label: newPageLabel })
     toast(message ?? 'Page added.')
     if (!message) { setAddingPageFor(null); resetPageForm() }
+  }
+
+  // A page's own dashboard takes the whole screen rather than opening over
+  // this list in a popup — it is a page's entire performance history, which
+  // is not something a dialog can hold (Adarsh, 2026-09-22).
+  if (openPage) {
+    const live = pages.rows.find((p) => p.id === openPage.id) ?? openPage
+    return (
+      <div className="section">
+        <PageDashboard
+          page={live}
+          client={clients.rows.find((c) => c.id === live.clientId) ?? null}
+          reels={pageReels.rows.filter((r) => r.pageId === live.id)}
+          onBack={() => setOpenPage(null)}
+          onRefresh={() => pageReels.refresh(live.id)}
+        />
+      </div>
+    )
   }
 
   return (
@@ -224,15 +242,6 @@ export function ClientsPagesSection({
         })
       )}
 
-      {openPage && (
-        <PageDetailModal
-          page={openPage}
-          client={clients.rows.find((c) => c.id === openPage.clientId) ?? null}
-          reels={pageReels.rows.filter((r) => r.pageId === openPage.id)}
-          onClose={() => setOpenPage(null)}
-          onRefresh={() => pageReels.refresh(openPage.id)}
-        />
-      )}
     </div>
   )
 }
