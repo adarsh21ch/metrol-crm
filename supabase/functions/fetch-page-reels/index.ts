@@ -34,6 +34,7 @@ interface ApifyReel {
   url?: string
   caption?: string
   videoViewCount?: number
+  videoPlayCount?: number
   viewCount?: number
   playCount?: number
   likesCount?: number
@@ -129,7 +130,12 @@ Deno.serve(async (req: Request) => {
       short_code: shortCode,
       reel_url: r.url ?? `https://www.instagram.com/reel/${shortCode}/`,
       caption: r.caption ?? null,
-      views: r.videoViewCount ?? r.viewCount ?? r.playCount ?? null,
+      // videoViewCount is not always populated (Adarsh's real account, live,
+      // 2026-09-22: every one of 25 real reels came back with this null) —
+      // videoPlayCount is Apify's own actual fallback field name, confirmed
+      // against the actor's schema. The wrong guess (`playCount`, which
+      // does not exist on this actor's output) is why every reel showed "—".
+      views: r.videoViewCount ?? r.videoPlayCount ?? r.viewCount ?? r.playCount ?? null,
       likes: r.likesCount ?? r.likeCount ?? null,
       comments: r.commentsCount ?? r.commentCount ?? null,
       shares: r.sharesCount ?? null,
