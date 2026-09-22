@@ -84,6 +84,36 @@ select '0024 salary_records.payslip_sent_count', (select count(*) from have_col 
 union all
 select '0024 salary_records.payslip_sent_at', (select count(*) from have_col where table_name = 'salary_records' and column_name = 'payslip_sent_at')::text
 union all
+select '0025 notifications',           (select count(*) from have_table where relname = 'notifications')::text
+union all
+select '0025 push_subscriptions',      (select count(*) from have_table where relname = 'push_subscriptions')::text
+union all
+select '0025 create_broadcast()',      (select count(*) from have_fn where proname = 'create_broadcast')::text
+union all
+select '0026 comp_off_credits',        (select count(*) from have_table where relname = 'comp_off_credits')::text
+union all
+select '0026 employees.gender',        (select count(*) from have_col where table_name = 'employees' and column_name = 'gender')::text
+union all
+select '0026 check_leave_request()',   (select count(*) from have_fn where proname = 'check_leave_request')::text
+union all
+select '0027 visit_entries',           (select count(*) from have_table where relname = 'visit_entries')::text
+union all
+select '0027 wfh_requests',            (select count(*) from have_table where relname = 'wfh_requests')::text
+union all
+select '0027 visit_purposes',          (select count(*) from have_table where relname = 'visit_purposes')::text
+union all
+select '0028 notify_approvers()',      (select count(*) from have_fn where proname = 'notify_approvers')::text
+union all
+select '0029 tds_categories',          (select count(*) from have_table where relname = 'tds_categories')::text
+union all
+select '0029 employees.pan_number',    (select count(*) from have_col where table_name = 'employees' and column_name = 'pan_number')::text
+union all
+select '0029 employees.tds_category_id', (select count(*) from have_col where table_name = 'employees' and column_name = 'tds_category_id')::text
+union all
+select '0030 salary_records.tds_amount', (select count(*) from have_col where table_name = 'salary_records' and column_name = 'tds_amount')::text
+union all
+select '0030 salary_records.incentive', (select count(*) from have_col where table_name = 'salary_records' and column_name = 'incentive')::text
+union all
 -- Row counts only for tables 0013/0014 proved are there by running against
 -- them. leave_requests is deliberately NOT counted here: if it turned out to be
 -- missing, naming it in this query would make the whole query error and tell

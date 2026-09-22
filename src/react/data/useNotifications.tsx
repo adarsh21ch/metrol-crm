@@ -134,7 +134,7 @@ export type Notifications = ReturnType<typeof useNotifications>
  * Errors go to the console for whoever is watching, not to the person who
  * just filed a visit entry.
  */
-export async function notifyApprovers(type: 'visit_request' | 'wfh_request', title: string, body: string): Promise<void> {
+export async function notifyApprovers(type: 'visit_request' | 'wfh_request' | 'incentive_claim', title: string, body: string): Promise<void> {
   if (isDemo()) return
   const { error: err } = await supabase.rpc('notify_approvers', { p_type: type, p_title: title, p_body: body })
   if (err) { console.error('[Metrol CRM] notify_approvers failed:', err.message); return }

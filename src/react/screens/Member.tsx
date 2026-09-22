@@ -15,6 +15,7 @@ import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
+import { IncentiveClaimModal } from '@/modals/IncentiveClaimModal'
 import { WfhRequestModal } from '@/modals/WfhRequestModal'
 import { SalarySlipModal } from '@/modals/SalarySlipModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
@@ -22,6 +23,9 @@ import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, 
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
 import { useVisitEntries } from '@/data/useVisitEntries'
+import { useIncentiveRules } from '@/data/useIncentiveRules'
+import { useIncentiveClaims } from '@/data/useIncentiveClaims'
+import { useIncentivePayouts } from '@/data/useIncentivePayouts'
 import { useWfhRequests } from '@/data/useWfhRequests'
 import { useVisitPurposes } from '@/data/useVisitPurposes'
 import { notifyApprovers } from '@/data/useNotifications'
@@ -35,7 +39,7 @@ import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
-import { DOC_TYPE, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, fmtDate, fmtPeriod, type SalaryRecord } from '@/lib/hr'
+import { DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, fmtDate, fmtPeriod, type SalaryRecord } from '@/lib/hr'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
@@ -79,7 +83,7 @@ type MeTab = 'leave' | 'salary' | 'onboarding' | 'exit' | 'terms'
    what they are called. Adarsh's own words, 2026-09-21: "why three different
    options... unnecessarily occupying space." One row now ('leave', relabelled
    "Requests"); reqView below is the switch inside it. */
-type ReqView = 'leave' | 'visit' | 'wfh'
+type ReqView = 'leave' | 'visit' | 'wfh' | 'incentive'
 const ME_TABS: { key: MeTab; label: string }[] = [
   { key: 'leave', label: 'Requests' },
   { key: 'salary', label: 'Salary' },
@@ -227,6 +231,26 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     () => (myEmployee ? wfhRequests.rows.filter((r) => r.employeeId === myEmployee.id) : []),
     [wfhRequests.rows, myEmployee],
   )
+  // Department incentives (0031) — only departments with at least one active
+  // tier get the "Incentives" switch at all; Social Media today, whichever
+  // department HR sets rules for next. Not gated in RLS, only in what the
+  // UI offers, same as everything else this small (see useIncentiveRules).
+  const incentiveRules = useIncentiveRules(true)
+  const incentiveClaims = useIncentiveClaims(true)
+  const incentivePayouts = useIncentivePayouts(true)
+  const paidOnClaim = useCallback(
+    (claimId: string) => incentivePayouts.rows.filter((p) => p.claimId === claimId).reduce((t, p) => t + p.amount, 0),
+    [incentivePayouts.rows],
+  )
+  const hasIncentiveAccess = useMemo(
+    () => incentiveRules.rows.some((r) => r.isActive && r.departmentId === myEmployee?.departmentId),
+    [incentiveRules.rows, myEmployee],
+  )
+  const myClaims = useMemo(
+    () => (myEmployee ? incentiveClaims.rows.filter((c) => c.employeeId === myEmployee.id) : []),
+    [incentiveClaims.rows, myEmployee],
+  )
+  const [submittingIncentive, setSubmittingIncentive] = useState(false)
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
 
   /* Leave stopped being a yearly entitlement in Round 2. It accrues 2 days a
@@ -692,6 +716,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   <button className={reqView === 'wfh' ? 'is-on' : ''} onClick={() => setReqView('wfh')}>
                     WFH{myWfh.filter((r) => r.status === 'pending').length > 0 ? ` (${myWfh.filter((r) => r.status === 'pending').length})` : ''}
                   </button>
+                  {hasIncentiveAccess && (
+                    <button className={reqView === 'incentive' ? 'is-on' : ''} onClick={() => setReqView('incentive')}>
+                      Incentives
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1147,6 +1176,43 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
+            {shownSec === 'profile' && shownMeTab === 'leave' && reqView === 'incentive' && myEmployee && hasIncentiveAccess && (
+              <>
+                {incentiveClaims.error && <div className="auth-err" style={{ marginBottom: 14 }}>{incentiveClaims.error}</div>}
+                <div className="section">
+                  <div className="section-head">
+                    <h3>My claims</h3>
+                    <div className="section-tools">
+                      <button className="btn btn--sm btn--primary" onClick={() => setSubmittingIncentive(true)}>Claim an incentive</button>
+                    </div>
+                  </div>
+                  {myClaims.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No claims yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {[...myClaims].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((c) => {
+                        const paid = paidOnClaim(c.id)
+                        const owed = Math.max(0, c.currentAmount - paid)
+                        return (
+                          <div className="ov-row" key={c.id} style={{ cursor: 'default' }}>
+                            <span className="ov-l">
+                              <strong>{INCENTIVE_PAGE_TYPE[c.pageType]}</strong>
+                              {' · '}<a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>reel link</a>
+                              {c.views > 0 ? ` · ${c.views.toLocaleString('en-IN')} views` : ' · views not checked yet'}
+                              {c.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {c.decisionNote}</span> : null}
+                            </span>
+                            <Chip cls={c.rejected ? 'chip--bad' : paid > 0 && owed === 0 ? 'chip--good' : 'chip--mute'}>
+                              {c.rejected ? 'Rejected' : paid > 0 ? money(paid) + ' paid' : c.currentAmount > 0 ? 'Awaiting approval' : 'Below threshold'}
+                            </Chip>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
             {/* Sign out lives on Profile now, not as an icon in the top bar
                 — "the last item, after scrolling", on the one tab that is
                 about you. Gated on the section only, so it is the end of
@@ -1371,6 +1437,22 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               toast('WFH request sent.')
               void notifyApprovers('wfh_request', 'New work-from-home request',
                 `${myEmployee.fullName} applied for WFH. Review it in Attendance → WFH.`)
+            }
+            return message
+          }}
+        />
+      )}
+      {submittingIncentive && myEmployee?.departmentId && (
+        <IncentiveClaimModal
+          employeeId={myEmployee.id}
+          departmentId={myEmployee.departmentId}
+          onClose={() => setSubmittingIncentive(false)}
+          onSave={async (draft) => {
+            const message = await incentiveClaims.create(draft)
+            if (!message) {
+              toast('Sent for review.')
+              void notifyApprovers('incentive_claim', 'New incentive claim',
+                `${myEmployee.fullName} submitted a reel for review. Check it in Salary → Incentive claims.`)
             }
             return message
           }}

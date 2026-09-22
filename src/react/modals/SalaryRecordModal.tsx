@@ -18,7 +18,7 @@ const money = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN')
  *  reviews every number and can edit any of them before Save, same as
  *  before. Nothing pays itself. */
 export function SalaryRecordModal({
-  employeeId, employee, tdsCategories, record, onClose, onSave,
+  employeeId, employee, tdsCategories, incentiveFromClaims, record, onClose, onSave,
 }: {
   employeeId: string
   /** For "Compute from attendance" — needs the CTC (0024), joining/last day
@@ -26,6 +26,10 @@ export function SalaryRecordModal({
    *  the caller does not have it handy; the button just does not appear. */
   employee?: Employee | null
   tdsCategories?: TdsCategory[]
+  /** Sum of this employee's approved incentive_payouts (0031) for the
+   *  current period — a starting number only, on a NEW payslip. HR can
+   *  still edit it; this pre-fills the field, it does not lock it. */
+  incentiveFromClaims?: number
   /** null adds a new payslip for this employee's month. */
   record: SalaryRecord | null
   onClose: () => void
@@ -38,7 +42,7 @@ export function SalaryRecordModal({
   const [paidDays, setPaidDays] = useState(record?.paidDays == null ? '' : String(record.paidDays))
   const [encashDays, setEncashDays] = useState(String(record?.leaveEncashmentDays ?? 0))
   const [encashAmount, setEncashAmount] = useState(String(record?.leaveEncashmentAmount ?? 0))
-  const [incentive, setIncentive] = useState(String(record?.incentive ?? 0))
+  const [incentive, setIncentive] = useState(String(record?.incentive ?? incentiveFromClaims ?? 0))
   const [otherDeduction, setOtherDeduction] = useState(String(record?.otherDeduction ?? 0))
   const [tdsRate, setTdsRate] = useState(record?.tdsRatePercent == null ? '' : String(record.tdsRatePercent))
   const [tdsAmount, setTdsAmount] = useState(String(record?.tdsAmount ?? 0))
@@ -160,6 +164,9 @@ export function SalaryRecordModal({
             <label htmlFor="slIncentive">Incentive (₹)</label>
             <input className="input" id="slIncentive" type="number" min={0} value={incentive}
                    onChange={(e) => setIncentive(e.target.value)} />
+            {!record && !!incentiveFromClaims && (
+              <span className="punch-note">Pre-filled from this period's approved incentive claims — check Salary → Incentive claims.</span>
+            )}
           </div>
           <div className="field">
             <label htmlFor="slOtherDed">Other deduction (₹)</label>

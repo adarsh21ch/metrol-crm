@@ -1,7 +1,7 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, EmployeeDocument, ExitTask, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
+import type { Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
-import { workingDaysBetween } from '@/lib/hr'
+import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
 
 /**
@@ -29,6 +29,7 @@ export const demoDepartments: Department[] = [
   { id: 'd6', name: 'AI Staff', sortOrder: 6, isActive: true },
   { id: 'd7', name: 'Human Resources', sortOrder: 7, isActive: true },
   { id: 'd8', name: 'Performance Marketing', sortOrder: 8, isActive: true },
+  { id: 'd9', name: 'Social Media', sortOrder: 9, isActive: true },
 ]
 
 const MEMBER_NAMES = ['Mohit Verma', 'Priya Nair', 'Arjun Mehta', 'Sneha Kulkarni', 'Imran Shaikh']
@@ -305,6 +306,54 @@ export const demoVisitPurposes: VisitPurpose[] = [
   { id: 'vp1', label: 'Shoot', sortOrder: 1, isActive: true },
   { id: 'vp2', label: 'Client meeting', sortOrder: 2, isActive: true },
   { id: 'vp3', label: 'Branch visit', sortOrder: 3, isActive: true },
+]
+
+/** Department incentives (0031) — ?demo's four Social Media tiers, same
+ *  numbers HR starts with in the real database. */
+export const demoIncentiveRules: IncentiveRule[] = [
+  { id: 'ir1', departmentId: 'd9', pageType: 'main', label: '1M+ views',  minViews: 1_000_000,  amount: 1000, sortOrder: 1, isActive: true },
+  { id: 'ir2', departmentId: 'd9', pageType: 'main', label: '10M+ views', minViews: 10_000_000, amount: 7000, sortOrder: 2, isActive: true },
+  { id: 'ir3', departmentId: 'd9', pageType: 'fan',  label: '1M+ views',  minViews: 1_000_000,  amount: 500,  sortOrder: 3, isActive: true },
+  { id: 'ir4', departmentId: 'd9', pageType: 'fan',  label: '10M+ views', minViews: 10_000_000, amount: 3500, sortOrder: 4, isActive: true },
+]
+
+/** ?demo's incentive claims — three states HR's review list needs to show:
+ *  below any threshold, cleared a tier and awaiting approval, and already
+ *  topped up once (ic3's ₹1,000 is already paid — showing what a claim that
+ *  later crosses 10M and needs a second approval looks like). Tagged to e1
+ *  for visibility in HR's own demo, though e1 sits in Sales, not Social
+ *  Media, in this seed — the department gate on the employee's OWN
+ *  "Incentives" tab is real and correctly hides it for him; this data exists
+ *  so HR's review screen has something to review in ?demo=1&as=hr. */
+export const demoIncentiveClaims: IncentiveClaim[] = [
+  {
+    id: 'ic1', employeeId: 'e1', departmentId: 'd9', pageType: 'main',
+    reelUrl: 'https://instagram.com/reel/demo1', instagramHandle: '@metrolmedia',
+    views: 640_000, viewsCheckedAt: iso(1), watchUntil: iso(-25).slice(0, 10),
+    tierRuleId: null, currentAmount: 0, rejected: false,
+    decidedBy: null, decidedAt: null, decisionNote: null, createdAt: iso(2),
+  },
+  {
+    id: 'ic2', employeeId: 'e1', departmentId: 'd9', pageType: 'fan',
+    reelUrl: 'https://instagram.com/reel/demo2', instagramHandle: '@metrolmedia.fan',
+    views: 1_800_000, viewsCheckedAt: iso(1), watchUntil: iso(-22).slice(0, 10),
+    tierRuleId: 'ir3', currentAmount: 500, rejected: false,
+    decidedBy: null, decidedAt: null, decisionNote: null, createdAt: iso(5),
+  },
+  {
+    id: 'ic3', employeeId: 'e1', departmentId: 'd9', pageType: 'main',
+    reelUrl: 'https://instagram.com/reel/demo3', instagramHandle: '@metrolmedia',
+    views: 1_200_000, viewsCheckedAt: iso(10), watchUntil: iso(-15).slice(0, 10),
+    tierRuleId: 'ir1', currentAmount: 1000, rejected: false,
+    decidedBy: HR_PERSON.id, decidedAt: iso(9), decisionNote: null, createdAt: iso(15),
+  },
+]
+
+/** One payout so far — ic3's ₹1,000 tier, approved for the current period.
+ *  If it later crosses 10M, a SECOND row for the ₹6,000 difference is what
+ *  the top-up case looks like; nothing here simulates that yet. */
+export const demoIncentivePayouts: IncentivePayout[] = [
+  { id: 'ip1', claimId: 'ic3', amount: 1000, period: currentPeriod(), approvedBy: HR_PERSON.id, approvedAt: iso(9) },
 ]
 
 /** One of each state, spread across the same people demoLeaveRequests uses,

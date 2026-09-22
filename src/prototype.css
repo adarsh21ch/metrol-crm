@@ -679,6 +679,10 @@ textarea.input{
   border-top:2px solid var(--ink);
 }
 .kpi--accent{border-top-color:var(--accent)}
+.kpi--btn{cursor:pointer;text-align:left;font:inherit;color:inherit;-webkit-appearance:none;appearance:none}
+.kpi--btn:hover{border-color:var(--ink-3)}
+.kpi--active{background:var(--pri);border-color:var(--pri);border-top-color:var(--accent)}
+.kpi--active .kpi-label,.kpi--active .kpi-value,.kpi--active .kpi-sub,.kpi--active .kpi-sub b{color:var(--pri-on)}
 .kpi-label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
 .kpi-value{font-family:var(--display);font-size:26px;font-weight:600;letter-spacing:-.028em;line-height:1;font-variant-numeric:tabular-nums}
 .kpi-sub{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:5px}

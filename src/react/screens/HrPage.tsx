@@ -38,6 +38,10 @@ import { useVisitEntries } from '@/data/useVisitEntries'
 import { useWfhRequests } from '@/data/useWfhRequests'
 import { useVisitPurposes } from '@/data/useVisitPurposes'
 import { useTdsCategories } from '@/data/useTdsCategories'
+import { useIncentiveRules } from '@/data/useIncentiveRules'
+import { useIncentiveClaims } from '@/data/useIncentiveClaims'
+import { useIncentivePayouts } from '@/data/useIncentivePayouts'
+import { IncentiveClaimDecisionModal } from '@/modals/IncentiveClaimDecisionModal'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
@@ -47,8 +51,8 @@ import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { officeToday } from '@/lib/attendance'
 import {
-  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
-  type DocType, type Employee, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest,
+  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
+  type DocType, type Employee, type IncentiveClaim, type IncentivePageType, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest,
   HR_DEPARTMENT,
 } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
@@ -160,6 +164,11 @@ export function HrPage({
   const visitPurposes = useVisitPurposes(true)
   const activePurposes = visitPurposes.rows.filter((p) => p.isActive)
   const tdsCategories = useTdsCategories(true)
+  const incentiveRules = useIncentiveRules(true)
+  const incentiveClaims = useIncentiveClaims(true)
+  const incentivePayouts = useIncentivePayouts(true)
+  const owedOnClaim = (claim: IncentiveClaim) =>
+    Math.max(0, claim.currentAmount - incentivePayouts.rows.filter((p) => p.claimId === claim.id).reduce((t, p) => t + p.amount, 0))
   const att = useAttendance()
   const applications = useJobApplications()
 
@@ -201,6 +210,8 @@ export function HrPage({
   const loggingForCompOff = useCompOffBalance(loggingFor)
   const [deciding, setDeciding] = useState<{ request: LeaveRequest; action: 'approved' | 'rejected' } | null>(null)
   const [decidingVisit, setDecidingVisit] = useState<{ request: VisitEntry; action: 'approved' | 'rejected' } | null>(null)
+  const [decidingClaim, setDecidingClaim] = useState<{ claim: IncentiveClaim; action: 'approve' | 'reject' } | null>(null)
+  const [viewsDraft, setViewsDraft] = useState<Record<string, string>>({})
   const [decidingWfh, setDecidingWfh] = useState<{ request: WfhRequest; action: 'approved' | 'rejected' } | null>(null)
   const [loggingVisitFor, setLoggingVisitFor] = useState<string | null>(null)
   const [loggingWfhFor, setLoggingWfhFor] = useState<string | null>(null)
@@ -209,6 +220,11 @@ export function HrPage({
   const [newPurposeLabel, setNewPurposeLabel] = useState('')
   const [newTdsLabel, setNewTdsLabel] = useState('')
   const [newTdsRate, setNewTdsRate] = useState('')
+  const [newRuleDept, setNewRuleDept] = useState('')
+  const [newRulePageType, setNewRulePageType] = useState<IncentivePageType>('main')
+  const [newRuleLabel, setNewRuleLabel] = useState('')
+  const [newRuleMinViews, setNewRuleMinViews] = useState('')
+  const [newRuleAmount, setNewRuleAmount] = useState('')
   const [holDate, setHolDate] = useState('')
   const [holName, setHolName] = useState('')
   const [logEmpId, setLogEmpId] = useState('')
@@ -217,6 +233,7 @@ export function HrPage({
   const [viewingSlip, setViewingSlip] = useState<SalaryRecord | null>(null)
   const [salaryEmpId, setSalaryEmpId] = useState('')
   const [emailingSalary, setEmailingSalary] = useState<string | null>(null)
+  const [salaryFilter, setSalaryFilter] = useState<'all' | 'pending'>('all')
   const [newTaskLabel, setNewTaskLabel] = useState('')
   const [uploadingFor, setUploadingFor] = useState<string | null>(null)
 
@@ -485,6 +502,7 @@ export function HrPage({
 
   const currentPeriodStr = currentPeriod()
   const pendingSalary = salary.rows.filter((r) => r.status === 'pending')
+  const pendingAmount = pendingSalary.reduce((t, r) => t + r.netAmount, 0)
   const paidThisMonth = salary.rows.filter((r) => r.status === 'paid' && r.period === currentPeriodStr)
   const payrollThisMonth = salary.rows.filter((r) => r.period === currentPeriodStr).reduce((t, r) => t + r.netAmount, 0)
 
@@ -671,6 +689,19 @@ export function HrPage({
   const decideWfh = async (id: string, status: 'approved' | 'rejected', note?: string) => {
     const message = await wfhRequests.decide(id, status, ws.me?.id ?? '', note)
     if (!message) toast(status === 'approved' ? 'WFH approved.' : 'WFH rejected.')
+    return message
+  }
+
+  const decideClaim = async (period: string | undefined, note: string | undefined) => {
+    if (!decidingClaim) return 'Nothing is open to decide.'
+    if (decidingClaim.action === 'approve') {
+      if (!period) return 'Pick a salary period.'
+      const message = await incentivePayouts.approve(decidingClaim.claim.id, owedOnClaim(decidingClaim.claim), period, ws.me?.id ?? '')
+      if (!message) toast('Incentive approved.')
+      return message
+    }
+    const message = await incentiveClaims.reject(decidingClaim.claim.id, ws.me?.id ?? '', note)
+    if (!message) toast('Claim rejected.')
     return message
   }
 
@@ -1767,7 +1798,12 @@ export function HrPage({
                 </div>
 
                 <div className="kpis">
-                  <Kpi accent label="Pending" value={pendingSalary.length} sub="not yet marked paid" />
+                  <Kpi accent label="Pending" value={pendingSalary.length} sub="not yet marked paid"
+                       active={salaryFilter === 'pending'}
+                       onClick={() => setSalaryFilter((f) => (f === 'pending' ? 'all' : 'pending'))} />
+                  <Kpi accent label="Pending amount" value={money(pendingAmount)} sub="owed, not yet paid"
+                       active={salaryFilter === 'pending'}
+                       onClick={() => setSalaryFilter((f) => (f === 'pending' ? 'all' : 'pending'))} />
                   <Kpi label="Paid this month" value={paidThisMonth.length} sub={fmtPeriod(currentPeriodStr)} />
                   <Kpi label="Payroll this month" value={money(payrollThisMonth)} sub="net, all statuses" />
                   <Kpi label="Total payslips" value={salary.rows.length} sub="all time" />
@@ -1779,8 +1815,11 @@ export function HrPage({
                   {/* Same move as Leave: the picker and its button sit on the
                       heading of the table the payslip lands in. */}
                   <div className="section-head">
-                    <h3>All payslips</h3>
+                    <h3>{salaryFilter === 'pending' ? 'Pending payslips' : 'All payslips'}</h3>
                     <div className="section-tools section-tools--tight">
+                      {salaryFilter === 'pending' && (
+                        <button className="btn btn--sm" onClick={() => setSalaryFilter('all')}>Clear filter</button>
+                      )}
                       <PhoneViewPick view={salaryView} onPick={setSalaryView} />
                     </div>
                     <div className="section-tools">
@@ -1791,10 +1830,11 @@ export function HrPage({
                       <button className="btn btn--sm btn--primary" disabled={!salaryEmpId} onClick={() => setAddingSalaryFor(salaryEmpId)}>Add payslip</button>
                     </div>
                   </div>
-                  <DataGrid cols={salaryCols} rows={[...salary.rows].sort((a, b) => b.period.localeCompare(a.period))}
+                  <DataGrid cols={salaryCols}
+                            rows={[...(salaryFilter === 'pending' ? pendingSalary : salary.rows)].sort((a, b) => b.period.localeCompare(a.period))}
                             storageKey="hr-salary" phoneView={salaryView}
-                            empty="No payslips yet."
-                            foot={<div className="grid-foot"><span>{count(salary.rows.length, 'payslip')}</span></div>} />
+                            empty={salaryFilter === 'pending' ? 'Nothing pending — all caught up.' : 'No payslips yet.'}
+                            foot={<div className="grid-foot"><span>{count(salaryFilter === 'pending' ? pendingSalary.length : salary.rows.length, 'payslip')}</span></div>} />
                 </div>
 
                 {/* Payroll phase 1 (2026-09-21). Contract and Professional to
@@ -1837,6 +1877,126 @@ export function HrPage({
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Incentive claims (0031) — every submitted reel, newest
+                    first. "Owed" is currentAmount minus whatever this claim
+                    already has in incentive_payouts, computed client-side
+                    (owedOnClaim) rather than stored, so a top-up after an
+                    earlier partial approval always reads correctly without a
+                    migration to reconcile a stale column. */}
+                <div className="section">
+                  <div className="section-head"><h3>Incentive claims</h3></div>
+                  <Tip tipKey="hr-incentive-claims">
+                    Type in the view count once you've checked the reel — the tier and amount work
+                    themselves out. Approve sends the owed amount to one salary period's payslip.
+                  </Tip>
+                  {incentiveClaims.error && <div className="auth-err" style={{ marginBottom: 14 }}>{incentiveClaims.error}</div>}
+                  {incentiveClaims.rows.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No claims yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {[...incentiveClaims.rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((c) => {
+                        const owed = owedOnClaim(c)
+                        const ruleLabel = incentiveRules.rows.find((r) => r.id === c.tierRuleId)?.label ?? 'Below any threshold'
+                        const draft = viewsDraft[c.id]
+                        return (
+                          <div className="ov-row" key={c.id} style={{ cursor: 'default', flexWrap: 'wrap', gap: 8 }}>
+                            <span className="ov-l">
+                              <strong>{employeeName(c.employeeId)}</strong>
+                              {' · '}{INCENTIVE_PAGE_TYPE[c.pageType]}
+                              {' · '}<a href={c.reelUrl} target="_blank" rel="noreferrer">reel</a>
+                              {c.instagramHandle ? ` · ${c.instagramHandle}` : ''}
+                              {' · '}{ruleLabel}
+                              {c.rejected && <span style={{ color: 'var(--bad)' }}>  ·  rejected</span>}
+                            </span>
+                            <input className="input" type="number" min={0} style={{ maxWidth: 110 }}
+                                   aria-label="Views" placeholder={c.views > 0 ? c.views.toLocaleString('en-IN') : 'Views'}
+                                   value={draft ?? ''} onChange={(e) => setViewsDraft((p) => ({ ...p, [c.id]: e.target.value }))} />
+                            <button className="btn btn--sm" disabled={!draft}
+                                    onClick={() => void incentiveClaims.setViews(c.id, Number(draft)).then((m) => {
+                                      toast(m ?? 'Views updated.')
+                                      if (!m) setViewsDraft((p) => { const n = { ...p }; delete n[c.id]; return n })
+                                    })}>
+                              Save views
+                            </button>
+                            {!c.rejected && owed > 0 && (
+                              <button className="btn btn--sm btn--primary" onClick={() => setDecidingClaim({ claim: c, action: 'approve' })}>
+                                Approve {money(owed)}
+                              </button>
+                            )}
+                            {!c.rejected && (
+                              <button className="btn btn--sm" onClick={() => setDecidingClaim({ claim: c, action: 'reject' })}>
+                                Reject
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Department incentives (0031) — grouped by department, then
+                    by page type within it. A reel's own department is
+                    snapshotted at submission, so retiring or re-pricing a
+                    tier here never rewrites a claim already paid under it. */}
+                <div className="section">
+                  <div className="section-head"><h3>Incentive rules</h3></div>
+                  <Tip tipKey="hr-incentive-rules">
+                    What a viral reel is worth, per department. An employee picks main or fan page per
+                    reel when they submit it — set the amount for each here.
+                  </Tip>
+                  <div className="hol-add" style={{ flexWrap: 'wrap' }}>
+                    <select className="input" aria-label="Department" value={newRuleDept} onChange={(e) => setNewRuleDept(e.target.value)}>
+                      <option value="">Department…</option>
+                      {ws.departments.filter((d) => d.isActive).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                    <select className="input" aria-label="Page type" value={newRulePageType} onChange={(e) => setNewRulePageType(e.target.value as IncentivePageType)}>
+                      <option value="main">Main page</option>
+                      <option value="fan">Fan page</option>
+                    </select>
+                    <input className="input" type="text" aria-label="Tier name" placeholder="e.g. 1M+ views" style={{ maxWidth: 140 }}
+                           value={newRuleLabel} onChange={(e) => setNewRuleLabel(e.target.value)} />
+                    <input className="input" type="number" min={0} aria-label="Minimum views" placeholder="Min views" style={{ maxWidth: 120 }}
+                           value={newRuleMinViews} onChange={(e) => setNewRuleMinViews(e.target.value)} />
+                    <input className="input" type="number" min={0} aria-label="Amount" placeholder="Amount ₹" style={{ maxWidth: 110 }}
+                           value={newRuleAmount} onChange={(e) => setNewRuleAmount(e.target.value)} />
+                    <button className="btn btn--sm btn--primary"
+                            disabled={!newRuleDept || !newRuleLabel.trim() || newRuleMinViews === '' || newRuleAmount === ''}
+                            onClick={() => void incentiveRules.add({
+                              departmentId: newRuleDept, pageType: newRulePageType, label: newRuleLabel,
+                              minViews: Number(newRuleMinViews), amount: Number(newRuleAmount),
+                            }).then((m) => {
+                              toast(m ?? 'Tier added.')
+                              if (!m) { setNewRuleLabel(''); setNewRuleMinViews(''); setNewRuleAmount('') }
+                            })}>
+                      Add tier
+                    </button>
+                  </div>
+                  {incentiveRules.rows.length === 0 ? (
+                    <p style={{ color: 'var(--ink-3)' }}>No incentive rules set up yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {[...incentiveRules.rows]
+                        .sort((a, b) => a.sortOrder - b.sortOrder)
+                        .map((r) => (
+                          <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                            <span className="ov-l">
+                              <strong>{ws.departments.find((d) => d.id === r.departmentId)?.name ?? 'Unknown department'}</strong>
+                              {' · '}{INCENTIVE_PAGE_TYPE[r.pageType]}
+                              {' · '}{r.label} ({r.minViews.toLocaleString('en-IN')}+ views)
+                              {' · '}{money(r.amount)}
+                              {!r.isActive && <span style={{ color: 'var(--ink-3)' }}>  ·  retired</span>}
+                            </span>
+                            <button className="btn btn--sm" style={{ marginLeft: 10 }}
+                                    onClick={() => void incentiveRules.setActive(r.id, !r.isActive).then((m) => toast(m ?? (r.isActive ? 'Tier retired.' : 'Tier restored.')))}>
+                              {r.isActive ? 'Retire' : 'Restore'}
+                            </button>
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>
@@ -1979,10 +2139,21 @@ export function HrPage({
                            employeeName={employeeName(decidingWfh.request.employeeId)}
                            onClose={() => setDecidingWfh(null)} onDecide={decideWfh} />
       )}
+      {decidingClaim && (
+        <IncentiveClaimDecisionModal
+          claim={decidingClaim.claim} action={decidingClaim.action}
+          employeeName={employeeName(decidingClaim.claim.employeeId)}
+          tierLabel={incentiveRules.rows.find((r) => r.id === decidingClaim.claim.tierRuleId)?.label ?? 'Below any threshold'}
+          owed={owedOnClaim(decidingClaim.claim)}
+          onClose={() => setDecidingClaim(null)} onDecide={decideClaim} />
+      )}
 
       {addingSalaryFor && (
         <SalaryRecordModal employeeId={addingSalaryFor} employee={hr.rows.find((e) => e.id === addingSalaryFor) ?? null}
                             tdsCategories={tdsCategories.rows}
+                            incentiveFromClaims={incentivePayouts.rows
+                              .filter((p) => p.period === currentPeriod() && incentiveClaims.rows.some((c) => c.id === p.claimId && c.employeeId === addingSalaryFor))
+                              .reduce((t, p) => t + p.amount, 0)}
                             record={null} onClose={() => setAddingSalaryFor(null)} onSave={saveSalaryNew} />
       )}
       {editingSalary && (

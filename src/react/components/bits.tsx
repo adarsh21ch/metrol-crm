@@ -43,15 +43,17 @@ export const Yn = ({ yes }: { yes: boolean }) => (
 )
 
 export function Kpi({
-  label, value, sub, accent,
-}: { label: string; value: React.ReactNode; sub: React.ReactNode; accent?: boolean }) {
-  return (
-    <div className={'kpi' + (accent ? ' kpi--accent' : '')}>
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-sub">{sub}</div>
-    </div>
-  )
+  label, value, sub, accent, onClick, active,
+}: { label: string; value: React.ReactNode; sub: React.ReactNode; accent?: boolean; onClick?: () => void; active?: boolean }) {
+  const cls = 'kpi' + (accent ? ' kpi--accent' : '') + (onClick ? ' kpi--btn' : '') + (active ? ' kpi--active' : '')
+  const body = <>
+    <div className="kpi-label">{label}</div>
+    <div className="kpi-value">{value}</div>
+    <div className="kpi-sub">{sub}</div>
+  </>
+  return onClick
+    ? <button type="button" className={cls} onClick={onClick} aria-pressed={active}>{body}</button>
+    : <div className={cls}>{body}</div>
 }
 
 export const IconBtn = ({

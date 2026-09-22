@@ -85,6 +85,66 @@ export interface TdsCategory {
   isActive: boolean
 }
 
+/* ------------------------------------------------- Department incentives */
+
+export type IncentivePageType = 'main' | 'fan'
+
+export const INCENTIVE_PAGE_TYPE: Record<IncentivePageType, string> = {
+  main: 'Main page',
+  fan: 'Fan page',
+}
+
+/** One tier of one department's incentive scheme — "Social Media, main page,
+ *  1M+ views, ₹1,000" is one row. HR's own list (0031), same retire-not-
+ *  delete shape as TdsCategory: a claim already paid under a tier must keep
+ *  reading the number it was paid at even after HR changes the going rate. */
+export interface IncentiveRule {
+  id: string
+  departmentId: string
+  pageType: IncentivePageType
+  label: string
+  minViews: number
+  amount: number
+  sortOrder: number
+  isActive: boolean
+}
+
+/** One submitted reel. currentAmount is the full amount its CURRENT tier is
+ *  worth, set only by the database trigger off views — never written by the
+ *  app directly. paidAmount is a client-side sum of this claim's own
+ *  incentive_payouts rows, not a database column. */
+export interface IncentiveClaim {
+  id: string
+  employeeId: string
+  departmentId: string
+  pageType: IncentivePageType
+  reelUrl: string
+  instagramHandle: string | null
+  views: number
+  viewsCheckedAt: string | null
+  watchUntil: string
+  tierRuleId: string | null
+  currentAmount: number
+  rejected: boolean
+  decidedBy: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  createdAt: string
+}
+
+/** One approval event — the ledger a payslip's incentive figure is prefilled
+ *  from. A claim topped up after an earlier partial approval gets a SECOND
+ *  row here, tagged to whichever period HR assigns it to; the first row is
+ *  never edited. */
+export interface IncentivePayout {
+  id: string
+  claimId: string
+  amount: number
+  period: string
+  approvedBy: string | null
+  approvedAt: string
+}
+
 export const EMPLOYMENT: Record<EmploymentType, string> = {
   full_time: 'Full-time',
   part_time: 'Part-time',
