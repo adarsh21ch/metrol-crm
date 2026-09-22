@@ -46,7 +46,13 @@ interface ApifyReel {
   timestamp?: string
 }
 
-const RESULTS_LIMIT = 25
+// Lower than the plan's original 25 (2026-09-22, live): a real 25-reel scrape
+// ran long enough that the connection to this function was cut before it
+// could respond — each reel is its own page Apify has to visit, so this is
+// a genuine time cost, not a bug. 10 finishes reliably inside a normal
+// request's time budget; raise it again once a background/async job queue
+// exists to run a longer fetch without the caller waiting on the connection.
+const RESULTS_LIMIT = 10
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
