@@ -5,6 +5,16 @@ import type { PageReel } from '@/lib/hr'
 
 type Row = Record<string, unknown>
 
+export interface RefreshResult {
+  message: string | null
+  matchedClaims: number
+  fetched?: number
+  /** Which actor the view counts came from, or null when neither returned
+   *  any — reported on screen so a refresh says what it actually achieved. */
+  viewSource?: 'reels' | 'posts' | null
+  debugSample?: Record<string, unknown> | null
+}
+
 const toReel = (r: Row): PageReel => ({
   id: String(r.id),
   pageId: String(r.page_id),
@@ -53,7 +63,7 @@ export function usePageReels(enabled = true) {
    *  returns whatever the function said about matched claims — the caller
    *  decides whether to also reload incentive claims (Member.tsx and
    *  ClientsPagesSection both already have that hook in scope). */
-  const refresh = useCallback(async (pageId: string): Promise<{ message: string | null; matchedClaims: number; debugSample?: Record<string, unknown> | null }> => {
+  const refresh = useCallback(async (pageId: string): Promise<RefreshResult> => {
     if (isDemo()) return { message: 'Not available in demo mode.', matchedClaims: 0 }
     const { data, error: err } = await supabase.functions.invoke('fetch-page-reels', { body: { pageId } })
     const message = err ? await functionErrorMessage(err) : data?.error ? String(data.error) : null
@@ -62,6 +72,11 @@ export function usePageReels(enabled = true) {
     return {
       message: data?.warning ? String(data.warning) : null,
       matchedClaims: Number(data?.matchedClaims ?? 0),
+      fetched: Number(data?.fetched ?? 0),
+      /** 'reels' | 'posts' | null — which actor the view counts came from,
+       *  or null when neither returned any. Reported on screen so a refresh
+       *  says what it actually achieved. */
+      viewSource: (data?.viewSource as 'reels' | 'posts' | null) ?? null,
       debugSample: (data?.debugSample as Record<string, unknown> | null) ?? null,
     }
   }, [load])
