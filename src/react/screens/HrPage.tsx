@@ -41,8 +41,12 @@ import { useTdsCategories } from '@/data/useTdsCategories'
 import { useIncentiveRules } from '@/data/useIncentiveRules'
 import { useIncentiveClaims } from '@/data/useIncentiveClaims'
 import { useIncentivePayouts } from '@/data/useIncentivePayouts'
+import { useClients } from '@/data/useClients'
+import { usePages } from '@/data/usePages'
+import { usePageAssignments } from '@/data/usePageAssignments'
 import { IncentiveClaimReviewModal } from '@/modals/IncentiveClaimReviewModal'
 import { IncentiveRulesModal } from '@/modals/IncentiveRulesModal'
+import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
@@ -72,6 +76,12 @@ const DEPT_ICON = (
 const SALARY_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5a2.5 2.5 0 0 1 2.5-1h.3a2.2 2.2 0 0 1 0 4.4h-.6a2.2 2.2 0 0 0 0 4.4h.3a2.5 2.5 0 0 0 2.5-1" />
+  </svg>
+)
+const CLIENTS_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
   </svg>
 )
 const DASH_ICON = (
@@ -170,10 +180,21 @@ export function HrPage({
   const incentivePayouts = useIncentivePayouts(true)
   const owedOnClaim = (claim: IncentiveClaim) =>
     Math.max(0, claim.currentAmount - incentivePayouts.rows.filter((p) => p.claimId === claim.id).reduce((t, p) => t + p.amount, 0))
+  const clients = useClients(true)
+  const pages = usePages(true)
+  const pageAssignments = usePageAssignments(true)
+  const clientOf = (clientId: string) => clients.rows.find((c) => c.id === clientId) ?? null
+  const pageOf = (pageId: string | null) => (pageId ? pages.rows.find((p) => p.id === pageId) ?? null : null)
+  const pageLabel = (pageId: string | null) => {
+    const page = pageOf(pageId)
+    if (!page) return 'No page on file'
+    const client = clientOf(page.clientId)
+    return `${client?.name ?? 'Unknown client'} — ${INCENTIVE_PAGE_TYPE[page.pageType]}${page.instagramHandle ? ` (${page.instagramHandle})` : ''}`
+  }
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'salary' | 'joining' | 'exit' | 'terms' | 'profile'>('hr-section', 'dashboard')
+  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'clientsPages' | 'salary' | 'joining' | 'exit' | 'terms' | 'profile'>('hr-section', 'dashboard')
   /* Applications (the public joining form's inbox) and Onboarding (the
      checklist for somebody an application just turned into) used to be two
      separate sidebar tabs, even though the moment one is approved the SAME
@@ -416,6 +437,7 @@ export function HrPage({
     },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
+    { key: 'clientsPages', label: 'Clients & Pages', icon: CLIENTS_ICON, onClick: () => { setSection('clientsPages'); setOpenId(null) } },
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
     {
       key: 'joining', label: pendingApps.length ? `Joining & Exit (${pendingApps.length})` : 'Joining & Exit',
@@ -439,7 +461,7 @@ export function HrPage({
   /** The three that moved into Profile. Opening one lights Profile on the bar
    *  and puts a ← Profile on its page head, so "where am I" still has an
    *  answer and the way back is one tap. */
-  const IN_PROFILE = ['salary', 'departments', 'terms'] as const
+  const IN_PROFILE = ['salary', 'departments', 'clientsPages', 'terms'] as const
   const inProfileTab = (IN_PROFILE as readonly string[]).includes(section)
   const railItem = (key: string) => railItems.find((it) => it.key === key)!
   /** Phone only — see `.on-phone`. Sits ON the title's row, not above it. */
@@ -688,8 +710,8 @@ export function HrPage({
     return message
   }
 
-  const saveClaimViews = async (id: string, views: number, handle?: string) => {
-    const message = await incentiveClaims.setViews(id, views, handle)
+  const saveClaimViews = async (id: string, views: number) => {
+    const message = await incentiveClaims.setViews(id, views)
     if (!message) toast('Views updated.')
     return message
   }
@@ -1521,6 +1543,16 @@ export function HrPage({
               </>
             )}
 
+            {!open && section === 'clientsPages' && (
+              <>
+                <div className="page-head">
+                  {backToProfile}
+                  <h1>Clients & Pages</h1>
+                </div>
+                <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} staff={hr} toast={toast} />
+              </>
+            )}
+
             {/* ------------------------------------------ attendance + leave */}
             {/* One sidebar tab, two views — same idea as the Joining merge,
                 but the two halves stay structurally separate rather than
@@ -1908,9 +1940,8 @@ export function HrPage({
                         const ruleLabel = incentiveRules.rows.find((r) => r.id === c.tierRuleId)?.label ?? 'Below any threshold'
                         return (
                           <button className="ov-row" key={c.id} onClick={() => setReviewingClaimId(c.id)}>
-                            <span className="ov-n">{INCENTIVE_PAGE_TYPE[c.pageType][0]}</span>
                             <span className="ov-l">
-                              {employeeName(c.employeeId)} — {ruleLabel}
+                              {employeeName(c.employeeId)} — {pageLabel(c.pageId)} — {ruleLabel}
                             </span>
                             <span className="ov-cta">
                               {c.rejected ? (
@@ -2072,10 +2103,11 @@ export function HrPage({
         <IncentiveClaimReviewModal
           claim={incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!}
           employeeName={employeeName(incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!.employeeId)}
+          pageLabel={pageLabel(incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!.pageId)}
           ruleLabel={incentiveRules.rows.find((r) => r.id === incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!.tierRuleId)?.label ?? 'Below any threshold'}
           owed={owedOnClaim(incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!)}
           onClose={() => setReviewingClaimId(null)}
-          onSaveViews={(views, handle) => saveClaimViews(reviewingClaimId, views, handle)}
+          onSaveViews={(views) => saveClaimViews(reviewingClaimId, views)}
           onApprove={(period) => approveClaim(reviewingClaimId, period)}
           onReject={(note) => rejectClaim(reviewingClaimId, note)} />
       )}

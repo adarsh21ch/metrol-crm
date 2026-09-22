@@ -15,7 +15,7 @@ import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
-import { IncentiveClaimModal } from '@/modals/IncentiveClaimModal'
+import { IncentiveClaimModal, type ClaimablePage } from '@/modals/IncentiveClaimModal'
 import { WfhRequestModal } from '@/modals/WfhRequestModal'
 import { SalarySlipModal } from '@/modals/SalarySlipModal'
 import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
@@ -26,6 +26,9 @@ import { useVisitEntries } from '@/data/useVisitEntries'
 import { useIncentiveRules } from '@/data/useIncentiveRules'
 import { useIncentiveClaims } from '@/data/useIncentiveClaims'
 import { useIncentivePayouts } from '@/data/useIncentivePayouts'
+import { useClients } from '@/data/useClients'
+import { usePages } from '@/data/usePages'
+import { usePageAssignments } from '@/data/usePageAssignments'
 import { useWfhRequests } from '@/data/useWfhRequests'
 import { useVisitPurposes } from '@/data/useVisitPurposes'
 import { notifyApprovers } from '@/data/useNotifications'
@@ -39,7 +42,8 @@ import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
-import { DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, fmtDate, fmtPeriod, type SalaryRecord } from '@/lib/hr'
+import { CONTENT_MARKETING_DEPARTMENT, DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, type SalaryRecord } from '@/lib/hr'
+import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
@@ -120,6 +124,10 @@ const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
 /** One row of the Manage team tab. */
 interface TeamRow {
   id: string
+  /** The employees.id behind this profile, when one exists — null for a
+   *  login with no HR record yet. Used to join page_assignments for the
+   *  Content & Marketing department head's dashboard; unused by Sales. */
+  employeeId: string | null
   name: string
   designation: string
   phone: string
@@ -251,6 +259,47 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     [incentiveClaims.rows, myEmployee],
   )
   const [submittingIncentive, setSubmittingIncentive] = useState(false)
+
+  /* Content & Marketing department (0032) — the dashboard this screen shows
+   *  for Overview, and whether My leads/My sales belong on this person's tab
+   *  strip at all, is keyed on the department NAME the same way HR_DEPARTMENT
+   *  already is, not on incentive rules existing (that gate stays narrower,
+   *  scoped to the Incentives tab only). See lib/hr.ts for why the name and
+   *  not a hardcoded id. */
+  const isContentMarketing = ws.departmentName(me?.departmentId ?? null) === CONTENT_MARKETING_DEPARTMENT
+  const clients = useClients(true)
+  const pages = usePages(true)
+  const pageAssignments = usePageAssignments(true)
+  const clientOf = useCallback((clientId: string) => clients.rows.find((c) => c.id === clientId) ?? null, [clients.rows])
+  const pageOf = useCallback((pageId: string | null) => (pageId ? pages.rows.find((p) => p.id === pageId) ?? null : null), [pages.rows])
+  const pageLabel = useCallback((pageId: string | null) => {
+    const page = pageOf(pageId)
+    if (!page) return 'No page on file'
+    const client = clientOf(page.clientId)
+    return `${client?.name ?? 'Unknown client'} — ${INCENTIVE_PAGE_TYPE[page.pageType]}${page.instagramHandle ? ` (${page.instagramHandle})` : ''}`
+  }, [pageOf, clientOf])
+  const myPageAssignments = useMemo(
+    () => (myEmployee ? pageAssignments.rows.filter((a) => a.employeeId === myEmployee.id) : []),
+    [pageAssignments.rows, myEmployee],
+  )
+  const myPages: ClaimablePage[] = useMemo(
+    () => myPageAssignments
+      .map((a) => pageOf(a.pageId))
+      .filter((p): p is NonNullable<typeof p> => p !== null && p.isActive)
+      .map((p) => ({ pageId: p.id, clientName: clientOf(p.clientId)?.name ?? 'Unknown client', pageType: p.pageType, instagramHandle: p.instagramHandle })),
+    [myPageAssignments, pageOf, clientOf],
+  )
+  const myClaimsPending = useMemo(() => myClaims.filter((c) => !c.rejected && !c.decidedAt), [myClaims])
+  const myClaimsPaidThisMonth = useMemo(
+    () => incentivePayouts.rows
+      .filter((p) => p.period === currentPeriod() && myClaims.some((c) => c.id === p.claimId))
+      .reduce((t, p) => t + p.amount, 0),
+    [incentivePayouts.rows, myClaims],
+  )
+  const myClaimsTotalEarned = useMemo(
+    () => incentivePayouts.rows.filter((p) => myClaims.some((c) => c.id === p.claimId)).reduce((t, p) => t + p.amount, 0),
+    [incentivePayouts.rows, myClaims],
+  )
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
 
   /* Leave stopped being a yearly entitlement in Round 2. It accrues 2 days a
@@ -389,6 +438,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       const record = staff.rows.find((e) => e.profileId === m.id)
       return {
         id: m.id,
+        employeeId: record?.id ?? null,
         name: m.name,
         designation: record?.designation ?? '',
         phone: record?.phone ?? m.phone ?? '',
@@ -406,6 +456,31 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // in a department with no leads to their name gets the roster instead of a
   // table of zeros — and no invented metric until Adarsh says what they track.
   const teamHasLeads = teamRows.some((r) => r.leads > 0)
+
+  /* Content & Marketing's department-head dashboard (0032): every employee +
+   *  which pages they hold, every client + page + who's assigned, and the
+   *  department's claims at a glance. Read-only — reassigning a page stays
+   *  HR-only (Adarsh, 2026-09-22), so nothing here writes to page_assignments. */
+  const cmPagesByEmployee = useMemo(() => {
+    const m = new Map<string, ClaimablePage[]>()
+    for (const a of pageAssignments.rows) {
+      const page = pageOf(a.pageId)
+      if (!page) continue
+      const entry: ClaimablePage = { pageId: page.id, clientName: clientOf(page.clientId)?.name ?? 'Unknown client', pageType: page.pageType, instagramHandle: page.instagramHandle }
+      const list = m.get(a.employeeId) ?? []
+      list.push(entry)
+      m.set(a.employeeId, list)
+    }
+    return m
+  }, [pageAssignments.rows, pageOf, clientOf])
+  const cmDeptClaims = useMemo(
+    () => (isContentMarketing && me?.departmentId ? incentiveClaims.rows.filter((c) => c.departmentId === me.departmentId) : []),
+    [isContentMarketing, me, incentiveClaims.rows],
+  )
+  const cmDeptEmployeeName = useCallback(
+    (employeeId: string) => teamRows.find((r) => r.employeeId === employeeId)?.name ?? staff.rows.find((e) => e.id === employeeId)?.fullName ?? 'Former employee',
+    [teamRows, staff.rows],
+  )
 
   const teamCols = useMemo<GridCol<TeamRow>[]>(() => {
     const person: GridCol<TeamRow> = {
@@ -541,6 +616,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // count, not in the header fighting the view switch for the same row. Both
   // of these moved into their grid foots.
   const headSub = HEAD[sec].sub
+  // The 'leads'/'sales' tabs carry Content & Marketing's own destinations
+  // (their pages, their claims) instead of Sales' — same slots, same routing,
+  // a department-specific title rather than a duplicated MemberSec.
+  const headTitle = isContentMarketing
+    ? (sec === 'leads' ? 'My pages' : sec === 'sales' ? 'Claims' : HEAD[sec].title)
+    : HEAD[sec].title
 
   return (
     <div className="screen screen--app is-active">
@@ -567,13 +648,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
         <div className="workspace">
           <div className="wrap">
             <div className="page-head">
-              <h1>{HEAD[sec].title}</h1>
+              <h1>{headTitle}</h1>
               {headSub && <div className="sub">{headSub}</div>}
               {/* Refresh used to sit here, labelled, on a row of its own under
                   every single page title. It is an icon in the top bar now —
                   same button, on every tab, costing no vertical space. So this
                   row only exists on the one tab that has a real control. */}
-              {sec === 'leads' && (
+              {sec === 'leads' && !isContentMarketing && (
                 <div className="section-tools">
                   <div className="seg seg--leads">
                     <button className={leadsView === 'board' ? 'is-on' : ''} onClick={() => pickView('board')}>Board</button>
@@ -587,13 +668,16 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               {/* Beside the title, not in .section-tools — that wrapper takes a
                   full row to itself on a phone, which is the row this was
                   supposed to save. */}
-              {sec === 'sales' && (
+              {sec === 'sales' && !isContentMarketing && (
                 <div className="section-tools">
                   <div className="seg">
                     <button className={salesView === 'cards' ? 'is-on' : ''} onClick={() => setSalesView('cards')}>Cards</button>
                     <button className={salesView === 'list' ? 'is-on' : ''} onClick={() => setSalesView('list')}>List</button>
                   </div>
                 </div>
+              )}
+              {sec === 'leads' && isContentMarketing && (
+                <button className="btn btn--sm btn--primary head-cta" onClick={() => setSubmittingIncentive(true)}>Submit a reel</button>
               )}
               {sec === 'attendance' && myEmployee && (
                 <button className="btn btn--sm btn--primary head-cta"
@@ -624,11 +708,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               <button className={sec === 'attendance' ? 'is-on' : ''} onClick={() => setSec('attendance')}>
                 Attendance
               </button>
+              {/* Same two slots either way — Content & Marketing's own
+                  destinations (their pages, their claims) instead of Sales'. */}
               <button className={sec === 'leads' ? 'is-on' : ''} onClick={() => setSec('leads')}>
-                My leads <span className="count">{mine.length}</span>
+                {isContentMarketing ? 'My pages' : 'My leads'} <span className="count">{isContentMarketing ? myPages.length : mine.length}</span>
               </button>
               <button className={sec === 'sales' ? 'is-on' : ''} onClick={() => setSec('sales')}>
-                My sales <span className="count">{cv.length}</span>
+                {isContentMarketing ? 'Claims' : 'My sales'} <span className="count">{isContentMarketing ? myClaims.length : cv.length}</span>
               </button>
               {isLead && (
                 <button className={sec === 'team' ? 'is-on' : ''} onClick={() => setSec('team')}>
@@ -716,7 +802,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   <button className={reqView === 'wfh' ? 'is-on' : ''} onClick={() => setReqView('wfh')}>
                     WFH{myWfh.filter((r) => r.status === 'pending').length > 0 ? ` (${myWfh.filter((r) => r.status === 'pending').length})` : ''}
                   </button>
-                  {hasIncentiveAccess && (
+                  {/* Content & Marketing gets its own top-level Claims tab
+                      (same standing as My leads/My sales has for Sales), so
+                      this nested copy would be the same list twice. Any
+                      OTHER department HR gives incentive rules to, without a
+                      full dashboard built for it yet, still finds it here. */}
+                  {hasIncentiveAccess && !isContentMarketing && (
                     <button className={reqView === 'incentive' ? 'is-on' : ''} onClick={() => setReqView('incentive')}>
                       Incentives
                     </button>
@@ -1176,7 +1267,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {shownSec === 'profile' && shownMeTab === 'leave' && reqView === 'incentive' && myEmployee && hasIncentiveAccess && (
+            {shownSec === 'profile' && shownMeTab === 'leave' && reqView === 'incentive' && myEmployee && hasIncentiveAccess && !isContentMarketing && (
               <>
                 {incentiveClaims.error && <div className="auth-err" style={{ marginBottom: 14 }}>{incentiveClaims.error}</div>}
                 <div className="section">
@@ -1196,7 +1287,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                         return (
                           <div className="ov-row" key={c.id} style={{ cursor: 'default' }}>
                             <span className="ov-l">
-                              <strong>{INCENTIVE_PAGE_TYPE[c.pageType]}</strong>
+                              <strong>{pageLabel(c.pageId)}</strong>
                               {' · '}<a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>reel link</a>
                               {c.views > 0 ? ` · ${c.views.toLocaleString('en-IN')} views` : ' · views not checked yet'}
                               {c.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {c.decisionNote}</span> : null}
@@ -1220,7 +1311,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 beside the other profile blocks because Leave renders after
                 Attendance in this file: anything higher would land in the
                 middle of the page on the Leave tab. */}
-            {shownSec === 'team' && (
+            {shownSec === 'team' && !isContentMarketing && (
               <>
                 <div className="kpis">
                   <Kpi accent label="Team size" value={teamRows.length}
@@ -1255,7 +1346,74 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {sec === 'overview' && (
+            {/* The Content & Marketing department head's own dashboard
+                (0032): every employee + which pages they hold, every client
+                + page + who's assigned, and the department's claims at a
+                glance — NOT HR's own company-wide claims review (that stays
+                HrPage.tsx). Read-only throughout: reassigning a page is
+                HR-only, confirmed with Adarsh before this was built. */}
+            {shownSec === 'team' && isContentMarketing && (
+              <>
+                <div className="kpis">
+                  <Kpi accent label="Team size" value={teamRows.length} sub={CONTENT_MARKETING_DEPARTMENT} />
+                  <Kpi label="Pages" value={pages.rows.filter((p) => p.isActive).length} sub={`across ${count(clients.rows.filter((c) => c.isActive).length, 'client')}`} />
+                  <Kpi label="Pending claims" value={cmDeptClaims.filter((c) => !c.rejected && !c.decidedAt).length} sub="awaiting HR" />
+                  <Kpi accent label="Paid this month" value={money(
+                    incentivePayouts.rows.filter((p) => p.period === currentPeriod() && cmDeptClaims.some((c) => c.id === p.claimId)).reduce((t, p) => t + p.amount, 0),
+                  )} sub={fmtPeriod(currentPeriod())} />
+                </div>
+
+                <div className="ov-card">
+                  <div className="ov-head"><h4>Who holds what</h4></div>
+                  <div className="ov-actions">
+                    {teamRows.map((r) => {
+                      const held = r.employeeId ? cmPagesByEmployee.get(r.employeeId) ?? [] : []
+                      return (
+                        <div className="ov-row" key={r.id} style={{ cursor: 'default' }}>
+                          <span className="ov-l">
+                            <strong>{r.name}{r.isMe ? ' (you)' : ''}</strong> — {r.designation || 'No designation'}
+                          </span>
+                          <span className="ov-cta">
+                            {held.length === 0 ? 'No pages yet' : held.map((p) => `${p.clientName} (${INCENTIVE_PAGE_TYPE[p.pageType]})`).join(', ')}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Adarsh, 2026-09-22, after seeing the read-only version:
+                    the department head should create pages and assign them
+                    to their own people directly, not route every one through
+                    HR. Same component HR's own Clients & Pages screen uses —
+                    one place this logic lives, not two — now reachable here
+                    too because 0033 widened the RLS to match. */}
+                <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} staff={staff} toast={toast} />
+
+                <div className="ov-card">
+                  <div className="ov-head"><h4>Department claims</h4></div>
+                  {cmDeptClaims.length === 0 ? (
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>Nobody has submitted a reel yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {[...cmDeptClaims].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 10).map((c) => {
+                        const paid = paidOnClaim(c.id)
+                        return (
+                          <div className="ov-row" key={c.id} style={{ cursor: 'default' }}>
+                            <span className="ov-l">{cmDeptEmployeeName(c.employeeId)} — {pageLabel(c.pageId)}</span>
+                            <Chip cls={c.rejected ? 'chip--bad' : paid > 0 && paid >= c.currentAmount ? 'chip--good' : 'chip--mute'}>
+                              {c.rejected ? 'Rejected' : paid > 0 ? money(paid) + ' paid' : c.currentAmount > 0 ? 'Awaiting approval' : 'Below threshold'}
+                            </Chip>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {sec === 'overview' && !isContentMarketing && (
               <>
                 {justAssigned.length > 0 && !dismissed && (
                   <div className="banner">
@@ -1296,7 +1454,50 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </>
             )}
 
-            {sec === 'leads' && (
+            {/* Content & Marketing's own Overview (0032) — replaces the Sales
+                dashboard above for this department. A Content & Marketing
+                person has no leads or sales, so those KPIs and the "What
+                needs you" queue never applied to them; this asks what their
+                job actually is instead: which pages am I on, and what have my
+                reels earned. The pages themselves and the full claims list
+                each have their own tab now (My pages / Claims, same slots
+                My leads/My sales use for Sales) — this stays the summary. */}
+            {sec === 'overview' && isContentMarketing && myEmployee && (
+              <>
+                <div className="kpis">
+                  <Kpi accent label="My pages" value={myPages.length} sub={myPages.length ? 'assigned to you' : 'ask HR to assign one'} />
+                  <Kpi label="Pending review" value={myClaimsPending.length} sub="reels awaiting HR" />
+                  <Kpi label="Paid this month" value={money(myClaimsPaidThisMonth)} sub={fmtPeriod(currentPeriod())} />
+                  <Kpi accent label="Total earned" value={money(myClaimsTotalEarned)} sub="all-time incentive" />
+                </div>
+
+                <div className="ov-card">
+                  <div className="ov-head">
+                    <h4>Recent activity</h4>
+                    <button className="btn btn--sm btn--primary" onClick={() => setSubmittingIncentive(true)}>Submit a reel</button>
+                  </div>
+                  {myClaims.length === 0 ? (
+                    <p style={{ padding: '0 16px 16px', color: 'var(--ink-3)' }}>Nothing submitted yet.</p>
+                  ) : (
+                    <div className="ov-actions">
+                      {[...myClaims].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5).map((c) => {
+                        const paid = paidOnClaim(c.id)
+                        return (
+                          <button className="ov-row" key={c.id} onClick={() => setSec('sales')}>
+                            <span className="ov-l">{pageLabel(c.pageId)}</span>
+                            <span className="ov-cta">
+                              {c.rejected ? 'Rejected' : paid > 0 ? money(paid) + ' paid' : c.currentAmount > 0 ? 'Awaiting approval' : 'Below threshold'}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {sec === 'leads' && !isContentMarketing && (
               <div className="section">
                 {leadsView === 'list' ? (
                   <DataGrid cols={leadCols} rows={mine} storageKey="member-leads" phoneView={leadsGridView}
@@ -1316,7 +1517,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </div>
             )}
 
-            {sec === 'sales' && (
+            {sec === 'sales' && !isContentMarketing && (
               <div className="section">
                 <DataGrid cols={salesCols} rows={[...cv].sort((a, b) => daysSince(a.convertedAt ?? a.createdAt) - daysSince(b.convertedAt ?? b.createdAt))}
                           storageKey="member-sales" phoneView={salesView}
@@ -1325,6 +1526,73 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             <span>{count(cv.length, 'deal')} closed · {money(sum(cv))} total</span>
                             <span className="grid-hint">{cv.filter((l) => l.verified).length} verified · {cv.filter((l) => !l.verified).length} pending</span>
                           </div>} />
+              </div>
+            )}
+
+            {/* Content & Marketing's own "leads" slot: the pages they hold,
+                not a sales table — see the tab strip above for why this
+                shares the section key. */}
+            {sec === 'leads' && isContentMarketing && (
+              <div className="section">
+                {myPages.length === 0 ? (
+                  <div className="banner">
+                    <div>
+                      <div className="t">No pages assigned yet</div>
+                      <div className="d">Ask HR or your department head to assign you a client's page — once they do, it shows up here.</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ov-actions">
+                    {myPages.map((p) => (
+                      <div className="ov-row" key={p.pageId} style={{ cursor: 'default' }}>
+                        <span className="ov-n">{INCENTIVE_PAGE_TYPE[p.pageType][0]}</span>
+                        <span className="ov-l">{p.clientName} — {INCENTIVE_PAGE_TYPE[p.pageType]}</span>
+                        <span className="ov-cta">{p.instagramHandle || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="grid-foot"><span>{count(myPages.length, 'page')}</span></div>
+              </div>
+            )}
+
+            {/* Content & Marketing's own "sales" slot: every reel they have
+                claimed, in full — the same list the Profile → Requests →
+                Incentives view shows, given its own tab here since it is one
+                of this department's two daily destinations, same standing
+                as My leads/My sales has for Sales. */}
+            {sec === 'sales' && isContentMarketing && myEmployee && (
+              <div className="section">
+                {incentiveClaims.error && <div className="auth-err" style={{ marginBottom: 14 }}>{incentiveClaims.error}</div>}
+                {myClaims.length === 0 ? (
+                  <div className="banner">
+                    <div>
+                      <div className="t">No claims yet</div>
+                      <div className="d">Submit a reel from My pages once it has crossed a view milestone.</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ov-actions">
+                    {[...myClaims].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((c) => {
+                      const paid = paidOnClaim(c.id)
+                      const owed = Math.max(0, c.currentAmount - paid)
+                      return (
+                        <div className="ov-row" key={c.id} style={{ cursor: 'default' }}>
+                          <span className="ov-l">
+                            <strong>{pageLabel(c.pageId)}</strong>
+                            {' · '}<a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>reel link</a>
+                            {c.views > 0 ? ` · ${c.views.toLocaleString('en-IN')} views` : ' · views not checked yet'}
+                            {c.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {c.decisionNote}</span> : null}
+                          </span>
+                          <Chip cls={c.rejected ? 'chip--bad' : paid > 0 && owed === 0 ? 'chip--good' : 'chip--mute'}>
+                            {c.rejected ? 'Rejected' : paid > 0 ? money(paid) + ' paid' : c.currentAmount > 0 ? 'Awaiting approval' : 'Below threshold'}
+                          </Chip>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="grid-foot"><span>{count(myClaims.length, 'claim')} · {money(myClaimsTotalEarned)} earned all-time</span></div>
               </div>
             )}
           </div>
@@ -1366,8 +1634,14 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             ? { key: 'team', label: 'Manage team', short: 'Team', badge: teamRows.length, icon: NAV_ICONS.team, onClick: () => setSec('team') }
             : { key: 'overview', label: 'Overview', icon: NAV_ICONS.overview, onClick: () => setSec('overview') },
           { key: 'attendance', label: 'Attendance', icon: NAV_ICONS.attendance, onClick: () => setSec('attendance') },
-          { key: 'leads', label: 'My leads', short: 'Leads', badge: mine.length, icon: NAV_ICONS.leads, onClick: () => setSec('leads') },
-          { key: 'sales', label: 'My sales', short: 'Sales', badge: cv.length, icon: NAV_ICONS.sales, onClick: () => setSec('sales') },
+          // Same two slots either way — Content & Marketing's own
+          // destinations (their pages, their claims) instead of Sales'.
+          isContentMarketing
+            ? { key: 'leads', label: 'My pages', short: 'Pages', badge: myPages.length, icon: NAV_ICONS.projects, onClick: () => setSec('leads') }
+            : { key: 'leads', label: 'My leads', short: 'Leads', badge: mine.length, icon: NAV_ICONS.leads, onClick: () => setSec('leads') },
+          isContentMarketing
+            ? { key: 'sales', label: 'Claims', short: 'Claims', badge: myClaims.length, icon: NAV_ICONS.salary, onClick: () => setSec('sales') }
+            : { key: 'sales', label: 'My sales', short: 'Sales', badge: cv.length, icon: NAV_ICONS.sales, onClick: () => setSec('sales') },
           { key: 'profile', label: 'Profile', icon: NAV_ICONS.profile, badge: myLeave.filter((r) => r.status === 'pending').length, onClick: () => setSec('profile') },
         ] satisfies BottomNavItems}
       />
@@ -1446,6 +1720,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
         <IncentiveClaimModal
           employeeId={myEmployee.id}
           departmentId={myEmployee.departmentId}
+          myPages={myPages}
           onClose={() => setSubmittingIncentive(false)}
           onSave={async (draft) => {
             const message = await incentiveClaims.create(draft)

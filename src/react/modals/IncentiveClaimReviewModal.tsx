@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
-import { currentPeriod, fmtPeriod, INCENTIVE_PAGE_TYPE } from '@/lib/hr'
+import { currentPeriod, fmtPeriod } from '@/lib/hr'
 import { money } from '@/lib/format'
 import type { IncentiveClaim } from '@/lib/hr'
 
@@ -10,21 +10,25 @@ import type { IncentiveClaim } from '@/lib/hr'
  *  "unnecessary space" with everything inline; this is the click-to-open
  *  version instead. Saving a view count keeps the modal open (the caller
  *  re-renders it with the freshest claim, tier included), so checking a
- *  number and then deciding is one visit, not two. */
+ *  number and then deciding is one visit, not two.
+ *
+ *  pageLabel replaces the old editable "Instagram handle" field (0032): the
+ *  handle now lives on the Page record the claim points at, not on the claim
+ *  itself — fix a wrong handle from Clients & Pages, not from here. */
 export function IncentiveClaimReviewModal({
-  claim, employeeName, ruleLabel, owed, onClose, onSaveViews, onApprove, onReject,
+  claim, employeeName, pageLabel, ruleLabel, owed, onClose, onSaveViews, onApprove, onReject,
 }: {
   claim: IncentiveClaim
   employeeName: string
+  pageLabel: string
   ruleLabel: string
   owed: number
   onClose: () => void
-  onSaveViews: (views: number, handle?: string) => Promise<string | null>
+  onSaveViews: (views: number) => Promise<string | null>
   onApprove: (period: string) => Promise<string | null>
   onReject: (note?: string) => Promise<string | null>
 }) {
   const [viewsInput, setViewsInput] = useState(String(claim.views || ''))
-  const [handleInput, setHandleInput] = useState(claim.instagramHandle ?? '')
   const [period, setPeriod] = useState(currentPeriod().slice(0, 7))
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState<'views' | 'approve' | 'reject' | null>(null)
@@ -33,7 +37,7 @@ export function IncentiveClaimReviewModal({
 
   const saveViews = async () => {
     setBusy('views'); setErr(null); setSavedNote(null)
-    const message = await onSaveViews(Number(viewsInput) || 0, handleInput || undefined)
+    const message = await onSaveViews(Number(viewsInput) || 0)
     setBusy(null)
     if (message) { setErr(message); return }
     setSavedNote('Views updated.')
@@ -56,7 +60,7 @@ export function IncentiveClaimReviewModal({
   return (
     <Modal
       title="Incentive claim"
-      sub={`${employeeName} · ${INCENTIVE_PAGE_TYPE[claim.pageType]} · ${ruleLabel}`}
+      sub={`${employeeName} · ${pageLabel} · ${ruleLabel}`}
       onClose={onClose}
       foot={<button className="btn btn--sm" onClick={onClose}>Close</button>}
     >
@@ -70,11 +74,6 @@ export function IncentiveClaimReviewModal({
           <label htmlFor="icrViews">Views</label>
           <input className="input" id="icrViews" type="number" min={0} value={viewsInput}
                  onChange={(e) => setViewsInput(e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="icrHandle">Instagram handle</label>
-          <input className="input" id="icrHandle" type="text" value={handleInput}
-                 onChange={(e) => setHandleInput(e.target.value)} placeholder="@metrolmedia" />
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>

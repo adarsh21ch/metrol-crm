@@ -78,16 +78,24 @@ and all" — this is the floor, not the whole building):
 - Client billing
 - Multiple approval tiers beyond HR + department head
 
-## Open questions for Adarsh before or during the build
+## Open questions — ANSWERED, 2026-09-22. Do not re-ask.
 
-1. Page assignment: can a page really have more than one employee, or is
-   that describing "the department has several people, each with their own
-   pages" rather than shared ownership? The UI differs a lot depending on
-   which.
-2. Department head dashboard: does reassigning a page belong there, or is
-   that still an HR-only action?
-3. Should Pages have their own "retired" state independent of the Client's?
-   (A client stops using a fan page but keeps the main one.)
+1. **Page assignment is many-to-many.** A page can carry more than one
+   employee and one employee can hold several pages.
+2. **Reassignment belongs on the department head's own dashboard, not
+   HR-only.** Corrected mid-build, same session: Adarsh's first answer was
+   "HR-only", then he asked for the department head to create pages and
+   assign them to their own people directly — "he can assign which
+   particular main page is given responsibility to which social media
+   manager... he simply click on a dropdown... this way we can go ahead."
+   Built as: the department head's "Manage team" tab embeds the exact same
+   Clients/Pages admin HR's own screen uses (`ClientsPagesSection.tsx`), and
+   `0033_team_lead_page_management.sql` widens the RLS to match — a team
+   lead of Content & Marketing specifically, not any team lead. HR keeps the
+   same access too; this widens, it does not take anything away.
+3. **Pages retire independently of their Client.** A client can drop one fan
+   page and keep the rest — its own `is_active` flag, not tied to the
+   client's.
 
 ## Why this was not built same-session (2026-09-22)
 

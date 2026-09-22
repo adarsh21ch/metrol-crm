@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { demoIncentiveClaims, demoIncentiveRules, isDemo } from '@/data/demo'
-import type { IncentiveClaim, IncentivePageType } from '@/lib/hr'
+import { demoIncentiveClaims, demoIncentiveRules, demoPages, isDemo } from '@/data/demo'
+import type { IncentiveClaim } from '@/lib/hr'
 
 type Row = Record<string, unknown>
 
@@ -9,9 +9,8 @@ const toClaim = (r: Row): IncentiveClaim => ({
   id: String(r.id),
   employeeId: String(r.employee_id),
   departmentId: String(r.department_id),
-  pageType: (r.page_type as IncentivePageType) ?? 'main',
+  pageId: (r.page_id as string | null) ?? null,
   reelUrl: String(r.reel_url ?? ''),
-  instagramHandle: (r.instagram_handle as string | null) ?? null,
   views: Number(r.views) || 0,
   viewsCheckedAt: (r.views_checked_at as string | null) ?? null,
   watchUntil: String(r.watch_until ?? ''),
@@ -27,9 +26,10 @@ const toClaim = (r: Row): IncentiveClaim => ({
 export interface IncentiveClaimDraft {
   employeeId: string
   departmentId: string
-  pageType: IncentivePageType
+  /** Which of the employee's assigned Pages this reel went on (0032) — picked
+   *  from a real page, not typed loose. */
+  pageId: string
   reelUrl: string
-  instagramHandle?: string
   /** HR can type a starting view count at submission; an employee cannot —
    *  the insert policy (0031) only trusts self-submitted rows, so the app
    *  never sends a nonzero value on an employee's own submit. */
@@ -98,7 +98,7 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
     if (isDemo()) {
       setRows((p) => [{
         id: 'demo-ic-' + (p.length + 1), employeeId: draft.employeeId, departmentId: draft.departmentId,
-        pageType: draft.pageType, reelUrl: clean, instagramHandle: draft.instagramHandle ?? null,
+        pageId: draft.pageId, reelUrl: clean,
         views: draft.views ?? 0, viewsCheckedAt: draft.views ? new Date().toISOString() : null,
         watchUntil, tierRuleId: null, currentAmount: 0, rejected: false,
         decidedBy: null, decidedAt: null, decisionNote: null, createdAt: new Date().toISOString(),
@@ -108,9 +108,8 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
     const { data, error: err } = await supabase
       .from('incentive_claims')
       .insert({
-        employee_id: draft.employeeId, department_id: draft.departmentId, page_type: draft.pageType,
-        reel_url: clean, instagram_handle: draft.instagramHandle?.trim() || null,
-        views: draft.views ?? 0, watch_until: watchUntil,
+        employee_id: draft.employeeId, department_id: draft.departmentId, page_id: draft.pageId,
+        reel_url: clean, views: draft.views ?? 0, watch_until: watchUntil,
       })
       .select('*').single()
     if (err) return err.message
@@ -120,25 +119,26 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
 
   /** HR typing today's view count in — later, the Apify Edge Function calls
    *  this same path. The tier and current_amount are recomputed by the
-   *  database trigger (set_incentive_tier, 0031), never set here directly —
-   *  demo mode has no database, so it mirrors that same rule here instead. */
-  const setViews = useCallback(async (id: string, views: number, instagramHandle?: string): Promise<string | null> => {
+   *  database trigger (set_incentive_tier, 0031/0032), never set here
+   *  directly — demo mode has no database, so it mirrors that same rule here
+   *  instead, reading the page's own type off demoPages rather than a
+   *  free-typed field the claim no longer carries. */
+  const setViews = useCallback(async (id: string, views: number): Promise<string | null> => {
     if (isDemo()) {
       setRows((p) => p.map((r) => {
         if (r.id !== id) return r
+        const pageType = demoPages.find((pg) => pg.id === r.pageId)?.pageType
         const best = demoIncentiveRules
-          .filter((rule) => rule.isActive && rule.departmentId === r.departmentId && rule.pageType === r.pageType && rule.minViews <= views)
+          .filter((rule) => rule.isActive && rule.departmentId === r.departmentId && rule.pageType === pageType && rule.minViews <= views)
           .sort((a, b) => b.minViews - a.minViews)[0]
         return {
           ...r, views, viewsCheckedAt: new Date().toISOString(),
           tierRuleId: best?.id ?? null, currentAmount: best?.amount ?? 0,
-          ...(instagramHandle ? { instagramHandle } : {}),
         }
       }))
       return null
     }
     const patch: Row = { views, views_checked_at: new Date().toISOString() }
-    if (instagramHandle !== undefined) patch.instagram_handle = instagramHandle.trim() || null
     const { data, error: err } = await supabase
       .from('incentive_claims').update(patch).eq('id', id).select('*').single()
     if (err) return err.message

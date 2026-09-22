@@ -1,5 +1,5 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
-import type { Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
+import type { Client, Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, Page, PageAssignment, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
 import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
@@ -56,6 +56,17 @@ const OWNER: Member = {
 const HR_PERSON: Member = {
   id: 'hr1', name: 'Priya Sharma', initials: 'PS', email: 'priya.sharma@metrol.in',
   phone: null, avatarUrl: null, departmentId: 'd7', role: 'member', isTeamLead: false,
+}
+
+/** The Content & Marketing department's one demo person — same reasoning as
+ *  HR_PERSON: not in demoMembers (no sales leads to assign), but IS in
+ *  demoAllMembers below, since a department-head roster needs to find their
+ *  own department's people the same way ws.members does against the real
+ *  `profiles` table. ?demo=1&as=cm signs in as them; &as=cmlead adds
+ *  isTeamLead, for the department head's dashboard. */
+const CM_PERSON: Member = {
+  id: 'cm1', name: 'Ritika Chandra', initials: 'RC', email: 'socialwiire@gmail.com',
+  phone: null, avatarUrl: null, departmentId: 'd9', role: 'member', isTeamLead: false,
 }
 
 const iso = (daysAgo: number, hourOffset = 0) =>
@@ -138,7 +149,10 @@ export const demoEvents: LeadEvent[] = (() => {
 })()
 
 // The owner is never a salesperson, so they never belong in the assign menu.
-export const demoAllMembers = demoMembers
+// CM_PERSON IS included here (unlike HR_PERSON) because the department-head
+// dashboard reads ws.members to find "everyone in my department", the same
+// way it does against the real `profiles` table.
+export const demoAllMembers = [...demoMembers, CM_PERSON]
 
 export const isDemo = () =>
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
@@ -154,6 +168,8 @@ export const demoMe = (() => {
   const as = new URLSearchParams(window.location.search).get('as')
   if (as === 'hr') return HR_PERSON
   if (as === 'lead') return { ...demoMembers[0]!, isTeamLead: true }
+  if (as === 'cm') return CM_PERSON
+  if (as === 'cmlead') return { ...CM_PERSON, isTeamLead: true }
   return as === 'member' ? demoMembers[0]! : OWNER
 })()
 
@@ -221,6 +237,18 @@ export const demoEmployees: Employee[] = [
     basicSalary: i === 0 ? 20000 : null,
     tdsCategoryId: i === 0 ? 'tds1' : null,
   })),
+  {
+    id: 'e6', employeeCode: '2094', profileId: CM_PERSON.id, fullName: CM_PERSON.name,
+    designation: 'Content Creator', departmentId: 'd9', employmentType: 'full_time',
+    dateOfJoining: '2026-01-12', reportingTo: null,
+    workEmail: CM_PERSON.email ?? '', personalEmail: '', phone: '+91 98200 14001',
+    dateOfBirth: null, address: 'Indore, MP',
+    emergencyName: 'Family contact', emergencyRelation: 'Sibling', emergencyPhone: '+91 98200 94001',
+    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(180), shiftId: 'sh1', officeId: 'off1',
+    offerExtendedOn: '2026-01-02', offerAcceptedOn: '2026-01-05',
+    resignationDate: null, noticePeriodDays: null, monthlySalary: 22000, gender: 'Female',
+    panNumber: null, workLocation: 'Indore HQ', basicSalary: null, tdsCategoryId: null,
+  },
 ]
 
 const YEAR = new Date().getFullYear()
@@ -308,8 +336,8 @@ export const demoVisitPurposes: VisitPurpose[] = [
   { id: 'vp3', label: 'Branch visit', sortOrder: 3, isActive: true },
 ]
 
-/** Department incentives (0031) — ?demo's four Social Media tiers, same
- *  numbers HR starts with in the real database. */
+/** Department incentives (0031) — ?demo's four Content & Marketing tiers,
+ *  same numbers HR starts with in the real database. */
 export const demoIncentiveRules: IncentiveRule[] = [
   { id: 'ir1', departmentId: 'd9', pageType: 'main', label: '1M+ views',  minViews: 1_000_000,  amount: 1000, sortOrder: 1, isActive: true },
   { id: 'ir2', departmentId: 'd9', pageType: 'main', label: '10M+ views', minViews: 10_000_000, amount: 7000, sortOrder: 2, isActive: true },
@@ -317,32 +345,57 @@ export const demoIncentiveRules: IncentiveRule[] = [
   { id: 'ir4', departmentId: 'd9', pageType: 'fan',  label: '10M+ views', minViews: 10_000_000, amount: 3500, sortOrder: 4, isActive: true },
 ]
 
+/** Clients & Pages (0032) — two brands, each with a main and a fan page, so
+ *  the Cards view has more than one of everything to lay out. */
+export const demoClients: Client[] = [
+  { id: 'cl1', name: 'Urban Bites Cafe', notes: '', isActive: true, createdAt: iso(120) },
+  { id: 'cl2', name: 'FitZone Gym', notes: '', isActive: true, createdAt: iso(90) },
+]
+
+export const demoPages: Page[] = [
+  { id: 'pg1', clientId: 'cl1', pageType: 'main', instagramHandle: '@urbanbitescafe', label: '', isActive: true, createdAt: iso(120) },
+  { id: 'pg2', clientId: 'cl1', pageType: 'fan', instagramHandle: '@urbanbites.fanclub', label: '', isActive: true, createdAt: iso(115) },
+  { id: 'pg3', clientId: 'cl2', pageType: 'main', instagramHandle: '@fitzonegym', label: '', isActive: true, createdAt: iso(90) },
+  // Retired on purpose — one row so the "retired independently of its
+  // client" answer (Adarsh, 2026-09-22) has something real to show.
+  { id: 'pg4', clientId: 'cl2', pageType: 'fan', instagramHandle: '@fitzone.transformations', label: 'Dropped Sept 2026', isActive: false, createdAt: iso(80) },
+]
+
+/** Ritika (e6) manages the cafe's main page and the gym's main page — one
+ *  person, two clients, which is the ordinary shape Adarsh described ("a lot
+ *  of employees, a lot of fan pages... a lot of clients"). pg2 has nobody on
+ *  it yet, showing what an unassigned page looks like on the department
+ *  head's own dashboard. */
+export const demoPageAssignments: PageAssignment[] = [
+  { id: 'pa1', pageId: 'pg1', employeeId: 'e6', assignedAt: iso(60) },
+  { id: 'pa2', pageId: 'pg3', employeeId: 'e6', assignedAt: iso(30) },
+]
+
 /** ?demo's incentive claims — three states HR's review list needs to show:
  *  below any threshold, cleared a tier and awaiting approval, and already
  *  topped up once (ic3's ₹1,000 is already paid — showing what a claim that
- *  later crosses 10M and needs a second approval looks like). Tagged to e1
- *  for visibility in HR's own demo, though e1 sits in Sales, not Social
- *  Media, in this seed — the department gate on the employee's OWN
- *  "Incentives" tab is real and correctly hides it for him; this data exists
- *  so HR's review screen has something to review in ?demo=1&as=hr. */
+ *  later crosses 10M and needs a second approval looks like). Tagged to e6
+ *  (Ritika, the one demo person actually in Content & Marketing), so both
+ *  her own "Incentives" tab AND HR's review screen have something real to
+ *  show in ?demo=1&as=cm and ?demo=1&as=hr. */
 export const demoIncentiveClaims: IncentiveClaim[] = [
   {
-    id: 'ic1', employeeId: 'e1', departmentId: 'd9', pageType: 'main',
-    reelUrl: 'https://instagram.com/reel/demo1', instagramHandle: '@metrolmedia',
+    id: 'ic1', employeeId: 'e6', departmentId: 'd9', pageId: 'pg1',
+    reelUrl: 'https://instagram.com/reel/demo1',
     views: 640_000, viewsCheckedAt: iso(1), watchUntil: iso(-25).slice(0, 10),
     tierRuleId: null, currentAmount: 0, rejected: false,
     decidedBy: null, decidedAt: null, decisionNote: null, createdAt: iso(2),
   },
   {
-    id: 'ic2', employeeId: 'e1', departmentId: 'd9', pageType: 'fan',
-    reelUrl: 'https://instagram.com/reel/demo2', instagramHandle: '@metrolmedia.fan',
+    id: 'ic2', employeeId: 'e6', departmentId: 'd9', pageId: 'pg2',
+    reelUrl: 'https://instagram.com/reel/demo2',
     views: 1_800_000, viewsCheckedAt: iso(1), watchUntil: iso(-22).slice(0, 10),
     tierRuleId: 'ir3', currentAmount: 500, rejected: false,
     decidedBy: null, decidedAt: null, decisionNote: null, createdAt: iso(5),
   },
   {
-    id: 'ic3', employeeId: 'e1', departmentId: 'd9', pageType: 'main',
-    reelUrl: 'https://instagram.com/reel/demo3', instagramHandle: '@metrolmedia',
+    id: 'ic3', employeeId: 'e6', departmentId: 'd9', pageId: 'pg1',
+    reelUrl: 'https://instagram.com/reel/demo3',
     views: 1_200_000, viewsCheckedAt: iso(10), watchUntil: iso(-15).slice(0, 10),
     tierRuleId: 'ir1', currentAmount: 1000, rejected: false,
     decidedBy: HR_PERSON.id, decidedAt: iso(9), decisionNote: null, createdAt: iso(15),

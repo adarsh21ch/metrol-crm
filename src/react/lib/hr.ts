@@ -85,6 +85,50 @@ export interface TdsCategory {
   isActive: boolean
 }
 
+/* ----------------------------------------- Content & Marketing department */
+
+/** departments.name is what code keys on, never a display label — the same
+ *  rule HR_DEPARTMENT below already follows. Set by
+ *  supabase/scripts/rename_content_marketing_department.sql; the department
+ *  exists earlier (seeded as "Social Media" by 0031) but the dashboard below
+ *  only shows once the row actually carries this name. */
+export const CONTENT_MARKETING_DEPARTMENT = 'Content and Marketing'
+
+/** A brand Metrol Media runs social accounts for. Retire-not-delete, same
+ *  shape as every other reference list in this app. */
+export interface Client {
+  id: string
+  name: string
+  notes: string
+  isActive: boolean
+  createdAt: string
+}
+
+/** One Instagram page under a Client — a client can have one main page and
+ *  several fan pages. Retires independently of its Client (Adarsh,
+ *  2026-09-22): a client can drop one fan page and keep the rest. */
+export interface Page {
+  id: string
+  clientId: string
+  pageType: IncentivePageType
+  instagramHandle: string
+  label: string
+  isActive: boolean
+  createdAt: string
+}
+
+/** Who currently manages a page — many-to-many (Adarsh, 2026-09-22: "a lot
+ *  of employees, a lot of fan pages... a lot of clients"). Current state
+ *  only, not a history record: unassigning removes the row. Reassignment is
+ *  HR-only (0032's own RLS); a department head's dashboard reads this table,
+ *  never writes it. */
+export interface PageAssignment {
+  id: string
+  pageId: string
+  employeeId: string
+  assignedAt: string
+}
+
 /* ------------------------------------------------- Department incentives */
 
 export type IncentivePageType = 'main' | 'fan'
@@ -112,14 +156,16 @@ export interface IncentiveRule {
 /** One submitted reel. currentAmount is the full amount its CURRENT tier is
  *  worth, set only by the database trigger off views — never written by the
  *  app directly. paidAmount is a client-side sum of this claim's own
- *  incentive_payouts rows, not a database column. */
+ *  incentive_payouts rows, not a database column. pageId replaces the old
+ *  free-typed pageType/instagramHandle (0032) — a claim now knows its client
+ *  and handle by way of the Page it points at; null only for a claim
+ *  submitted before Pages existed. */
 export interface IncentiveClaim {
   id: string
   employeeId: string
   departmentId: string
-  pageType: IncentivePageType
+  pageId: string | null
   reelUrl: string
-  instagramHandle: string | null
   views: number
   viewsCheckedAt: string | null
   watchUntil: string
