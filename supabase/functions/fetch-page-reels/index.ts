@@ -28,23 +28,20 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 }
 
-interface ApifyReel {
-  shortCode?: string
-  code?: string
-  url?: string
-  caption?: string
-  videoViewCount?: number
-  videoPlayCount?: number
-  viewCount?: number
-  playCount?: number
-  likesCount?: number
-  likeCount?: number
-  commentsCount?: number
-  commentCount?: number
-  sharesCount?: number
-  displayUrl?: string
-  thumbnailUrl?: string
-  timestamp?: string
+// Two rounds of guessing the exact field name Apify uses for views were
+// both wrong, live, on a real account — the actor's actual output isn't
+// fully documented and apparently drifts from its own published schema.
+// Rather than guess a third time, this SEARCHES the reel's own keys for
+// anything that looks like the metric wanted and is a number — resilient to
+// whatever Apify actually calls it, today or after it changes again.
+type ApifyReel = Record<string, unknown>
+
+function findNumber(r: ApifyReel, patterns: RegExp[]): number | null {
+  for (const [key, value] of Object.entries(r)) {
+    if (typeof value !== 'number') continue
+    if (patterns.some((p) => p.test(key))) return value
+  }
+  return null
 }
 
 // Lower than the plan's original 25 (2026-09-22, live): a real 25-reel scrape
@@ -123,27 +120,26 @@ Deno.serve(async (req: Request) => {
     return json({ fetched: 0, matchedClaims: 0, warning: 'No reels came back for this handle — it may be private or have none.' })
   }
 
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : null)
+
   const rows = items.map((r) => {
-    const shortCode = r.shortCode ?? r.code ?? ''
+    const shortCode = str(r.shortCode) ?? str(r.code) ?? ''
     return {
       page_id: pageId,
       short_code: shortCode,
-      reel_url: r.url ?? `https://www.instagram.com/reel/${shortCode}/`,
-      caption: r.caption ?? null,
-      // videoViewCount is not always populated (Adarsh's real account, live,
-      // 2026-09-22: every one of 25 real reels came back with this null) —
-      // videoPlayCount is Apify's own actual fallback field name, confirmed
-      // against the actor's schema. The wrong guess (`playCount`, which
-      // does not exist on this actor's output) is why every reel showed "—".
-      views: r.videoViewCount ?? r.videoPlayCount ?? r.viewCount ?? r.playCount ?? null,
-      likes: r.likesCount ?? r.likeCount ?? null,
-      comments: r.commentsCount ?? r.commentCount ?? null,
-      shares: r.sharesCount ?? null,
-      thumbnail_url: r.displayUrl ?? r.thumbnailUrl ?? null,
-      posted_at: r.timestamp ?? null,
+      reel_url: str(r.url) ?? (shortCode ? `https://www.instagram.com/reel/${shortCode}/` : ''),
+      caption: str(r.caption),
+      // -1 is a real Instagram value here, not missing data — a creator can
+      // hide their like count and the API reports exactly -1 for that.
+      views: findNumber(r, [/view/i, /play/i]),
+      likes: findNumber(r, [/like/i]),
+      comments: findNumber(r, [/comment/i]),
+      shares: findNumber(r, [/share/i]),
+      thumbnail_url: str(r.displayUrl) ?? str(r.thumbnailUrl),
+      posted_at: str(r.timestamp),
       fetched_at: new Date().toISOString(),
     }
-  }).filter((r) => r.short_code)
+  }).filter((r) => r.short_code && r.reel_url)
 
   const { error: upsertErr } = await admin.from('page_reels').upsert(rows, { onConflict: 'page_id,short_code' })
   if (upsertErr) return json({ error: upsertErr.message }, 500)

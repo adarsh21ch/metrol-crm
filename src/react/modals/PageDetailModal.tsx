@@ -7,6 +7,9 @@ import type { Client, Page, PageReel } from '@/lib/hr'
 const VIRAL_THRESHOLD = 10_000_000
 
 const fmtViews = (n: number | null) => (n == null ? '—' : n.toLocaleString('en-IN'))
+// -1 is Instagram's own signal that the creator hid the count, not missing
+// data — a plain negative number there reads as a bug, so it's named.
+const fmtCount = (n: number | null) => (n == null ? '—' : n === -1 ? 'hidden' : n.toLocaleString('en-IN'))
 const fmtDate = (s: string | null) => {
   if (!s) return '—'
   const d = new Date(s)
@@ -87,7 +90,7 @@ export function PageDetailModal({
               </div>
               <div style={{ flex: '0 0 auto', textAlign: 'right', fontSize: 12.5 }}>
                 <div><strong>{fmtViews(r.views)}</strong> views</div>
-                <div className="punch-note" style={{ margin: 0 }}>{fmtViews(r.likes)} likes · {fmtViews(r.comments)} comments</div>
+                <div className="punch-note" style={{ margin: 0 }}>{fmtCount(r.likes)} likes · {fmtCount(r.comments)} comments</div>
               </div>
             </div>
           ))}
