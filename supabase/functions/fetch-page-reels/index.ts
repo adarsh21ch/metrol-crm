@@ -231,6 +231,24 @@ Deno.serve(async (req: Request) => {
   const { error: upsertErr } = await admin.from('page_reels').upsert(rows, { onConflict: 'page_id,short_code' })
   if (upsertErr) return json({ error: upsertErr.message }, 500)
 
+  // A refresh only ever touches the current RESULTS_LIMIT most recent
+  // reels — a row from an OLDER, larger fetch (like the 25-reel run before
+  // this fix existed) never gets revisited and sits there with stale/null
+  // views forever, permanently showing "—" no matter how many times the
+  // page is refreshed (Adarsh, 2026-09-22, live: 27 stored, only 10 ever
+  // updated). The table should show exactly the current fetch, not an
+  // ever-growing pile where old rows rot — so anything for this page NOT in
+  // the batch just fetched is removed rather than left behind.
+  const freshCodes = rows.map((r) => r.short_code)
+  // Safe to join unescaped: an Instagram short_code is Apify's own id, never
+  // user-typed, and never contains a comma or parenthesis — unlike a
+  // caption, which is why only this field is built into the filter string.
+  if (freshCodes.length > 0) {
+    const { error: pruneErr } = await admin
+      .from('page_reels').delete().eq('page_id', pageId).not('short_code', 'in', `(${freshCodes.join(',')})`)
+    if (pruneErr) console.error('[fetch-page-reels] prune failed (non-fatal):', pruneErr.message)
+  }
+
   // Fill in incentive_claims.views for any claim on this page whose
   // reel_url matches one just fetched — the trigger does the rest.
   let matchedClaims = 0
