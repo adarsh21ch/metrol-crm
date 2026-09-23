@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Chip, Kpi } from '@/components/bits'
-import { count } from '@/lib/format'
+import { count, fmtCompact } from '@/lib/format'
 import { INCENTIVE_PAGE_TYPE } from '@/lib/hr'
 import type { Client, Page, PageReel } from '@/lib/hr'
 import type { RefreshResult } from '@/data/usePageReels'
@@ -12,10 +12,12 @@ import type { RefreshResult } from '@/data/usePageReels'
 const TIER_1M = 1_000_000
 const TIER_10M = 10_000_000
 
-const num = (n: number | null) => (n == null ? '—' : n.toLocaleString('en-IN'))
+// Instagram's own K/M shorthand (Adarsh, 2026-09-23), not a lakhs-and-crores
+// grouping built for rupees — a view count is read at a glance, not counted.
+const num = (n: number | null) => (n == null ? '—' : fmtCompact(n))
 /** -1 is Instagram's own signal that the creator hid the count, not missing
  *  data — a bare negative number there reads as a bug, so it is named. */
-const cnt = (n: number | null) => (n == null ? '—' : n === -1 ? 'hidden' : n.toLocaleString('en-IN'))
+const cnt = (n: number | null) => (n == null ? '—' : n === -1 ? 'hidden' : fmtCompact(n))
 const fmtDate = (s: string | null) => {
   if (!s) return '—'
   const d = new Date(s)

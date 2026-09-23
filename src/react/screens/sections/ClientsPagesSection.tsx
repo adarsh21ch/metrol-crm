@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Chip } from '@/components/bits'
 import { Tip } from '@/components/Tip'
+import { fmtCompact } from '@/lib/format'
 import { isDemo } from '@/data/demo'
 import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { PageDashboard } from '@/screens/sections/PageDashboard'
@@ -178,7 +179,7 @@ export function ClientsPagesSection({
                       <span className="punch-note">
                         <strong>{fetchedProfile.fullName || fetchedProfile.handle}</strong>
                         {fetchedProfile.verified ? ' ✓' : ''}
-                        {fetchedProfile.followersCount != null ? ` · ${fetchedProfile.followersCount.toLocaleString('en-IN')} followers` : ''}
+                        {fetchedProfile.followersCount != null ? ` · ${fmtCompact(fetchedProfile.followersCount)} followers` : ''}
                         {fetchedProfile.biography ? ` · ${fetchedProfile.biography}` : ''}
                       </span>
                     </div>

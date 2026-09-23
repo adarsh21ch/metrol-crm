@@ -3,6 +3,21 @@ const inr = new Intl.NumberFormat('en-IN')
 export const money = (n: number) => '₹' + inr.format(Math.round(n || 0))
 export const num = (n: number) => inr.format(n || 0)
 
+/** Instagram's own convention for a view/like/comment/share count — 2.4K,
+ *  102K, 600K, 1M, 5.8K (Adarsh, 2026-09-23: "this format views easy to
+ *  read") — read at a glance rather than counted digit by digit in a lakhs-
+ *  and-crores grouping built for money, not social numbers. One decimal,
+ *  dropped when it would be ".0". Below 1,000 shows the exact number, same
+ *  as Instagram's own UI does. */
+export function fmtCompact(n: number): string {
+  const sign = n < 0 ? '-' : ''
+  const abs = Math.abs(n)
+  if (abs < 1000) return String(n)
+  const [divisor, suffix] = abs < 1_000_000 ? [1_000, 'K'] : [1_000_000, 'M']
+  const v = Math.round((abs / divisor) * 10) / 10
+  return sign + (Number.isInteger(v) ? String(v) : v.toFixed(1)) + suffix
+}
+
 export function pct(a: number, b: number) {
   if (!b) return '0%'
   return Math.round((a / b) * 100) + '%'

@@ -3,7 +3,7 @@ import { Modal } from '@/components/Modal'
 import { INCENTIVE_PAGE_TYPE } from '@/lib/hr'
 import type { IncentivePageType } from '@/lib/hr'
 import type { Department } from '@/lib/types'
-import { money } from '@/lib/format'
+import { fmtCompact, money } from '@/lib/format'
 import type { IncentiveRules } from '@/data/useIncentiveRules'
 
 /** HR's incentive tiers — a settings screen, not a daily one (Adarsh,
@@ -66,7 +66,7 @@ export function IncentiveRulesModal({
               <span className="ov-l">
                 <strong>{departments.find((d) => d.id === r.departmentId)?.name ?? 'Unknown department'}</strong>
                 {' · '}{INCENTIVE_PAGE_TYPE[r.pageType]}
-                {' · '}{r.label} ({r.minViews.toLocaleString('en-IN')}+ views)
+                {' · '}{r.label} ({fmtCompact(r.minViews)}+ views)
                 {' · '}{money(r.amount)}
                 {!r.isActive && <span style={{ color: 'var(--ink-3)' }}>  ·  retired</span>}
               </span>

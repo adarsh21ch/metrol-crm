@@ -19,7 +19,7 @@ import { IncentiveClaimModal, type ClaimablePage } from '@/modals/IncentiveClaim
 import { PageDashboard } from '@/screens/sections/PageDashboard'
 import { WfhRequestModal } from '@/modals/WfhRequestModal'
 import { SalarySlipModal } from '@/modals/SalarySlipModal'
-import { agoDays, count, daysSince, money, pct, plural } from '@/lib/format'
+import { agoDays, count, daysSince, fmtCompact, money, pct, plural } from '@/lib/format'
 import { QUALITY, STATUS, isConnected, isConverted, type Lead, type LeadStatus, type Quality } from '@/lib/types'
 import { useEmployees } from '@/data/useEmployees'
 import { useLeaveRequests } from '@/data/useLeaveRequests'
@@ -326,7 +326,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     { key: 'idx', label: '#', width: 44, render: (_c, i) => <span className="cell-idx">{i + 1}</span> },
     { key: 'handle', label: 'Username', width: 150, render: (c) => pageOf(c.pageId)?.instagramHandle || <span className="cell-dash">—</span> },
     { key: 'link', label: 'Reel link', width: 120, render: (c) => <a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Open</a> },
-    { key: 'views', label: 'Views', width: 110, render: (c) => (c.views > 0 ? <span className="cell-strong">{c.views.toLocaleString('en-IN')}</span> : <span className="cell-dash">not checked</span>) },
+    { key: 'views', label: 'Views', width: 110, render: (c) => (c.views > 0 ? <span className="cell-strong">{fmtCompact(c.views)}</span> : <span className="cell-dash">not checked</span>) },
     { key: 'm1', label: '1M+', width: 64, render: (c) => (c.views >= TIER_1M ? '✓' : <span className="cell-dash">—</span>) },
     { key: 'm10', label: '10M+', width: 68, render: (c) => (c.views >= TIER_10M ? '✓' : <span className="cell-dash">—</span>) },
     {
@@ -1341,7 +1341,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                             <span className="ov-l">
                               <strong>{pageLabel(c.pageId)}</strong>
                               {' · '}<a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>reel link</a>
-                              {c.views > 0 ? ` · ${c.views.toLocaleString('en-IN')} views` : ' · views not checked yet'}
+                              {c.views > 0 ? ` · ${fmtCompact(c.views)} views` : ' · views not checked yet'}
                               {c.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {c.decisionNote}</span> : null}
                             </span>
                             <Chip cls={c.rejected ? 'chip--bad' : paid > 0 && owed === 0 ? 'chip--good' : 'chip--mute'}>
