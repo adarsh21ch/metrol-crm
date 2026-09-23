@@ -44,7 +44,7 @@ import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
-import { CONTENT_MARKETING_DEPARTMENT, DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, type SalaryRecord } from '@/lib/hr'
+import { CONTENT_MARKETING_DEPARTMENT, DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, type IncentiveClaim, type SalaryRecord } from '@/lib/hr'
 import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
@@ -55,6 +55,11 @@ type AttRange = 'this' | 'last' | 'custom'
 
 type LeadsView = 'list' | 'board'
 const LEADS_VIEW_KEY = 'metrol-crm-leadsview'
+// Same two thresholds incentive_rules pays on (0031) and PageDashboard.tsx
+// already filters by — one definition of "qualified," used everywhere it
+// matters, not redefined per screen.
+const TIER_1M = 1_000_000
+const TIER_10M = 10_000_000
 
 /**
  * Three sections rather than one long scroll — the same call Round 4 made for
@@ -304,6 +309,40 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     () => incentivePayouts.rows.filter((p) => myClaims.some((c) => c.id === p.claimId)).reduce((t, p) => t + p.amount, 0),
     [incentivePayouts.rows, myClaims],
   )
+
+  /* Claims, as a real table (Adarsh, 2026-09-23: "proper Excel chart kind of
+   *  thing... sequence, then username, then Instagram link, then number of
+   *  views, then a badge of 1M+ yes or no, 10M+ yes or no"). Same tier-filter
+   *  shape the page dashboard already uses, so the two screens agree on what
+   *  "1M+" means without a second definition anywhere. */
+  const [claimsTier, setClaimsTier] = useState<'all' | '1m' | '10m'>('all')
+  const sortedClaims = useMemo(() => {
+    const floor = claimsTier === '10m' ? TIER_10M : claimsTier === '1m' ? TIER_1M : 0
+    return [...myClaims]
+      .filter((c) => (floor === 0 ? true : c.views >= floor))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }, [myClaims, claimsTier])
+  const claimsCols = useMemo<GridCol<IncentiveClaim>[]>(() => [
+    { key: 'idx', label: '#', width: 44, render: (_c, i) => <span className="cell-idx">{i + 1}</span> },
+    { key: 'handle', label: 'Username', width: 150, render: (c) => pageOf(c.pageId)?.instagramHandle || <span className="cell-dash">—</span> },
+    { key: 'link', label: 'Reel link', width: 120, render: (c) => <a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Open</a> },
+    { key: 'views', label: 'Views', width: 110, render: (c) => (c.views > 0 ? <span className="cell-strong">{c.views.toLocaleString('en-IN')}</span> : <span className="cell-dash">not checked</span>) },
+    { key: 'm1', label: '1M+', width: 64, render: (c) => (c.views >= TIER_1M ? '✓' : <span className="cell-dash">—</span>) },
+    { key: 'm10', label: '10M+', width: 68, render: (c) => (c.views >= TIER_10M ? '✓' : <span className="cell-dash">—</span>) },
+    {
+      key: 'status', label: 'Status', width: 140,
+      render: (c) => {
+        const paid = paidOnClaim(c.id)
+        const owed = Math.max(0, c.currentAmount - paid)
+        return (
+          <Chip cls={c.rejected ? 'chip--bad' : paid > 0 && owed === 0 ? 'chip--good' : 'chip--mute'}>
+            {c.rejected ? 'Rejected' : paid > 0 ? money(paid) + ' paid' : c.currentAmount > 0 ? 'Awaiting approval' : 'Below threshold'}
+          </Chip>
+        )
+      },
+    },
+    { key: 'submitted', label: 'Submitted', width: 120, render: (c) => fmtDate(c.createdAt) },
+  ], [pageOf, paidOnClaim])
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
 
   /* Leave stopped being a yearly entitlement in Round 2. It accrues 2 days a
@@ -682,6 +721,15 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               )}
               {sec === 'leads' && isContentMarketing && (
                 <button className="btn btn--sm btn--primary head-cta" onClick={() => setSubmittingIncentive(true)}>Submit a reel</button>
+              )}
+              {sec === 'sales' && isContentMarketing && myClaims.length > 0 && (
+                <div className="section-tools">
+                  <div className="seg" role="group" aria-label="Filter by tier">
+                    <button className={claimsTier === 'all' ? 'is-on' : ''} onClick={() => setClaimsTier('all')}>All</button>
+                    <button className={claimsTier === '1m' ? 'is-on' : ''} onClick={() => setClaimsTier('1m')}>1M+</button>
+                    <button className={claimsTier === '10m' ? 'is-on' : ''} onClick={() => setClaimsTier('10m')}>10M+</button>
+                  </div>
+                </div>
               )}
               {sec === 'attendance' && myEmployee && (
                 <button className="btn btn--sm btn--primary head-cta"
@@ -1591,27 +1639,23 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                     </div>
                   </div>
                 ) : (
-                  <div className="ov-actions">
-                    {[...myClaims].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((c) => {
-                      const paid = paidOnClaim(c.id)
-                      const owed = Math.max(0, c.currentAmount - paid)
-                      return (
-                        <div className="ov-row" key={c.id} style={{ cursor: 'default' }}>
-                          <span className="ov-l">
-                            <strong>{pageLabel(c.pageId)}</strong>
-                            {' · '}<a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>reel link</a>
-                            {c.views > 0 ? ` · ${c.views.toLocaleString('en-IN')} views` : ' · views not checked yet'}
-                            {c.decisionNote ? <span style={{ color: 'var(--ink-3)' }}> — {c.decisionNote}</span> : null}
-                          </span>
-                          <Chip cls={c.rejected ? 'chip--bad' : paid > 0 && owed === 0 ? 'chip--good' : 'chip--mute'}>
-                            {c.rejected ? 'Rejected' : paid > 0 ? money(paid) + ' paid' : c.currentAmount > 0 ? 'Awaiting approval' : 'Below threshold'}
-                          </Chip>
-                        </div>
-                      )
-                    })}
-                  </div>
+                  <DataGrid
+                    cols={claimsCols}
+                    rows={sortedClaims}
+                    storageKey="member-claims"
+                    empty={claimsTier === 'all' ? 'No claims yet.' : `No claim has crossed ${claimsTier === '10m' ? '10M' : '1M'} views yet.`}
+                    foot={
+                      <div className="grid-foot">
+                        <span>
+                          {claimsTier === 'all'
+                            ? `${count(myClaims.length, 'claim')} · ${money(myClaimsTotalEarned)} earned all-time`
+                            : `${count(sortedClaims.length, 'claim')} past ${claimsTier === '10m' ? '10M' : '1M'} views, of ${myClaims.length}`}
+                        </span>
+                        <span className="grid-hint">Drag a column edge to resize · <kbd>double-click</kbd> to reset</span>
+                      </div>
+                    }
+                  />
                 )}
-                <div className="grid-foot"><span>{count(myClaims.length, 'claim')} · {money(myClaimsTotalEarned)} earned all-time</span></div>
               </div>
             )}
           </div>
