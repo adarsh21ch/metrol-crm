@@ -83,13 +83,18 @@ const LIKE_PATTERNS = [/likescount/i, /likes_count/i, /likecount/i, /like/i]
 const COMMENT_PATTERNS = [/commentscount/i, /comments_count/i, /commentcount/i, /comment/i]
 const SHARE_PATTERNS = [/sharescount/i, /shares_count/i, /reshare/i, /share/i]
 
-// Lower than the plan's original 25 (2026-09-22, live): a real 25-reel scrape
-// ran long enough that the connection to this function was cut before it
-// could respond — each reel is its own page Apify has to visit, so this is
-// a genuine time cost, not a bug. 10 finishes reliably inside a normal
-// request's time budget; raise it again once a background/async job queue
-// exists to run a longer fetch without the caller waiting on the connection.
-const RESULTS_LIMIT = 10
+// Raised back to 25 (2026-09-22, live): the ORIGINAL failure at 25 was
+// checked directly against Apify's own run log — that specific run finished
+// in 46s, comfortably inside a normal request's time budget, so 25 alone was
+// never actually the problem. It was dropped to 10 defensively at the time
+// without that evidence in hand.
+//
+// What DOES cost real time is the views fallback below: when the reel
+// scraper returns no views, a SECOND full run (apify/instagram-scraper)
+// follows it, so a page with no views on file can take on the order of a
+// minute end to end. If that combination ever times out again, this is the
+// one number to lower — not evidence that 25 itself is unsafe.
+const RESULTS_LIMIT = 25
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
