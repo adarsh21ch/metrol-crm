@@ -58,26 +58,31 @@ Apify bills per run — INCENTIVE-PLAN.md already made this exact call once
 discipline applies here: once a day per page, not on every page load, is the
 recommended default. Adarsh's call, not assumed.
 
-## The one real design decision — needs his answer, not a guess
+## The one real design decision — ANSWERED, 2026-09-23. Do not re-ask.
 
-**When a tracked reel (not a submitted claim) crosses 1M/10M, does the system
-create a real claim automatically, or just flag it as "eligible" for
+**When a tracked reel (not a submitted claim) crosses 1M/10M, does the
+system create a real claim automatically, or just flag it as "eligible" for
 someone to convert?**
 
-- Auto-create is closer to what he described ("we get sent the proper
-  incentives... automatically"), but a page can have MORE THAN ONE person
-  assigned to it (confirmed, 2026-09-22) — an auto-created claim needs to
-  know WHO earned it, and "whoever manages this page" is not always one
-  answer.
-- Flag-only (a badge on the page dashboard: "3 reels newly qualified, nobody
-  has claimed them") keeps a human in the loop for exactly the case above,
-  at the cost of the "fully automatic" framing.
+Adarsh, verbatim: *"Person who submitted that reel — it is not something
+page belong to it... he handled this page, or he handled another page, but
+a person who posted that reel, submit that reel, they will get that
+incentive. Simple as that."*
 
-**Recommendation: flag-only for v1.** It solves the actual pain — nobody
-misses a reel that crossed a threshold — without inventing a rule for
-multi-assignee attribution that hasn't been asked for yet. Auto-create can
-follow once single-assignee pages are the common case, or once he says how
-a shared page should split.
+**The incentive belongs to whoever SUBMITS the claim, never to "the page's
+assignees."** This is already exactly how `incentive_claims` works today —
+`employee_id` is always the submitter, never derived from
+`page_assignments`. There is no multi-person attribution problem to solve;
+a page having several assignees only decides who is ALLOWED to submit a
+claim for one of its reels, never who a reel's money belongs to once
+submitted.
+
+This settles the automation question too: **flag-only, confirmed** — a
+tier-crossing alert is not an auto-created claim (it cannot be, since
+nobody has said yet who actually posted that specific reel). It surfaces
+as "this reel qualified, nobody has claimed it" to every employee assigned
+to that page, and whichever one of them actually made it submits the claim
+themselves, the same "Submit a reel" flow that already exists.
 
 ## The shape (a recommendation, not yet confirmed line by line)
 
