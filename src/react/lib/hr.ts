@@ -197,6 +197,24 @@ export interface IncentiveClaim {
   createdAt: string
 }
 
+/** The reel's own Instagram id out of a pasted link — /reel/, /reels/, /p/,
+ *  /tv/, with or without a username in front or ?igsh= tracking behind.
+ *  null for anything the view check could never look up: a profile link, a
+ *  /share/ redirect link (its code is not the reel's), or not Instagram at
+ *  all. Mirrors reelLink() in supabase/functions/fetch-page-reels — keep the
+ *  two in step. */
+export function reelShortCode(url: string): string | null {
+  if (/\/share\//i.test(url)) return null
+  const m = url.match(/instagram\.com\/(?:[\w.]+\/)?(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i)
+  return m ? m[1] : null
+}
+
+/** Still being watched for views: not rejected and inside its 30-day window
+ *  (0031). The same rule fetch-page-reels applies server-side. */
+export function isClaimOpen(c: IncentiveClaim, today = new Date().toISOString().slice(0, 10)): boolean {
+  return !c.rejected && c.watchUntil >= today
+}
+
 /** One approval event — the ledger a payslip's incentive figure is prefilled
  *  from. A claim topped up after an earlier partial approval gets a SECOND
  *  row here, tagged to whichever period HR assigns it to; the first row is

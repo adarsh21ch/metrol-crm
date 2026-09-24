@@ -12,6 +12,17 @@
 // matching reel (private, deleted, URL typo) is untouched — HR's manual
 // "Save views" stays the fallback, on purpose.
 //
+// SECOND MODE, 2026-09-24 — { claimIds: [...] } instead of { pageId }. The
+// page refresh above only ever sees a page's 25 newest reels, and only fills
+// a claim when somebody with page rights presses Refresh — so a freshly
+// submitted claim sat on "not checked" until then, and one whose reel was
+// older than the newest 25 (or had no view count in the posts fallback) sat
+// there for good. This mode looks each claimed reel up BY ITS OWN LINK, so
+// the page, its age and its position in the feed stop mattering. The
+// employee's app calls it the moment they submit, and the Claims tab's
+// "Check views" button calls it for anything still open. The claim's owner
+// may call it for their own claims; HR / owner / the C&M lead for any.
+//
 // DEPLOY: paste this whole file into Supabase Dashboard → Edge Functions →
 // New function → name it exactly "fetch-page-reels" → Deploy. Reuses the
 // APIFY_API_KEY secret fetch-instagram-profile already has — no new secret.
@@ -83,6 +94,45 @@ const LIKE_PATTERNS = [/likescount/i, /likes_count/i, /likecount/i, /like/i]
 const COMMENT_PATTERNS = [/commentscount/i, /comments_count/i, /commentcount/i, /comment/i]
 const SHARE_PATTERNS = [/sharescount/i, /shares_count/i, /reshare/i, /share/i]
 
+/** One synchronous Apify actor run, returning its dataset items. */
+async function runActor(apiKey: string, actorId: string, input: unknown): Promise<{ items: ApifyReel[] | null; status: number }> {
+  try {
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${apiKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) },
+    )
+    if (!res.ok) return { items: null, status: res.status }
+    const data = await res.json()
+    return { items: Array.isArray(data) ? (data as ApifyReel[]) : null, status: res.status }
+  } catch {
+    return { items: null, status: 0 }
+  }
+}
+
+const str = (v: unknown) => (typeof v === 'string' && v ? v : null)
+
+/** The reel's own id out of whatever link was pasted — /reel/, /reels/, /p/,
+ *  /tv/, with or without a username segment in front or ?igsh= tracking on
+ *  the end. A /share/ link is Instagram's redirect wrapper and its code is
+ *  NOT the reel's id, so it is refused rather than looked up as the wrong
+ *  reel. Mirrors reelShortCode() in src/react/lib/hr.ts — two copies because
+ *  this file is pasted into the dashboard on its own and cannot import it.
+ *
+ *  Always handed to Apify as /p/<code>/ — the exact form its own docs pair
+ *  with resultsType 'posts', and Instagram serves a reel at that address too.
+ *  Stripping the pasted tracking junk also means two claims on one reel cost
+ *  one lookup, not two. */
+function reelLink(url: string): { code: string; url: string } | null {
+  if (/\/share\//i.test(url)) return null
+  const m = url.match(/instagram\.com\/(?:[\w.]+\/)?(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i)
+  return m ? { code: m[1], url: `https://www.instagram.com/p/${m[1]}/` } : null
+}
+
+/** Claims per call in the claimIds mode — every link is its own page load
+ *  inside one Apify run, and the whole run has to finish inside this
+ *  function's own time budget. The app sends bigger batches in chunks. */
+const MAX_CLAIMS = 10
+
 // Raised back to 25 (2026-09-22, live): the ORIGINAL failure at 25 was
 // checked directly against Apify's own run log — that specific run finished
 // in 46s, comfortably inside a normal request's time budget, so 25 alone was
@@ -128,12 +178,90 @@ Deno.serve(async (req: Request) => {
     isPrivileged = dept?.name === 'Human Resources'
       || (!!callerProfile.is_team_lead && dept?.name === 'Content and Marketing')
   }
-  if (!isPrivileged) return json({ error: 'Only HR, the owner, or the Content & Marketing lead can do this.' }, 403)
-
-  if (!APIFY_API_KEY) return json({ error: 'APIFY_API_KEY is not set. Add it under Edge Functions → Manage secrets.' }, 500)
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return json({ error: 'Bad request body.' }, 400) }
+  const claimIds = Array.isArray(body.claimIds) ? [...new Set(body.claimIds.map(String).filter(Boolean))] : null
+
+  // The claimIds mode is open to the claim's own submitter too; refreshing a
+  // whole page stays with the three people who can write to pages.
+  if (!claimIds && !isPrivileged) return json({ error: 'Only HR, the owner, or the Content & Marketing lead can do this.' }, 403)
+
+  if (!APIFY_API_KEY) return json({ error: 'APIFY_API_KEY is not set. Add it under Edge Functions → Manage secrets.' }, 500)
+
+  if (claimIds) {
+    if (claimIds.length === 0) return json({ error: 'No claims to check.' }, 400)
+    if (claimIds.length > MAX_CLAIMS) return json({ error: `At most ${MAX_CLAIMS} claims per check.` }, 400)
+
+    const { data: claimRows, error: claimsErr } = await admin
+      .from('incentive_claims').select('id, employee_id, reel_url, views, rejected, watch_until').in('id', claimIds)
+    if (claimsErr) return json({ error: claimsErr.message }, 500)
+
+    if (!isPrivileged) {
+      const { data: emp } = await admin.from('employees').select('id').eq('profile_id', callerId).maybeSingle()
+      if (!emp || (claimRows ?? []).some((c) => c.employee_id !== emp.id)) {
+        return json({ error: 'You can only check your own claims.' }, 403)
+      }
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const results: { id: string; views: number | null; reason?: string }[] = []
+    const targets: { id: string; code: string; views: number }[] = []
+    const urls = new Map<string, string>()
+    for (const c of claimRows ?? []) {
+      if (c.rejected) { results.push({ id: c.id, views: null, reason: 'rejected' }); continue }
+      // Same 30-day window the claim was created with (0031) — a dead reel
+      // stops being watched; HR's manual "Save views" still works on it.
+      if (String(c.watch_until) < today) { results.push({ id: c.id, views: null, reason: 'past its 30-day watch window' }); continue }
+      const link = reelLink(String(c.reel_url ?? ''))
+      if (!link) { results.push({ id: c.id, views: null, reason: 'not a reel link' }); continue }
+      urls.set(link.code, link.url)
+      targets.push({ id: c.id, code: link.code, views: Number(c.views) || 0 })
+    }
+
+    if (targets.length > 0) {
+      // The same actor, the same resultsType, and the same view-count search
+      // the page refresh's posts fallback already uses — so a claim and its
+      // page's dashboard read one and the same number off Instagram.
+      const run = await runActor(APIFY_API_KEY, 'apify~instagram-scraper', {
+        directUrls: [...urls.values()],
+        resultsType: 'posts',
+        resultsLimit: 1,
+        addParentData: false,
+      })
+      if (!run.items) {
+        return json({
+          error: run.status
+            ? `Instagram lookup failed (${run.status}). Try again in a moment.`
+            : 'Could not reach Instagram right now. Try again in a moment.',
+        }, 502)
+      }
+      const viewsByCode = new Map<string, number>()
+      for (const item of run.items) {
+        const code = str(item.shortCode) ?? str(item.code) ?? ''
+        const v = findNumber(item, VIEW_PATTERNS)
+        if (code && v != null) viewsByCode.set(code, v)
+      }
+      const now = new Date().toISOString()
+      for (const t of targets) {
+        const fetched = viewsByCode.get(t.code)
+        if (fetched == null) {
+          results.push({ id: t.id, views: null, reason: 'Instagram returned no view count — private, deleted, or not a reel' })
+          continue
+        }
+        // Never LOWER a claim automatically. Real views only go up; a smaller
+        // number is a glitch or a different metric, and lowering would strip
+        // a tier that may already be paid. HR can still correct it by hand.
+        const views = Math.max(t.views, fetched)
+        const { error: updErr } = await admin
+          .from('incentive_claims').update({ views, views_checked_at: now }).eq('id', t.id)
+        results.push(updErr ? { id: t.id, views: null, reason: updErr.message } : { id: t.id, views })
+      }
+    }
+
+    return json({ mode: 'claims', results })
+  }
+
   const pageId = String(body.pageId ?? '')
   if (!pageId) return json({ error: 'pageId is required.' }, 400)
 
@@ -143,24 +271,9 @@ Deno.serve(async (req: Request) => {
   const handle = String(page.instagram_handle ?? '').replace(/^@/, '').trim()
   if (!handle) return json({ error: 'This page has no Instagram handle on file yet — add one first.' }, 400)
 
-  /** One synchronous Apify actor run, returning its dataset items. */
-  const runActor = async (actorId: string, input: unknown): Promise<{ items: ApifyReel[] | null; status: number }> => {
-    try {
-      const res = await fetch(
-        `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${APIFY_API_KEY}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) },
-      )
-      if (!res.ok) return { items: null, status: res.status }
-      const data = await res.json()
-      return { items: Array.isArray(data) ? (data as ApifyReel[]) : null, status: res.status }
-    } catch {
-      return { items: null, status: 0 }
-    }
-  }
-
   // includeSharesCount is an explicit opt-in on this actor — without it the
   // shares field never appears at all.
-  const reelRun = await runActor('apify~instagram-reel-scraper', {
+  const reelRun = await runActor(APIFY_API_KEY, 'apify~instagram-reel-scraper', {
     username: [handle],
     resultsLimit: RESULTS_LIMIT,
     includeSharesCount: true,
@@ -176,8 +289,6 @@ Deno.serve(async (req: Request) => {
   if (items.length === 0) {
     return json({ fetched: 0, matchedClaims: 0, warning: 'No reels came back for this handle — it may be private or have none.' })
   }
-
-  const str = (v: unknown) => (typeof v === 'string' && v ? v : null)
 
   const rows = items.map((r) => {
     const shortCode = str(r.shortCode) ?? str(r.code) ?? ''
@@ -211,7 +322,7 @@ Deno.serve(async (req: Request) => {
   let viewSource: 'reels' | 'posts' | null = rows.some((r) => r.views != null) ? 'reels' : null
   let postItems: ApifyReel[] | null = null
   if (!viewSource) {
-    const postRun = await runActor('apify~instagram-scraper', {
+    const postRun = await runActor(APIFY_API_KEY, 'apify~instagram-scraper', {
       directUrls: [`https://www.instagram.com/${handle}/`],
       resultsType: 'posts',
       resultsLimit: RESULTS_LIMIT,
@@ -258,13 +369,15 @@ Deno.serve(async (req: Request) => {
   // reel_url matches one just fetched — the trigger does the rest.
   let matchedClaims = 0
   const { data: claims } = await admin
-    .from('incentive_claims').select('id, reel_url').eq('page_id', pageId).is('decided_at', null).eq('rejected', false)
+    .from('incentive_claims').select('id, reel_url, views').eq('page_id', pageId).is('decided_at', null).eq('rejected', false)
   if (claims?.length) {
     for (const claim of claims) {
       const hit = rows.find((r) => claim.reel_url && r.reel_url && claim.reel_url.includes(r.short_code))
       if (hit?.views != null) {
+        // Never lower a claim automatically — same rule as the claimIds mode.
+        const views = Math.max(Number(claim.views) || 0, hit.views)
         const { error: updErr } = await admin
-          .from('incentive_claims').update({ views: hit.views, views_checked_at: new Date().toISOString() }).eq('id', claim.id)
+          .from('incentive_claims').update({ views, views_checked_at: new Date().toISOString() }).eq('id', claim.id)
         if (!updErr) matchedClaims++
       }
     }

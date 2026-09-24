@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { demoIncentiveClaims, demoIncentiveRules, demoPages, isDemo } from '@/data/demo'
 import type { IncentiveClaim } from '@/lib/hr'
 
@@ -36,6 +36,16 @@ export interface IncentiveClaimDraft {
   views?: number
 }
 
+/** What one "check views" pass achieved, claim by claim — views is null
+ *  when Instagram gave nothing back for that reel, with the reason why. */
+export interface ViewCheckResult {
+  message: string | null
+  results: { id: string; views: number | null; reason?: string }[]
+}
+
+/** Matches MAX_CLAIMS in fetch-page-reels — bigger batches go in chunks. */
+const CHECK_CHUNK = 10
+
 let channelSeq = 0
 
 /**
@@ -48,6 +58,9 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
   const fetched = useRef(false)
+  /** Claims with a view check in flight — the table says "checking…" for
+   *  these instead of "not checked", so a fresh submit reads as working. */
+  const [checking, setChecking] = useState<ReadonlySet<string>>(() => new Set())
   const rowsRef = useRef<IncentiveClaim[]>([])
   useEffect(() => { rowsRef.current = rows }, [rows])
 
@@ -91,19 +104,22 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
     return () => { void supabase.removeChannel(channel) }
   }, [enabled, onIncoming])
 
-  const create = useCallback(async (draft: IncentiveClaimDraft): Promise<string | null> => {
+  /** Returns the new claim's id alongside any error, so the caller can
+   *  start its view check straight away (checkViews below). */
+  const create = useCallback(async (draft: IncentiveClaimDraft): Promise<{ error: string | null; id: string | null }> => {
     const clean = draft.reelUrl.trim()
-    if (!clean) return 'Paste the reel link.'
+    if (!clean) return { error: 'Paste the reel link.', id: null }
     const watchUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     if (isDemo()) {
+      const id = 'demo-ic-' + (rowsRef.current.length + 1)
       setRows((p) => [{
-        id: 'demo-ic-' + (p.length + 1), employeeId: draft.employeeId, departmentId: draft.departmentId,
+        id, employeeId: draft.employeeId, departmentId: draft.departmentId,
         pageId: draft.pageId, reelUrl: clean,
         views: draft.views ?? 0, viewsCheckedAt: draft.views ? new Date().toISOString() : null,
         watchUntil, tierRuleId: null, currentAmount: 0, rejected: false,
         decidedBy: null, decidedAt: null, decisionNote: null, createdAt: new Date().toISOString(),
       }, ...p])
-      return null
+      return { error: null, id }
     }
     const { data, error: err } = await supabase
       .from('incentive_claims')
@@ -112,10 +128,42 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
         reel_url: clean, views: draft.views ?? 0, watch_until: watchUntil,
       })
       .select('*').single()
-    if (err) return err.message
+    if (err) return { error: err.message, id: null }
     if (data) setRows((p) => [toClaim(data as Row), ...p])
-    return null
+    return { error: null, id: data ? String((data as Row).id) : null }
   }, [])
+
+  /** Looks each claimed reel up on Instagram BY ITS OWN LINK (fetch-page-
+   *  reels' claimIds mode) and writes the view count back — the database
+   *  trigger then sets the tier. Runs on submit, and from the "Check views"
+   *  button for claims still open. An employee may check their own claims;
+   *  HR/owner/the C&M lead any. */
+  const checkViews = useCallback(async (ids: string[]): Promise<ViewCheckResult> => {
+    if (ids.length === 0) return { message: 'No open claims to check.', results: [] }
+    if (isDemo()) return { message: 'Not available in demo mode.', results: [] }
+    setChecking((prev) => new Set([...prev, ...ids]))
+    const results: ViewCheckResult['results'] = []
+    let message: string | null = null
+    try {
+      for (let i = 0; i < ids.length; i += CHECK_CHUNK) {
+        const { data, error: err } = await supabase.functions.invoke('fetch-page-reels', {
+          body: { claimIds: ids.slice(i, i + CHECK_CHUNK) },
+        })
+        message = err ? await functionErrorMessage(err) : data?.error ? String(data.error) : null
+        if (message) break
+        results.push(...((data?.results ?? []) as ViewCheckResult['results']))
+      }
+      // Re-read rather than patch: the trigger changed tier and amount too.
+      if (results.length > 0) await load(true)
+    } finally {
+      setChecking((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+    }
+    return { message, results }
+  }, [load])
 
   /** HR typing today's view count in — later, the Apify Edge Function calls
    *  this same path. The tier and current_amount are recomputed by the
@@ -160,7 +208,7 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
     return null
   }, [])
 
-  return { rows, loading, error, reload: () => load(true), create, setViews, reject, clearError: () => setError(null) }
+  return { rows, loading, error, checking, reload: () => load(true), create, checkViews, setViews, reject, clearError: () => setError(null) }
 }
 
 export type IncentiveClaims = ReturnType<typeof useIncentiveClaims>

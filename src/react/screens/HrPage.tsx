@@ -57,7 +57,7 @@ import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { officeToday } from '@/lib/attendance'
 import {
-  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, joinedThisMonth, tenure, todayISO,
+  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, isClaimOpen, joinedThisMonth, tenure, todayISO,
   type DocType, type Employee, type IncentiveClaim, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest,
   HR_DEPARTMENT,
 } from '@/lib/hr'
@@ -723,6 +723,17 @@ export function HrPage({
     const message = await incentivePayouts.approve(id, owedOnClaim(claim), period, ws.me?.id ?? '')
     if (!message) toast('Incentive approved.')
     return message
+  }
+  /* Every claim still inside its 30-day window, company-wide, looked up on
+   *  Instagram by its own link — the one-click way to unstick anything left
+   *  on "not checked" (fetch-page-reels, claimIds mode). */
+  const openClaimIds = incentiveClaims.rows.filter((c) => isClaimOpen(c)).map((c) => c.id)
+  const checkingClaims = openClaimIds.some((id) => incentiveClaims.checking.has(id))
+  const checkAllClaimViews = async () => {
+    const r = await incentiveClaims.checkViews(openClaimIds)
+    if (r.message) { toast(r.message); return }
+    const missed = r.results.filter((x) => x.views == null).length
+    toast(`${count(r.results.length - missed, 'claim')} updated` + (missed ? ` · ${missed} couldn't be read — enter those by hand` : '') + '.')
   }
   const rejectClaim = async (id: string, note?: string) => {
     const message = await incentiveClaims.reject(id, ws.me?.id ?? '', note)
@@ -1926,6 +1937,12 @@ export function HrPage({
                   <div className="section-head">
                     <h3>Incentive claims</h3>
                     <div className="section-tools">
+                      {openClaimIds.length > 0 && (
+                        <button className="btn btn--sm" disabled={checkingClaims} onClick={() => void checkAllClaimViews()}
+                                title="Fetch the latest views from Instagram for every claim still inside its 30-day window">
+                          {checkingClaims ? 'Checking…' : 'Check views'}
+                        </button>
+                      )}
                       <button className="btn btn--sm" onClick={() => setShowingIncentiveRules(true)}>Rules</button>
                     </div>
                   </div>

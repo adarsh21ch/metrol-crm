@@ -44,7 +44,7 @@ import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
-import { CONTENT_MARKETING_DEPARTMENT, DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, type IncentiveClaim, type SalaryRecord } from '@/lib/hr'
+import { CONTENT_MARKETING_DEPARTMENT, DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, isClaimOpen, type IncentiveClaim, type SalaryRecord } from '@/lib/hr'
 import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
@@ -326,7 +326,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     { key: 'idx', label: '#', width: 44, render: (_c, i) => <span className="cell-idx">{i + 1}</span> },
     { key: 'handle', label: 'Username', width: 150, render: (c) => pageOf(c.pageId)?.instagramHandle || <span className="cell-dash">—</span> },
     { key: 'link', label: 'Reel link', width: 120, render: (c) => <a href={c.reelUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Open</a> },
-    { key: 'views', label: 'Views', width: 110, render: (c) => (c.views > 0 ? <span className="cell-strong">{fmtCompact(c.views)}</span> : <span className="cell-dash">not checked</span>) },
+    {
+      key: 'views', label: 'Views', width: 110,
+      render: (c) => (incentiveClaims.checking.has(c.id) ? <span className="cell-dash">checking…</span>
+        : c.views > 0 ? <span className="cell-strong">{fmtCompact(c.views)}</span>
+        : <span className="cell-dash">not checked</span>),
+    },
     { key: 'm1', label: '1M+', width: 64, render: (c) => (c.views >= TIER_1M ? '✓' : <span className="cell-dash">—</span>) },
     { key: 'm10', label: '10M+', width: 68, render: (c) => (c.views >= TIER_10M ? '✓' : <span className="cell-dash">—</span>) },
     {
@@ -342,7 +347,27 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       },
     },
     { key: 'submitted', label: 'Submitted', width: 120, render: (c) => fmtDate(c.createdAt) },
-  ], [pageOf, paidOnClaim])
+  ], [pageOf, paidOnClaim, incentiveClaims.checking])
+
+  /* Views are looked up by the reel's own link (fetch-page-reels, claimIds
+   *  mode) — on submit, and from "Check views" for anything still open. One
+   *  sentence back either way, so a check that found nothing says so rather
+   *  than leaving the row to look untouched. */
+  const { checkViews } = incentiveClaims
+  const reportViewCheck = useCallback((r: Awaited<ReturnType<typeof checkViews>>) => {
+    if (r.message) { toast(r.message); return }
+    const got = r.results.filter((x) => x.views != null)
+    const missed = r.results.length - got.length
+    if (r.results.length === 1) {
+      toast(got.length === 1
+        ? `Views fetched — ${fmtCompact(got[0].views ?? 0)}.`
+        : `Couldn't read this reel's views (${r.results[0].reason ?? 'no answer from Instagram'}). HR can enter them by hand.`)
+      return
+    }
+    toast(`${count(got.length, 'claim')} updated` + (missed ? ` · ${missed} couldn't be read — HR can enter those by hand` : '') + '.')
+  }, [toast])
+  const openClaimIds = useMemo(() => myClaims.filter((c) => isClaimOpen(c)).map((c) => c.id), [myClaims])
+  const checkingMine = openClaimIds.some((id) => incentiveClaims.checking.has(id))
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
 
   /* Leave stopped being a yearly entitlement in Round 2. It accrues 2 days a
@@ -724,6 +749,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               )}
               {sec === 'sales' && isContentMarketing && myClaims.length > 0 && (
                 <div className="section-tools">
+                  {openClaimIds.length > 0 && (
+                    <button className="btn btn--sm" disabled={checkingMine}
+                            title="Fetch the latest views from Instagram for every claim still inside its 30-day window"
+                            onClick={() => void checkViews(openClaimIds).then(reportViewCheck)}>
+                      {checkingMine ? 'Checking…' : 'Check views'}
+                    </button>
+                  )}
                   <div className="seg" role="group" aria-label="Filter by tier">
                     <button className={claimsTier === 'all' ? 'is-on' : ''} onClick={() => setClaimsTier('all')}>All</button>
                     <button className={claimsTier === '1m' ? 'is-on' : ''} onClick={() => setClaimsTier('1m')}>1M+</button>
@@ -1786,11 +1818,14 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           myPages={myPages}
           onClose={() => setSubmittingIncentive(false)}
           onSave={async (draft) => {
-            const message = await incentiveClaims.create(draft)
+            const { error: message, id } = await incentiveClaims.create(draft)
             if (!message) {
-              toast('Sent for review.')
+              toast('Sent for review — fetching its views from Instagram…')
               void notifyApprovers('incentive_claim', 'New incentive claim',
                 `${myEmployee.fullName} submitted a reel for review. Check it in Salary → Incentive claims.`)
+              // Not awaited: the modal closes now, the row says "checking…"
+              // until Instagram answers, then a second toast says what came back.
+              if (id) void checkViews([id]).then(reportViewCheck)
             }
             return message
           }}
