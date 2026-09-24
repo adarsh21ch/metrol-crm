@@ -155,3 +155,11 @@ reuses the `APIFY_API_KEY` secret already set; no new secret needed.
 reels per fetch (shipped: 25), refresh cadence (shipped: on-demand button
 only, never automatic), and whether posts (not just reels) should be
 tracked too (shipped: reels only, per the plan's own v1 recommendation).
+
+## Correction, 2026-09-24 — the claim-views part did NOT close the gap
+
+The "views not checked yet fix" above only ran when someone with page rights
+pressed Refresh, and only reached claims whose reel was among the page's 25
+newest. Fresh claims kept sitting on "not checked". It is now fixed differently:
+each claim is looked up by its own link, on submit and from a "Check views"
+button. See CLAUDE.md, "Claim views fill on submit".

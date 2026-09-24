@@ -5764,3 +5764,89 @@ untouched.
   every width. Rule 5 is unenforced there. Switching it to `.proj-grid`'s explicit
   3/2/1 ladder would fix it and would change the roster's look on a desktop — worth
   asking before doing.
+
+# Claim views fill on submit — the real cause of "not checked" (2026-09-24)
+
+Adarsh, 2026-09-24: new claims sat on "not checked" on an employee's Claims tab
+(@highiqtrades, 2 of 3 on 23 Sep) — *"if it is not fixed, what is the point of
+our automation."* Commits `d52d4fe` (the fix) and `3fbfac1` (its phone layout).
+
+## The cause — read from the code, three stacked gaps
+
+1. **Submitting a claim never looked anything up.** `useIncentiveClaims.create`
+   inserted `views: 0` and stopped. e4aa8a5's "auto-fill claim views" only ever
+   ran as a side effect of someone pressing **Refresh reels** on that claim's page.
+2. **The submitter could not press it.** `fetch-page-reels` returned 403 to
+   anyone but the owner, HR, or the Content & Marketing lead.
+3. **Even a refresh could miss the claimed reel.** It only sees the page's 25
+   newest reels, and their views come from a second 25-item `instagram-scraper`
+   posts feed that also carries non-reel posts. A claimed reel older than the newest
+   25, or missing from the posts feed, stayed "not checked" however often the page
+   was refreshed.
+
+**Not confirmed against live rows:** the Metrol Supabase project is not reachable
+from the Supabase connector on this machine (it lives under a different account).
+Gap 1 alone explains every fresh claim. Gaps 2–3 are the likely reason one
+@highiqtrades claim filled and two didn't. That is an inference, not a measurement.
+
+## The fix — look each claimed reel up by its OWN link
+
+- `fetch-page-reels` has a second mode, `{ claimIds: [...] }` (max 10 per call,
+  the app chunks). It runs `apify~instagram-scraper` on each claim's own URL,
+  normalised to `/p/<code>/`, with the same `resultsType: 'posts'` and the same
+  `findNumber(VIEW_PATTERNS)` as the page refresh's fallback, so a claim and its
+  page dashboard read the same number. A claim's own submitter may call it for
+  their own claims (checked through `employees.profile_id`). Owner, HR and the
+  C&M lead may call it for any claim. Rejected claims and claims past
+  `watch_until` are skipped.
+- **Neither mode ever lowers a claim's views automatically now.** A smaller
+  number is a glitch or a different metric, and lowering it would strip a tier
+  that may already be paid. HR's manual "Save views" can still lower it.
+- **On submit:** `create` returns `{ error, id }`. Member.tsx fires
+  `checkViews([id])` without awaiting it, so the modal closes, the row reads
+  "checking…", and a second toast says what came back.
+- **Check views buttons, for claims already stuck:** one on the employee's Claims
+  title line (their own open claims) and one on HR's Incentive claims heading
+  (every open claim, company-wide). Below 600px the button shows only
+  `RefreshIcon` (now in bits.tsx, shared with the topbar), via `.btn-ico-lbl`.
+  As words it overflowed 375px by 4px and pushed the whole toolbar onto a row of
+  its own, which breaks THE LAYOUT LAW's rule 1.
+- **The claim form refuses links that can never be checked:** profile links,
+  `/share/` redirect links and non-Instagram URLs. `reelShortCode()` in
+  lib/hr.ts is mirrored as `reelLink()` in the function; keep the two in step.
+
+## OPEN — which Apify number is "views" (needs Adarsh, changes money)
+
+Apify returns two per reel, `videoViewCount` and `videoPlayCount`. Its own sample
+shows 41K vs 242K for one reel. `VIEW_PATTERNS` takes `videoViewCount` first, as
+the page dashboard always has. If Instagram's app shows the bigger number, every
+claim and dashboard figure is several times too low, and real 1M reels read as
+below threshold. The fix is one line (reorder `VIEW_PATTERNS` so `/videoplay/`
+comes first), but it moves money, so it waits for Adarsh to compare one reel
+against the Instagram app.
+
+## Verified
+
+`npm run typecheck`, `npm run build` and `deno check` are clean. The link parser
+was tested on 9 real link shapes. The new build was checked on the **live site
+in demo mode** (`company.metrol.in/?demo=1&as=cm` and `&as=hr`), not on a local
+dev server, because this chat's browser tool is bound to another project's folder:
+- At 375px: Claims title, ↻ and All/1M+/10M+ share one line, with no sideways
+  overflow.
+- The form blocks a profile link and a share link, and accepts a reel link.
+- Send closed the modal, added the claim (Claims 3→4) and triggered the check
+  (demo answers "Not available in demo mode.").
+- HR's heading at 1280px shows "Check views" + "Rules" on the heading line.
+
+**Not verified: a real Apify lookup.** It needs the function re-pasted into
+Supabase first. Until then, the new buttons show the old function's refusal.
+Nothing breaks.
+
+## Found on the way — not touched
+
+- The Claims tab's grid Cards/List switch still sits on its own row under the
+  title (pre-existing, from 7f9581d). That breaks rule 1, but it is the shared
+  DataGrid's own control.
+- Nothing stops the same reel being claimed twice, by one person or by two.
+  There is no unique index on `reel_url`. That could mean double payouts, so it
+  is worth a rule once Adarsh says who should win a duplicate.
