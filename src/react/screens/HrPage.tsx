@@ -10,7 +10,7 @@ import { AccountControls } from '@/components/AccountControls'
 import { ProfileSection } from '@/components/ProfileSection'
 import { useHoverTip } from '@/components/HoverTip'
 import { usePanes } from '@/lib/usePanes'
-import { Avatar, Chip, Kpi } from '@/components/bits'
+import { Avatar, Chip, Kpi, RefreshIcon } from '@/components/bits'
 import { count, initials, money } from '@/lib/format'
 import { EmployeeModal } from '@/modals/EmployeeModal'
 import { HrAttendance } from '@/screens/sections/HrAttendance'
@@ -1936,11 +1936,13 @@ export function HrPage({
                 <div className="section">
                   <div className="section-head">
                     <h3>Incentive claims</h3>
-                    <div className="section-tools">
+                    <div className="section-tools section-tools--tight">
                       {openClaimIds.length > 0 && (
-                        <button className="btn btn--sm" disabled={checkingClaims} onClick={() => void checkAllClaimViews()}
-                                title="Fetch the latest views from Instagram for every claim still inside its 30-day window">
-                          {checkingClaims ? 'Checking…' : 'Check views'}
+                        <button className="btn btn--sm btn-ico-lbl" disabled={checkingClaims} onClick={() => void checkAllClaimViews()}
+                                title="Check views — fetch the latest views from Instagram for every claim still inside its 30-day window"
+                                aria-label={checkingClaims ? 'Checking views' : 'Check views'}>
+                          <RefreshIcon spinning={checkingClaims} />
+                          <span className="lbl">{checkingClaims ? 'Checking…' : 'Check views'}</span>
                         </button>
                       )}
                       <button className="btn btn--sm" onClick={() => setShowingIncentiveRules(true)}>Rules</button>

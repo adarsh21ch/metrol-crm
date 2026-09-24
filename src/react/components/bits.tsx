@@ -61,3 +61,12 @@ export const IconBtn = ({
 }: { title: string; onClick?: () => void; children: React.ReactNode }) => (
   <button className="icon-btn" title={title} aria-label={title} onClick={onClick}>{children}</button>
 )
+
+/** The app's one refresh glyph — the topbar's Refresh and every "fetch this
+ *  again" button draw the same arrow, spinning while the fetch runs. */
+export const RefreshIcon = ({ spinning = false }: { spinning?: boolean }) => (
+  <svg className={spinning ? 'spin' : ''} width="16" height="16" viewBox="0 0 24 24"
+       fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" />
+  </svg>
+)

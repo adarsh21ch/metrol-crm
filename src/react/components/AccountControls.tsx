@@ -1,4 +1,4 @@
-import { Avatar, IconBtn } from '@/components/bits'
+import { Avatar, IconBtn, RefreshIcon } from '@/components/bits'
 import { NotificationBell } from '@/components/NotificationBell'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useNotificationFeed } from '@/data/useNotifications'
@@ -77,10 +77,7 @@ export function AccountControls({
       <div className="acct-row">
         {onRefresh && (
           <IconBtn title={refreshing ? 'Refreshing…' : 'Refresh'} onClick={onRefresh}>
-            <svg className={refreshing ? 'spin' : ''} width="16" height="16" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" />
-            </svg>
+            <RefreshIcon spinning={refreshing} />
           </IconBtn>
         )}
         {/* Desktop-only (a rail already exists below 860px only in the sense

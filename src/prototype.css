@@ -2089,6 +2089,14 @@ button,select,summary,[role="button"]{-webkit-tap-highlight-color:transparent;to
    three characters must never become two rows. Declared after both media
    blocks on purpose — same specificity, later wins, at every width. */
 .section-tools--tight{ width:auto; margin-left:auto; flex-wrap:nowrap }
+/* A title-line action that shows its words where there is room and only its
+   icon on a phone (THE LAYOUT LAW, rule 1). "Check views" as words beside
+   All / 1M+ / 10M+ overflowed 375px by 4px and dropped the whole toolbar to
+   a row of its own; the label moves to title/aria-label there instead. */
+@media (max-width:600px){
+  .btn-ico-lbl{ padding:0 9px }
+  .btn-ico-lbl .lbl{ display:none }
+}
 
 /* ------------------------------------------------------------- the motion */
 /* "When clicking it and switching the tab, add a good animation, like

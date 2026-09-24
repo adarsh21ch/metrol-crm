@@ -10,7 +10,7 @@ import { ProfileSection } from '@/components/ProfileSection'
 import { DensitySlider } from '@/components/DensitySlider'
 import { Tip } from '@/components/Tip'
 import { Modal } from '@/components/Modal'
-import { Avatar, Chip, EditChip, Kpi } from '@/components/bits'
+import { Avatar, Chip, EditChip, Kpi, RefreshIcon } from '@/components/bits'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
@@ -750,10 +750,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               {sec === 'sales' && isContentMarketing && myClaims.length > 0 && (
                 <div className="section-tools">
                   {openClaimIds.length > 0 && (
-                    <button className="btn btn--sm" disabled={checkingMine}
-                            title="Fetch the latest views from Instagram for every claim still inside its 30-day window"
+                    <button className="btn btn--sm btn-ico-lbl" disabled={checkingMine}
+                            title="Check views — fetch the latest views from Instagram for every claim still inside its 30-day window"
+                            aria-label={checkingMine ? 'Checking views' : 'Check views'}
                             onClick={() => void checkViews(openClaimIds).then(reportViewCheck)}>
-                      {checkingMine ? 'Checking…' : 'Check views'}
+                      <RefreshIcon spinning={checkingMine} />
+                      <span className="lbl">{checkingMine ? 'Checking…' : 'Check views'}</span>
                     </button>
                   )}
                   <div className="seg" role="group" aria-label="Filter by tier">
