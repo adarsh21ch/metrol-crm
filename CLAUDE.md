@@ -6050,3 +6050,28 @@ Instagram + YouTube — per target), Q5 (who adds adjustments — default: whoev
 sets targets), Q7 (default: each SMM for their own pages, by Monday), Q9
 (roles — add any on Roles & access), Q11 (answered by the sheets: per client),
 Q12–Q16 (Phase 2–3), Q17 (views metric).
+
+## INSTALLED on the live database — 2026-09-26
+
+Adarsh ran 0035, 0036 and 0037 in order and pasted every proof row back:
+- 0035: 11 roles, 44 capability ticks, HR = department (Human Resources),
+  Department Head = team_leads (Content and Marketing), 4 logins checked,
+  **HR access differs for: none**, **Clients & Pages access differs for: none**.
+- 0036: client codes 1 of 1, department 1 of 1, 1 Instagram channel for 1
+  page with a handle, 1 page holder → 1 team row, statuses 4 / 2, **Clients &
+  Pages use the new rules: yes**, money table 3 policies, **clients readable
+  without signing in: no**.
+- 0037: 6 of 6 tables, 3 adjustment types, progress view through RLS: yes,
+  view-proofs bucket private, 4 weekly-views policies, views_reminder accepted.
+
+Checked from outside afterwards with the public key: roles / client_statuses /
+view_targets now answer 200 (so the app's install check switches the new
+screens on), and `clients` answers `[]` to a signed-out visitor — the same
+request returned a client row before 0036.
+
+**Installed is not the same as confirmed working.** Nobody has yet used the
+new screens on real data: Clients as the owner/HR, a target set, a weekly
+number entered by a real SMM, a screenshot uploaded from a phone. The first
+app open from now on will also send the one page holder a "Weekly views are
+due — 14 Sep – 20 Sep" reminder (their channel has no number for last week);
+that is the Monday reminder working, not a fault.
