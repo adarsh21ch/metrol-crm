@@ -114,6 +114,22 @@ select '0030 salary_records.tds_amount', (select count(*) from have_col where ta
 union all
 select '0030 salary_records.incentive', (select count(*) from have_col where table_name = 'salary_records' and column_name = 'incentive')::text
 union all
+select '0031 incentive_claims',        (select count(*) from have_table where relname = 'incentive_claims')::text
+union all
+select '0032 clients / pages',         (select count(*) from have_table where relname in ('clients','pages'))::text || ' of 2'
+union all
+select '0034 page_reels',              (select count(*) from have_table where relname = 'page_reels')::text
+union all
+select '0035 roles & capabilities',    (select count(*) from have_table where relname in ('roles','role_capabilities','employee_roles'))::text || ' of 3'
+union all
+select '0036 client master & team',    (select count(*) from have_table where relname in ('client_statuses','client_financials','client_links','page_statuses','page_channels','client_assignments'))::text || ' of 6'
+union all
+select '0036 clients.code',            (select count(*) from have_col where table_name = 'clients' and column_name = 'code')::text
+union all
+select '0037 targets & weekly views',  (select count(*) from have_table where relname in ('view_targets','view_target_periods','weekly_views','weekly_view_edits','view_adjustment_types','view_adjustments'))::text || ' of 6'
+union all
+select '0037 remind_weekly_views()',   (select count(*) from have_fn where proname = 'remind_weekly_views')::text
+union all
 -- Row counts only for tables 0013/0014 proved are there by running against
 -- them. leave_requests is deliberately NOT counted here: if it turned out to be
 -- missing, naming it in this query would make the whole query error and tell

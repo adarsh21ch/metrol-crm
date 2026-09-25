@@ -1,4 +1,4 @@
-# Agency OS — the plan (NOT built; waiting for Adarsh's go-ahead)
+# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phases 2–4 not built)
 
 Brief, 2026-09-24. There are three inputs:
 - HR's 7-page "Integrated Digital Marketing Agency Software Blueprint"
@@ -7,7 +7,9 @@ Brief, 2026-09-24. There are three inputs:
   Sheet" and "LavBhusan Target".
 - His workflow notes.
 
-Nothing below is built. Read CLAUDE.md, CONTENT-MARKETING-DASHBOARD-PLAN.md,
+**Phase 1 is built and deployed; its SQL (0035–0037) waits to be run** — see
+CLAUDE.md, "Agency OS Phase 1 — built", for what shipped, the judgement calls
+and what was verified. Phases 2–4 below are not built. Read CLAUDE.md, CONTENT-MARKETING-DASHBOARD-PLAN.md,
 INCENTIVE-AUTOMATION-PLAN.md and PAGE-ANALYTICS-DASHBOARD-PLAN.md first. This plan
 builds on all of them and replaces none.
 
@@ -281,7 +283,7 @@ promises. Daily use comes first.
 **Phase 0 — done 2026-09-24.** Claim views are fetched on submit, and a Check
 views button fixes claims that were stuck (see CLAUDE.md). Still open: Q17.
 
-**Phase 1 — Foundation and the sheets replacement (about 4 rounds):**
+**Phase 1 — Foundation and the sheets replacement — BUILT 2026-09-26 (all four steps):**
 1. **Roles & capabilities (0035).** Tables, helpers, and seeds that reproduce
    today's access exactly. A Settings screen for roles, capabilities and
    who-assigns-whom. Nothing changes for anyone yet; proof queries only.
@@ -401,4 +403,4 @@ stage changes. Scheduling first matters in Phase 4.
   Its employee-wise rollups get better once content items record who made each
   reel.
 
-**Waiting on Adarsh's go-ahead, and on Q17 and Q1–Q11. Nothing here is built.**
+**Phase 1 built. Phase 2 waits on Adarsh's go-ahead and Q12–Q17.**

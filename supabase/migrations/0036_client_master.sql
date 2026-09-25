@@ -588,10 +588,11 @@ create policy client_links_write on public.client_links for all
   using      ( public.has_capability_for_client(client_id, 'manage_clients') )
   with check ( public.has_capability_for_client(client_id, 'manage_clients') );
 
--- A channel is a public Instagram/YouTube handle — readable like pages are.
--- Retire, never delete: its weekly views hang off it (0037).
+-- A channel is a public Instagram/YouTube handle — readable by anybody
+-- signed in, like pages (below). Retire, never delete: its weekly views hang
+-- off it (0037).
 drop policy if exists page_channels_select on public.page_channels;
-create policy page_channels_select on public.page_channels for select using ( true );
+create policy page_channels_select on public.page_channels for select using ( auth.uid() is not null );
 drop policy if exists page_channels_write on public.page_channels;
 create policy page_channels_write on public.page_channels for all
   using      ( public.has_capability_for_client(public.page_client(page_id), 'manage_clients') )
@@ -611,6 +612,24 @@ create policy client_assignments_update on public.client_assignments for update
   using      ( public.can_assign_on_client(client_id, role_id) )
   with check ( public.can_assign_on_client(client_id, role_id) );
 revoke delete on public.client_assignments from anon, authenticated;
+
+-- ============================================ 10b. signed-in only
+
+-- clients, pages, page_assignments and page_reels were `using ( true )` since
+-- 0032/0034 — and "true" includes the anon key every visitor's browser holds,
+-- so anybody could list Metrol's clients without an account (found
+-- 2026-09-26 by asking the live API with the public key). Harmless while a
+-- client was a name; not once section 2 above puts its contact phone and
+-- email on the row. Nothing signed-out reads these tables; the Edge
+-- Functions use the service role and are untouched.
+drop policy if exists clients_select on public.clients;
+create policy clients_select on public.clients for select using ( auth.uid() is not null );
+drop policy if exists pages_select on public.pages;
+create policy pages_select on public.pages for select using ( auth.uid() is not null );
+drop policy if exists page_assignments_select on public.page_assignments;
+create policy page_assignments_select on public.page_assignments for select using ( auth.uid() is not null );
+drop policy if exists page_reels_select on public.page_reels;
+create policy page_reels_select on public.page_reels for select using ( auth.uid() is not null );
 
 do $$
 begin
@@ -701,4 +720,8 @@ select 'Clients & Pages use the new rules',
                             and pg_get_expr(polqual, polrelid) like '%has_capability_for_client%')
             then 'yes' else 'NO — still on the old rules (see the notice, or ask Claude)' end
 union all
-select 'money table locked (policies)', (select count(*) from pg_policies where tablename = 'client_financials')::text;
+select 'money table locked (policies)', (select count(*) from pg_policies where tablename = 'client_financials')::text
+union all
+select 'clients readable without signing in (must be no)',
+       case when exists (select 1 from pg_policy where polname = 'clients_select' and polrelid = 'public.clients'::regclass
+                            and pg_get_expr(polqual, polrelid) = 'true') then 'YES — not closed' else 'no' end;

@@ -5882,3 +5882,171 @@ Demo mode now shows a 0.7s "checking…" beat for any check.
 It needs Supabase Cron. The org shows the PRO plan, so re-check the "no cron"
 note in INCENTIVE-AUTOMATION-PLAN.md before assuming it. That plan's step 4
 covers it.
+
+# Agency OS Phase 1 — built (2026-09-25/26)
+
+Adarsh: *"Build Phase 1 from AGENCY-OS-PLAN.md"*, then *"continue and finish"*.
+All four Phase 1 steps are built and deployed. **The three SQL files are NOT
+installed yet** — until they are, the live app behaves exactly as before (see
+"Ships ahead of the SQL"). Commits: `74436c9` (SQL), `9bf64d5` (app),
+`5a155ea` (layout fixes), `4345e80` (install-check fix), plus the docs commit.
+
+## What shipped
+
+**0035 — roles & capabilities.** `roles`, `role_capabilities`, `employee_roles`.
+A role is held one of three ways (`roles.held_by`):
+- `assigned` — by hand (`employee_roles`, optionally inside one department),
+  or, for a per-client role, per client (`client_assignments`, 0036);
+- `department` — everyone in `roles.department_id`. **HR is this**, keyed by
+  the department's id, so renaming "Human Resources" no longer changes who
+  counts as HR in the new rules;
+- `team_leads` — the team leads of `roles.department_id`, inside their own
+  department. **Department Head is this, for Content and Marketing only** — so
+  the existing team-lead switch in HR's employee form stays the one switch.
+
+Helpers: one implementation asked about any login (`role_holdings_for`,
+`has_capability_as`, `has_capability_in_department_as`,
+`has_capability_for_client_as`, `is_on_client_as` — not callable by the app),
+wrapped by the caller's versions every policy uses (`has_capability`,
+`has_capability_in_department`, `has_capability_for_client`, `is_on_client`,
+`can_assign_on_client`, `can_see_client`). The owner holds every capability
+and nothing on screen can take that away. The seed reproduces today's
+access; the proof compares old and new rules **for every login** and must say
+"none" twice.
+
+**0036 — client master & team.** `clients` gains `code` (MM-0001, from a
+sequence, immutable), company / industry / contact / dates / `status_id` /
+`department_id`. New: `client_statuses`, `client_financials` (money in its own
+table — RLS is per row), `client_links`, `page_statuses` (+ `pages.status_id`),
+`page_channels` (Instagram / YouTube / Facebook per page), `client_assignments`
+(the team, with history — rows end, never delete), `v_client_team` (names only,
+for clients you can see) and `assignable_staff()` (names only, for people who
+may assign on that client — employees' own RLS would otherwise hand an SMM no
+colleague names at all).
+- Being given a page puts you on the client's team as the page-holder role
+  (SMM) — a DB trigger, so the two lists cannot drift. Ending someone's LAST
+  role on a client hands back that client's pages.
+- `pages.instagram_handle` stays, kept in step with the live Instagram
+  channel by two triggers (either side can be written; `pg_trigger_depth()`
+  stops the ping-pong), because `fetch-page-reels` and
+  `fetch-instagram-profile` still read it. Dropping it needs both functions
+  re-pasted first — not done.
+- Clients / pages / page_assignments / page_reels **write** policies move onto
+  capabilities only if old and new rules agree for every login (the DO block
+  checks, and leaves the old policies if anyone differs).
+- **Read** on clients / pages / page_assignments / page_reels is now signed-in
+  only. It was `using (true)`, which includes the public anon key — found by
+  asking the live API with that key: anybody could list Metrol's clients
+  without an account. Closed before contact phone/email land on the row.
+
+**0037 — targets & weekly views.** `view_targets` (total, counts main/fan,
+platforms, `week_counts_in`), `view_target_periods` (share % AND/OR own number —
+Q3; overlap check deferred to commit), `weekly_views` (per channel per Monday,
+views ≥ 0, optional followers, `proof_path`), `weekly_view_edits` (every change
+kept, like `attendance_edits`), `view_adjustment_types`, `view_adjustments`
+(signed), `v_target_progress` (security_invoker; grains target / period /
+week), `save_view_target()` (a target and its periods in one transaction),
+the private `view-proofs` bucket, and `remind_weekly_views()` (the Monday
+reminder — screen-load tick, once a week per person, like birthdays).
+
+**The app.**
+- **Clients** (HR/owner rail + Profile on a phone; the C&M head's Manage team):
+  one table — ID, status, pages, SMMs, this period against target with pace,
+  and last week's "n / m numbers in". **Reels** beside it is the reel master
+  view v1: every fetched or claimed reel joined on its short code.
+- **Client page**: Overview (details with Edit, links, money for whoever may
+  see it), Pages (numbered like the sheet — Main, 1, 2… — channels, colour,
+  holders), Team (roles as rows, the chain decides who may add whom, past
+  team), Targets.
+- **Targets**: the sheet's TARGET block (total + periods: target / achieved /
+  left / pace; a period's heading picks the grid below) over the weekly grid —
+  pages × platforms × weeks, then fan / main / platform totals, adjustments,
+  weekly total and the running LEFT. A cell opens the week (views, followers,
+  screenshot, change history).
+- **Weekly views** (C&M, My pages → Weekly): every channel the person holds,
+  one box + one SS button each, for the week that just ended.
+- **Roles & access** (manage_settings — the owner by default): roles, what each
+  may do (only the 8 capabilities something reads today are offered; the other
+  6 are seeded for later), roles given by hand, and the three editable lists.
+- **Import from the sheet** (Targets → Import): an Excel download of the whole
+  Client Master, pick the tab; pages matched by Instagram/YouTube handle or
+  name, new ones added; weekly numbers upserted in one go; non-week lumps
+  ("1 - 26 April (Total Views)") offered as adjustments; and the sheet's own
+  Achieved row shown beside what the app will say — before anything is written.
+
+## Ships ahead of the SQL
+
+`agencySchema()` asks the database once per session whether `roles`,
+`client_statuses` and `view_targets` exist. Until 0036 is in, HR/owner/the C&M
+head get the old Clients & Pages screen; until 0037, no Weekly switch; until
+0035, "who may do what" answers with 0035's own seed (= today's rules). The
+owner sees Roles & access read-only with a "showing today's rules" banner.
+
+**My own bug, live for ~15 minutes, fixed in `4345e80`:** the first version
+asked with a HEAD request. PostgREST answers HEAD on a missing table with a
+bodiless 404, and supabase-js turns exactly that into "204 No Content, no
+error" — so every Agency table looked installed and the new Clients screen
+switched on before the SQL. A one-row GET carries the `PGRST205` body.
+Proven against the live API afterwards: the three tables read as missing.
+**Rule: never probe for a table with `head: true`.**
+
+## Judgement calls worth Adarsh seeing
+
+1. Q4 is a per-target setting, not code: LavBhushan's sheet counts "27 april -
+   3 may" in May–Aug, i.e. where the week ENDS; the plan's default was where
+   it starts. His demo target uses "ends".
+2. Q6: page colours seeded as "Red flag" / "Orange flag" — rename to what they
+   mean on Roles & access → Page colours.
+3. Q10 defaults: money = owner / Management / Super Admin only; SMMs see
+   targets; editors don't (one tick on Editor).
+4. `is_hr()` and `leads_content_marketing()` are NOT rewritten yet — the HR
+   tables and every Edge Function still match department names. That is the
+   plan's step 2 of the gradual move, next round.
+5. Import does not add people: the sheet's TEAM block is shown with ✓ against
+   who is already on the team — a first name is not enough to know who.
+
+## Verified
+
+- **SQL**, on a throwaway local Postgres 16 with Supabase's auth/storage
+  stubbed: all 34 earlier migrations replay; 0035–0037 install clean and
+  re-run clean; 31 permission checks as owner / HR with NO employee record
+  (the live HR login's likely state) / C&M head / SMM / editor / Sales lead /
+  a not-signed-in visitor; LavBhushan's May weeks give his sheet's LEFT to the
+  rupee (418,004,066 → 363,555,078, adjustments included); the app's
+  `computeProgress()` equals `v_target_progress` on 594 numbers; a year for 7
+  clients (9,474 rows) reads in 12 ms, the progress view in ~100 ms.
+- **App**, on the live site in demo mode (`?demo=1`, as owner / hr / cm /
+  cmlead), desktop and 375 px: every screen above, a grid entry updating the
+  totals, an SMM entry, ticking a capability, the target form, the import
+  screen, reels; `scrollWidth === 375` on each.
+- **Not verified:** anything on the real database (not installed); a real
+  Client Master file through the importer (the parser was run on a copy of
+  Subhash's tab laid out from the screenshot, merged headers and hidden
+  columns included); a screenshot upload from a phone; the Monday reminder.
+
+## Found on the way
+
+1. **Birthday notifications never fired.** `void supabase.rpc(...)` never
+   sends — a Supabase query runs only when awaited or `.then()`'d. Fixed in
+   HrPage and Member (`.then()`).
+2. **Every link was browser-blue** (the app never styled one) — unreadable in
+   dark mode. Quiet ink style for links in tables and detail fields.
+3. **HR could not reach Clients & Pages on a phone** — it was in the rail
+   only. Clients (and Roles & access) are Profile rows now.
+4. **LavBhushan's sheet under-counts his LEFT by 84,427,638 from 1 June:** the
+   "1 june - 7 june" row's formula starts from the row above the two
+   "suspended accounts view" rows (−77,171,841 and −7,255,797), skipping them.
+   Sheet: −117.3M left by 24 Aug; counting them: −32.9M. Ask whether they
+   were meant to count.
+5. **Not fixed, flagged:** tables still readable with the public key and no
+   sign-in: office_locations (it holds each branch's **qr_token** — the QR
+   punch secret), attendance_settings, shifts, holidays, tds_categories,
+   visit_purposes, incentive_rules.
+
+## Still Adarsh's
+
+Q1 (where the weekly number comes from), Q2 (defaults used: main + fan,
+Instagram + YouTube — per target), Q5 (who adds adjustments — default: whoever
+sets targets), Q7 (default: each SMM for their own pages, by Monday), Q9
+(roles — add any on Roles & access), Q11 (answered by the sheets: per client),
+Q12–Q16 (Phase 2–3), Q17 (views metric).
