@@ -48,6 +48,9 @@ import { usePageReels } from '@/data/usePageReels'
 import { IncentiveClaimReviewModal } from '@/modals/IncentiveClaimReviewModal'
 import { IncentiveRulesModal } from '@/modals/IncentiveRulesModal'
 import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
+import { ClientsSection } from '@/screens/sections/ClientsSection'
+import { AccessSettings } from '@/screens/sections/AccessSettings'
+import { useAgency } from '@/data/useAgency'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
@@ -83,6 +86,11 @@ const CLIENTS_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
     <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
+  </svg>
+)
+const ACCESS_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="16" r="1.3" />
   </svg>
 )
 const DASH_ICON = (
@@ -157,7 +165,12 @@ export function HrPage({
   // runs once whenever HR opens their app instead. check_todays_birthdays()
   // is idempotent (0025), so a second HR person opening the app an hour
   // later costs one no-op query, not a duplicate notification.
-  useEffect(() => { if (!isDemo()) void supabase.rpc('check_todays_birthdays') }, [])
+  // .then() is what SENDS it — a Supabase query that is never awaited or
+  // then()'d is never made, which is how this line did nothing until 2026-09-26.
+  useEffect(() => { if (!isDemo()) void supabase.rpc('check_todays_birthdays').then() }, [])
+  // The Monday "weekly views are due" reminder (0037) — same trick, same
+  // once-a-week idempotency, and a silent no-op until 0037 is installed.
+  useEffect(() => { if (!isDemo()) void supabase.rpc('remind_weekly_views').then() }, [])
   // A request landing from another browser while this one is open, anywhere
   // in the HR module — see LeaveAlertStack.tsx. Kept as its own small queue
   // rather than reusing `toast`: toast is one slot, three seconds, and
@@ -185,6 +198,9 @@ export function HrPage({
   const pages = usePages(true)
   const pageAssignments = usePageAssignments(true)
   const pageReels = usePageReels(true)
+  // Agency OS Phase 1 — roles, the client master, targets (0035–0037).
+  const agency = useAgency(ws, hr.rows, pages)
+  const canSettings = agency.access.can('manage_settings')
   const clientOf = (clientId: string) => clients.rows.find((c) => c.id === clientId) ?? null
   const pageOf = (pageId: string | null) => (pageId ? pages.rows.find((p) => p.id === pageId) ?? null : null)
   const pageLabel = (pageId: string | null) => {
@@ -196,7 +212,7 @@ export function HrPage({
   const att = useAttendance()
   const applications = useJobApplications()
 
-  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'clientsPages' | 'salary' | 'joining' | 'exit' | 'terms' | 'profile'>('hr-section', 'dashboard')
+  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'clientsPages' | 'access' | 'salary' | 'joining' | 'exit' | 'terms' | 'profile'>('hr-section', 'dashboard')
   /* Applications (the public joining form's inbox) and Onboarding (the
      checklist for somebody an application just turned into) used to be two
      separate sidebar tabs, even though the moment one is approved the SAME
@@ -439,7 +455,8 @@ export function HrPage({
     },
     { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
     { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
-    { key: 'clientsPages', label: 'Clients & Pages', icon: CLIENTS_ICON, onClick: () => { setSection('clientsPages'); setOpenId(null) } },
+    { key: 'clientsPages', label: agency.installed.clients ? 'Clients' : 'Clients & Pages', icon: CLIENTS_ICON, onClick: () => { setSection('clientsPages'); setOpenId(null) } },
+    ...(canSettings ? [{ key: 'access', label: 'Roles & access', icon: ACCESS_ICON, onClick: () => { setSection('access'); setOpenId(null) } }] : []),
     { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
     {
       key: 'joining', label: pendingApps.length ? `Joining & Exit (${pendingApps.length})` : 'Joining & Exit',
@@ -463,7 +480,7 @@ export function HrPage({
   /** The three that moved into Profile. Opening one lights Profile on the bar
    *  and puts a ← Profile on its page head, so "where am I" still has an
    *  answer and the way back is one tap. */
-  const IN_PROFILE = ['salary', 'departments', 'clientsPages', 'terms'] as const
+  const IN_PROFILE = ['salary', 'departments', 'clientsPages', 'access', 'terms'] as const
   const inProfileTab = (IN_PROFILE as readonly string[]).includes(section)
   const railItem = (key: string) => railItems.find((it) => it.key === key)!
   /** Phone only — see `.on-phone`. Sits ON the title's row, not above it. */
@@ -1564,7 +1581,10 @@ export function HrPage({
               </>
             )}
 
-            {!open && section === 'clientsPages' && (
+            {!open && section === 'clientsPages' && (agency.installed.clients ? (
+              <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
+                              pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} asPage lead={backToProfile} />
+            ) : (
               <>
                 <div className="page-head">
                   {backToProfile}
@@ -1572,6 +1592,10 @@ export function HrPage({
                 </div>
                 <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} staff={hr} toast={toast} />
               </>
+            ))}
+
+            {!open && section === 'access' && canSettings && (
+              <AccessSettings ws={ws} agency={agency} staff={hr.rows} toast={toast} lead={backToProfile} />
             )}
 
             {/* ------------------------------------------ attendance + leave */}
@@ -2052,6 +2076,8 @@ export function HrPage({
                   rows={[
                     { key: 'salary', label: 'Salary', onClick: () => setSection('salary') },
                     { key: 'departments', label: 'Departments', onClick: () => setSection('departments') },
+                    { key: 'clientsPages', label: agency.installed.clients ? 'Clients' : 'Clients & Pages', onClick: () => setSection('clientsPages') },
+                    ...(canSettings ? [{ key: 'access', label: 'Roles & access', onClick: () => setSection('access') }] : []),
                     { key: 'terms', label: 'Terms & Conditions', atFoot: true, onClick: () => setSection('terms') },
                   ]}
                 />

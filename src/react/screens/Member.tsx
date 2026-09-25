@@ -46,6 +46,10 @@ import { statusChip, fmtDuration, fmtTime, officeToday,
   buildCalendar, calendarTotals, monthStart, monthEnd, addDays, DAY_KIND } from '@/lib/attendance'
 import { CONTENT_MARKETING_DEPARTMENT, DOC_TYPE, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, isClaimOpen, type IncentiveClaim, type SalaryRecord } from '@/lib/hr'
 import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
+import { ClientsSection } from '@/screens/sections/ClientsSection'
+import { ClientPage } from '@/screens/sections/ClientPage'
+import { WeeklyViewsSection } from '@/screens/sections/WeeklyViewsSection'
+import { useAgency } from '@/data/useAgency'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
@@ -157,7 +161,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // everybody, not just HR/owner. check_todays_birthdays() (0025) is
   // idempotent, so five salespeople opening the app the same morning costs
   // four no-op queries, not four duplicate notifications.
-  useEffect(() => { if (!isDemo()) void supabase.rpc('check_todays_birthdays') }, [])
+  // .then() is what SENDS it — a Supabase query that is never awaited or
+  // then()'d is never made, which is how this line did nothing until 2026-09-26.
+  useEffect(() => { if (!isDemo()) void supabase.rpc('check_todays_birthdays').then() }, [])
   const lastVisitKey = 'metrol-crm-lastvisit-' + (me?.id ?? 'anon')
   // Read the *previous* visit before this one overwrites it, so "N leads
   // assigned to you" can compare against a moment before right now. A member
@@ -279,6 +285,18 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   const pages = usePages(true)
   const pageAssignments = usePageAssignments(true)
   const pageReels = usePageReels(true)
+  // Agency OS Phase 1 (0035–0037) — clients, their teams, targets and the
+  // weekly numbers. Only this department has any; nobody else loads them.
+  const agency = useAgency(ws, staff.rows, pages, isContentMarketing)
+  useEffect(() => { if (!isDemo() && isContentMarketing) void supabase.rpc('remind_weekly_views').then() }, [isContentMarketing])
+  const [pagesView, setPagesView] = usePersistedState<'pages' | 'weekly'>('member-pages-view', 'pages')
+  const weeklyOn = isContentMarketing && agency.installed.targets
+  const shownPagesView = weeklyOn ? pagesView : 'pages'
+  /** A client opened from "Weekly views" (an SMM) or from Manage team (the
+   *  head). Either way the client page brings its own title line, so this
+   *  screen's is left out rather than stacked above it. */
+  const [smmClientId, setSmmClientId] = useState<string | null>(null)
+  const [leadClientOpen, setLeadClientOpen] = useState(false)
   const clientOf = useCallback((clientId: string) => clients.rows.find((c) => c.id === clientId) ?? null, [clients.rows])
   const pageOf = useCallback((pageId: string | null) => (pageId ? pages.rows.find((p) => p.id === pageId) ?? null : null), [pages.rows])
   const pageLabel = useCallback((pageId: string | null) => {
@@ -502,6 +520,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     [myExitTasks.rows, myEmployee],
   )
   const shownSec: MemberSec = sec === 'team' && !isLead ? 'overview' : sec
+  const clientPageOpen = (sec === 'leads' && isContentMarketing && shownPagesView === 'weekly' && !!smmClientId)
+    || (shownSec === 'team' && isContentMarketing && leadClientOpen && agency.installed.clients)
   const shownMeTab: MeTab | null = meTab === 'exit' && !isLeaving ? null : meTab
 
   const teamRows = useMemo<TeamRow[]>(() => {
@@ -722,6 +742,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       <div className="shell">
         <div className="workspace">
           <div className="wrap">
+            {!clientPageOpen && (
             <div className="page-head">
               <h1>{headTitle}</h1>
               {headSub && <div className="sub">{headSub}</div>}
@@ -752,7 +773,17 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 </div>
               )}
               {sec === 'leads' && isContentMarketing && (
-                <button className="btn btn--sm btn--primary head-cta" onClick={() => setSubmittingIncentive(true)}>Submit a reel</button>
+                <div className="section-tools">
+                  {weeklyOn && (
+                    <div className="seg" role="group" aria-label="Pages or weekly views">
+                      <button className={shownPagesView === 'pages' ? 'is-on' : ''} onClick={() => setPagesView('pages')}>Pages</button>
+                      <button className={shownPagesView === 'weekly' ? 'is-on' : ''} onClick={() => setPagesView('weekly')}>Weekly</button>
+                    </div>
+                  )}
+                  {shownPagesView === 'pages' && (
+                    <button className="btn btn--sm btn--primary" onClick={() => setSubmittingIncentive(true)}>Submit a reel</button>
+                  )}
+                </div>
               )}
               {sec === 'sales' && isContentMarketing && myClaims.length > 0 && (
                 <div className="section-tools">
@@ -795,6 +826,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 />
               )}
             </div>
+            )}
 
             <div className="tabs tabs--nav">
               <button className={sec === 'overview' ? 'is-on' : ''} onClick={() => setSec('overview')}>Overview</button>
@@ -1445,7 +1477,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 glance — NOT HR's own company-wide claims review (that stays
                 HrPage.tsx). Read-only throughout: reassigning a page is
                 HR-only, confirmed with Adarsh before this was built. */}
-            {shownSec === 'team' && isContentMarketing && (
+            {shownSec === 'team' && isContentMarketing && leadClientOpen && agency.installed.clients && (
+              <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
+                              pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} onOpenChange={setLeadClientOpen} />
+            )}
+            {shownSec === 'team' && isContentMarketing && !(leadClientOpen && agency.installed.clients) && (
               <>
                 <div className="kpis">
                   <Kpi accent label="Team size" value={teamRows.length} sub={CONTENT_MARKETING_DEPARTMENT} />
@@ -1481,7 +1517,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                     HR. Same component HR's own Clients & Pages screen uses —
                     one place this logic lives, not two — now reachable here
                     too because 0033 widened the RLS to match. */}
-                <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} staff={staff} toast={toast} />
+                {agency.installed.clients ? (
+                  <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
+                                  pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} onOpenChange={setLeadClientOpen} />
+                ) : (
+                  <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} staff={staff} toast={toast} />
+                )}
 
                 <div className="ov-card">
                   <div className="ov-head"><h4>Department claims</h4></div>
@@ -1628,7 +1669,16 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             {/* A page's own dashboard takes the whole tab rather than opening
                 over the list in a popup — it is that page's entire
                 performance history, which a dialog cannot hold. */}
-            {sec === 'leads' && isContentMarketing && openPageId && pages.rows.find((p) => p.id === openPageId) && (
+            {sec === 'leads' && isContentMarketing && shownPagesView === 'weekly' && (smmClientId && clients.rows.find((c) => c.id === smmClientId) ? (
+              <ClientPage ws={ws} agency={agency} client={clients.rows.find((c) => c.id === smmClientId)!} clients={clients}
+                          pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} toast={toast}
+                          onBack={() => setSmmClientId(null)} />
+            ) : (
+              <WeeklyViewsSection agency={agency} clients={clients.rows} pages={pages.rows} pageAssignments={pageAssignments.rows}
+                                  toast={toast} onOpenClient={setSmmClientId} />
+            ))}
+
+            {sec === 'leads' && isContentMarketing && shownPagesView === 'pages' && openPageId && pages.rows.find((p) => p.id === openPageId) && (
               <div className="section">
                 <PageDashboard
                   page={pages.rows.find((p) => p.id === openPageId)!}
@@ -1640,7 +1690,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
               </div>
             )}
 
-            {sec === 'leads' && isContentMarketing && !openPageId && (
+            {sec === 'leads' && isContentMarketing && shownPagesView === 'pages' && !openPageId && (
               <div className="section">
                 {myPages.length === 0 ? (
                   <div className="banner">

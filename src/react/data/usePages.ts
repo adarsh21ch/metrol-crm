@@ -13,6 +13,7 @@ const toPage = (r: Row): Page => ({
   label: String(r.label ?? ''),
   isActive: r.is_active !== false,
   createdAt: String(r.created_at ?? ''),
+  statusId: (r.status_id as string | null) ?? null,
 })
 
 /**
@@ -74,7 +75,7 @@ export function usePages(enabled = true) {
       setRows((p) => [...p, {
         id: 'demo-page-' + (p.length + 1), clientId: draft.clientId, pageType: draft.pageType,
         instagramHandle: draft.instagramHandle?.trim() ?? '', label: draft.label?.trim() ?? '',
-        isActive: true, createdAt: new Date().toISOString(),
+        isActive: true, createdAt: new Date().toISOString(), statusId: null,
       }])
       return null
     }
@@ -114,7 +115,54 @@ export function usePages(enabled = true) {
     return null
   }, [])
 
-  return { rows, loading, error, reload: () => load(true), add, update, setActive, clearError: () => setError(null) }
+  /** A page with its channels, for the client page (0036). The page row goes
+   *  in first, then its channels — page_channels' trigger fills the page's
+   *  own instagram_handle, so the Edge Functions keep reading the same column. */
+  const create = useCallback(async (draft: {
+    clientId: string; pageType: IncentivePageType; label: string
+  }): Promise<{ error: string | null; id: string | null }> => {
+    if (isDemo()) {
+      const id = 'demo-page-' + Date.now().toString(36)
+      setRows((p) => [...p, {
+        id, clientId: draft.clientId, pageType: draft.pageType, instagramHandle: '', label: draft.label.trim(),
+        isActive: true, createdAt: new Date().toISOString(), statusId: null,
+      }])
+      return { error: null, id }
+    }
+    const { data, error: err } = await supabase
+      .from('pages').insert({ client_id: draft.clientId, page_type: draft.pageType, label: draft.label.trim() || null })
+      .select('*').single()
+    if (err) return { error: err.message, id: null }
+    const row = toPage(data as Row)
+    setRows((p) => [...p, row])
+    return { error: null, id: row.id }
+  }, [])
+
+  /** The sheet's red / orange row, and anything else about a page that is
+   *  not its handle. */
+  const updateMeta = useCallback(async (id: string, patch: { label?: string; pageType?: IncentivePageType; statusId?: string | null }): Promise<string | null> => {
+    const row: Row = {}
+    if (patch.label !== undefined) row.label = patch.label.trim() || null
+    if (patch.pageType !== undefined) row.page_type = patch.pageType
+    if (patch.statusId !== undefined) row.status_id = patch.statusId
+    if (isDemo()) {
+      setRows((p) => p.map((pg) => (pg.id === id ? { ...pg, ...patch, label: patch.label?.trim() ?? pg.label } : pg)))
+      return null
+    }
+    const { data, error: err } = await supabase.from('pages').update(row).eq('id', id).select('*').single()
+    if (err) return err.message
+    if (!data) return 'You do not have permission to change this page.'
+    setRows((p) => p.map((pg) => (pg.id === id ? toPage(data as Row) : pg)))
+    return null
+  }, [])
+
+  /** page_channels' trigger rewrites pages.instagram_handle; this is how the
+   *  list hears about it without a reload. */
+  const patchLocal = useCallback((id: string, patch: Partial<Page>) => {
+    setRows((p) => p.map((pg) => (pg.id === id ? { ...pg, ...patch } : pg)))
+  }, [])
+
+  return { rows, loading, error, reload: () => load(true), add, update, setActive, create, updateMeta, patchLocal, clearError: () => setError(null) }
 }
 
 export type Pages = ReturnType<typeof usePages>

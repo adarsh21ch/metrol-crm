@@ -102,6 +102,20 @@ export interface Client {
   notes: string
   isActive: boolean
   createdAt: string
+  /** Agency OS (0036) — the Client Master Sheet's own columns. Empty until
+   *  0036 is installed; `code` (MM-0001) is the database's, never typed. */
+  code: string
+  company: string
+  industry: string
+  contactName: string
+  contactPhone: string
+  contactEmail: string
+  startedOn: string | null
+  endsOn: string | null
+  statusId: string | null
+  /** The department that serves the client — what a department head's
+   *  capabilities are measured against. */
+  departmentId: string | null
 }
 
 /** One Instagram page under a Client — a client can have one main page and
@@ -111,10 +125,14 @@ export interface Page {
   id: string
   clientId: string
   pageType: IncentivePageType
+  /** A copy kept in step with the page's live Instagram channel (0036) —
+   *  page_channels is the source; this stays for the Edge Functions. */
   instagramHandle: string
   label: string
   isActive: boolean
   createdAt: string
+  /** The sheet's red/orange row colour (0036), from page_statuses. */
+  statusId: string | null
 }
 
 /** Who currently manages a page — many-to-many (Adarsh, 2026-09-22: "a lot

@@ -124,3 +124,55 @@ export async function readSheet(file: File): Promise<string[][]> {
   }
   return file.text().then(parseCSV)
 }
+
+/** Every tab of a workbook — the Client Master Sheet is one tab per client,
+ *  so a single Excel download holds all of them and the importer asks which.
+ *  A CSV is one tab, named after the file. Cells come back as display text,
+ *  with no blank rows dropped: the importer reads the sheet's layout by
+ *  position. */
+export async function readWorkbook(file: File): Promise<{ name: string; rows: string[][] }[]> {
+  const lower = file.name.toLowerCase()
+  if (/\.(xlsx|xls)$/.test(lower)) {
+    await loadSheetJs()
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader()
+      fr.onload = () => {
+        try {
+          const wb = XLSX.read(new Uint8Array(fr.result as ArrayBuffer), { type: 'array' })
+          resolve(wb.SheetNames.map((name: string) => ({
+            name,
+            rows: (XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false, blankrows: true }) as unknown[][])
+              .map((r) => r.map((c) => String(c ?? ''))),
+          })))
+        } catch {
+          reject(new Error('That file could not be read as a spreadsheet.'))
+        }
+      }
+      fr.onerror = () => reject(new Error('The file could not be opened.'))
+      fr.readAsArrayBuffer(file)
+    })
+  }
+  const text = await file.text()
+  return [{ name: file.name.replace(/\.[^.]+$/, ''), rows: parseCSVKeepBlank(text) }]
+}
+
+/** parseCSV, but blank rows stay — row positions are part of the layout. */
+function parseCSVKeepBlank(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cur = ''
+  let quoted = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i++ } else quoted = false
+      } else cur += c
+    } else if (c === '"') quoted = true
+    else if (c === ',') { row.push(cur); cur = '' }
+    else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = '' }
+    else if (c !== '\r') cur += c
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row) }
+  return rows
+}

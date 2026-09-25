@@ -1,8 +1,11 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import type { Client, Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, Page, PageAssignment, PageReel, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
+import type { ClientAssignment, ClientFinancials, ClientLink, EmployeeRole, ListItem, PageChannel, ViewAdjustment, ViewTarget, ViewTargetPeriod, WeeklyView } from '@/lib/agency'
 import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
+import { seedAccess } from '@/lib/access'
+import { addDays, lastCompletedWeek, weeksOf } from '@/lib/targets'
 
 /**
  * The prototype's sample data, reproduced so the interface can be worked on and
@@ -68,6 +71,14 @@ const CM_PERSON: Member = {
   id: 'cm1', name: 'Ritika Chandra', initials: 'RC', email: 'socialwiire@gmail.com',
   phone: null, avatarUrl: null, departmentId: 'd9', role: 'member', isTeamLead: false,
 }
+
+/** Two more of the Client Master Sheet's own SMMs, so a client team and the
+ *  department head's roster have more than one person on them. Profiles too,
+ *  because that roster reads ws.members the way the real one reads profiles. */
+const CM_MORE: Member[] = [
+  { id: 'cm2', name: 'Deepanshu Rawat', initials: 'DR', email: 'deepanshu@metrol.in', phone: null, avatarUrl: null, departmentId: 'd9', role: 'member', isTeamLead: false },
+  { id: 'cm3', name: 'Samiksha Jain', initials: 'SJ', email: 'samiksha@metrol.in', phone: null, avatarUrl: null, departmentId: 'd9', role: 'member', isTeamLead: false },
+]
 
 const iso = (daysAgo: number, hourOffset = 0) =>
   new Date(Date.now() - daysAgo * 86400000 - hourOffset * 3600000).toISOString()
@@ -152,7 +163,7 @@ export const demoEvents: LeadEvent[] = (() => {
 // CM_PERSON IS included here (unlike HR_PERSON) because the department-head
 // dashboard reads ws.members to find "everyone in my department", the same
 // way it does against the real `profiles` table.
-export const demoAllMembers = [...demoMembers, CM_PERSON]
+export const demoAllMembers = [...demoMembers, CM_PERSON, ...CM_MORE]
 
 export const isDemo = () =>
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
@@ -249,6 +260,25 @@ export const demoEmployees: Employee[] = [
     resignationDate: null, noticePeriodDays: null, monthlySalary: 22000, gender: 'Female',
     panNumber: null, workLocation: 'Indore HQ', basicSalary: null, tdsCategoryId: null,
   },
+  // The sheet's TEAM block: two more SMMs, and its three editors — who sit in
+  // Video Editors, with no login of their own in the demo.
+  ...([
+    ['e7', '3381', 'cm2', 'Deepanshu Rawat', 'Social Media Manager', 'd9'],
+    ['e8', '5526', 'cm3', 'Samiksha Jain', 'Social Media Manager', 'd9'],
+    ['e9', '6174', null, 'Lokesh Yadav', 'Video Editor', 'd4'],
+    ['e10', '7702', null, 'Vishal Gupta', 'Video Editor', 'd4'],
+    ['e11', '8819', null, 'Anjali Mehra', 'Video Editor', 'd4'],
+  ] as const).map(([id, employeeCode, profileId, fullName, designation, departmentId], i): Employee => ({
+    id, employeeCode, profileId, fullName, designation, departmentId, employmentType: 'full_time',
+    dateOfJoining: '2025-0' + (i + 3) + '-01', reportingTo: null,
+    workEmail: '', personalEmail: '', phone: '+91 98200 1' + String(6000 + i),
+    dateOfBirth: null, address: 'Indore, MP',
+    emergencyName: 'Family contact', emergencyRelation: 'Parent', emergencyPhone: '+91 98200 9' + String(6000 + i),
+    status: 'active', lastWorkingDay: null, notes: '', createdAt: iso(200 - i * 10), shiftId: 'sh1', officeId: 'off1',
+    offerExtendedOn: null, offerAcceptedOn: null,
+    resignationDate: null, noticePeriodDays: null, monthlySalary: 20000 + i * 1500, gender: i === 1 || i === 4 ? 'Female' : 'Male',
+    panNumber: null, workLocation: 'Indore HQ', basicSalary: null, tdsCategoryId: null,
+  })),
 ]
 
 const YEAR = new Date().getFullYear()
@@ -348,27 +378,74 @@ export const demoIncentiveRules: IncentiveRule[] = [
 /** Clients & Pages (0032) — two brands, each with a main and a fan page, so
  *  the Cards view has more than one of everything to lay out. */
 export const demoClients: Client[] = [
-  { id: 'cl1', name: 'Urban Bites Cafe', notes: '', isActive: true, createdAt: iso(120) },
-  { id: 'cl2', name: 'FitZone Gym', notes: '', isActive: true, createdAt: iso(90) },
+  {
+    id: 'cl1', name: 'Urban Bites Cafe', notes: '', isActive: true, createdAt: iso(120),
+    code: 'MM-0001', company: 'Urban Bites Hospitality', industry: 'Food & beverage', contactName: 'Karan Malhotra',
+    contactPhone: '+91 98930 11221', contactEmail: 'karan@urbanbites.in', startedOn: '2026-01-15', endsOn: null,
+    statusId: 'cs2', departmentId: 'd9',
+  },
+  {
+    id: 'cl2', name: 'FitZone Gym', notes: '', isActive: true, createdAt: iso(90),
+    code: 'MM-0002', company: '', industry: 'Fitness', contactName: '', contactPhone: '', contactEmail: '',
+    startedOn: '2026-03-01', endsOn: null, statusId: 'cs3', departmentId: 'd9',
+  },
+  // The two sheets Adarsh runs today, as clients: Subhash Goyal's tab of the
+  // Client Master Sheet, and LavBhusan's target sheet.
+  {
+    id: 'cl3', name: 'Subhash Goyal', notes: '', isActive: true, createdAt: iso(170),
+    code: 'MM-0003', company: 'Subhash Goyal Wellness', industry: 'Ayurveda & health', contactName: 'Subhash Goyal',
+    contactPhone: '+91 98260 45110', contactEmail: 'office@subhashgoyal.com', startedOn: '2026-04-01', endsOn: '2026-12-31',
+    statusId: 'cs2', departmentId: 'd9',
+  },
+  {
+    id: 'cl4', name: 'Lavbhushan', notes: '', isActive: true, createdAt: iso(260),
+    code: 'MM-0004', company: 'Lavbhushan World', industry: 'Spiritual & astrology', contactName: 'Lavbhushan',
+    contactPhone: '+91 99770 20310', contactEmail: '', startedOn: '2026-01-01', endsOn: '2026-12-31',
+    statusId: 'cs2', departmentId: 'd9',
+  },
 ]
 
+const pg = (id: string, clientId: string, pageType: 'main' | 'fan', instagramHandle: string, label: string, daysAgo: number, statusId: string | null = null, isActive = true): Page =>
+  ({ id, clientId, pageType, instagramHandle, label, isActive, createdAt: iso(daysAgo), statusId })
+
 export const demoPages: Page[] = [
-  { id: 'pg1', clientId: 'cl1', pageType: 'main', instagramHandle: '@urbanbitescafe', label: '', isActive: true, createdAt: iso(120) },
-  { id: 'pg2', clientId: 'cl1', pageType: 'fan', instagramHandle: '@urbanbites.fanclub', label: '', isActive: true, createdAt: iso(115) },
-  { id: 'pg3', clientId: 'cl2', pageType: 'main', instagramHandle: '@fitzonegym', label: '', isActive: true, createdAt: iso(90) },
+  pg('pg1', 'cl1', 'main', '@urbanbitescafe', '', 120),
+  pg('pg2', 'cl1', 'fan', '@urbanbites.fanclub', '', 115),
+  pg('pg3', 'cl2', 'main', '@fitzonegym', '', 90),
   // Retired on purpose — one row so the "retired independently of its
   // client" answer (Adarsh, 2026-09-22) has something real to show.
-  { id: 'pg4', clientId: 'cl2', pageType: 'fan', instagramHandle: '@fitzone.transformations', label: 'Dropped Sept 2026', isActive: false, createdAt: iso(80) },
+  pg('pg4', 'cl2', 'fan', '@fitzone.transformations', 'Dropped Sept 2026', 80, null, false),
+  // Subhash Goyal — the sheet's numbered fan pages, each an Instagram page
+  // AND a YouTube channel, two of them red and one orange as in the sheet.
+  pg('pg5', 'cl3', 'main', '@subhashgoyal', 'Subhash Goyal', 170),
+  pg('pg6', 'cl3', 'fan', '@healingrahasya', 'Healing Rahasya', 168),
+  pg('pg7', 'cl3', 'fan', '@herbal.lifee', 'Herbal Life', 168),
+  pg('pg8', 'cl3', 'fan', '@vedichealthpath', 'Vedic Health path', 166, 'ps1'),
+  pg('pg9', 'cl3', 'fan', '@puree.living', 'Pure Living', 166, 'ps1'),
+  pg('pg10', 'cl3', 'fan', '@ayurveda_.diaries', 'Ayurveda diaries', 160, 'ps2'),
+  pg('pg11', 'cl3', 'fan', '@sehatmantra_', 'sehat Mantra', 150),
+  pg('pg12', 'cl4', 'main', '@lavbhushanworld', 'Lavbhushan World', 260),
+  pg('pg13', 'cl4', 'fan', '@jyotidrishti', 'Jyotidrishti', 250),
 ]
 
 /** Ritika (e6) manages the cafe's main page and the gym's main page — one
  *  person, two clients, which is the ordinary shape Adarsh described ("a lot
  *  of employees, a lot of fan pages... a lot of clients"). pg2 has nobody on
  *  it yet, showing what an unassigned page looks like on the department
- *  head's own dashboard. */
+ *  head's own dashboard. On Subhash Goyal, the sheet's two SMMs split the fan
+ *  pages and Ritika holds the rest. */
 export const demoPageAssignments: PageAssignment[] = [
   { id: 'pa1', pageId: 'pg1', employeeId: 'e6', assignedAt: iso(60) },
   { id: 'pa2', pageId: 'pg3', employeeId: 'e6', assignedAt: iso(30) },
+  { id: 'pa3', pageId: 'pg5', employeeId: 'e6', assignedAt: iso(160) },
+  { id: 'pa4', pageId: 'pg6', employeeId: 'e7', assignedAt: iso(160) },
+  { id: 'pa5', pageId: 'pg7', employeeId: 'e7', assignedAt: iso(160) },
+  { id: 'pa6', pageId: 'pg8', employeeId: 'e8', assignedAt: iso(155) },
+  { id: 'pa7', pageId: 'pg9', employeeId: 'e8', assignedAt: iso(155) },
+  { id: 'pa8', pageId: 'pg10', employeeId: 'e6', assignedAt: iso(150) },
+  { id: 'pa9', pageId: 'pg11', employeeId: 'e6', assignedAt: iso(140) },
+  { id: 'pa10', pageId: 'pg12', employeeId: 'e6', assignedAt: iso(250) },
+  { id: 'pa11', pageId: 'pg13', employeeId: 'e6', assignedAt: iso(250) },
 ]
 
 /** Per-reel analytics (0034) — three reels on the cafe's main page: one
@@ -749,4 +826,167 @@ export const demoJobApplications: JobApplication[] = [
     status: 'rejected', decidedBy: HR_PERSON.id, decidedAt: iso(6), decisionNote: 'Not the right fit for this opening.',
     employeeId: null, inviteSentCount: 0, inviteSentAt: null, createdAt: iso(8),
   },
+]
+
+/* ------------------------------------------------ Agency OS (0035 – 0037) */
+
+/** 0035's seed — the same eleven roles and the same ticks the database
+ *  starts with, so the demo's Roles & access screen IS the live default. */
+export const demoAccess = seedAccess(demoDepartments)
+export const demoEmployeeRoles: EmployeeRole[] = []
+
+export const demoClientStatuses: ListItem[] = [
+  { id: 'cs1', name: 'Onboarding', tone: 'accent', sortOrder: 1, isActive: true },
+  { id: 'cs2', name: 'Active', tone: 'good', sortOrder: 2, isActive: true },
+  { id: 'cs3', name: 'On hold', tone: 'warn', sortOrder: 3, isActive: true },
+  { id: 'cs4', name: 'Ended', tone: 'mute', sortOrder: 4, isActive: true },
+]
+
+/** Named by colour on purpose — what red and orange MEAN in the sheet is Q6,
+ *  still unanswered, and a rename is one edit once it is. */
+export const demoPageStatuses: ListItem[] = [
+  { id: 'ps1', name: 'Red flag', tone: 'bad', sortOrder: 1, isActive: true },
+  { id: 'ps2', name: 'Orange flag', tone: 'warn', sortOrder: 2, isActive: true },
+]
+
+export const demoAdjustmentTypes: ListItem[] = [
+  { id: 'at1', name: 'Difference due to technical issue', tone: 'mute', sortOrder: 1, isActive: true },
+  { id: 'at2', name: 'Collaboration views', tone: 'mute', sortOrder: 2, isActive: true },
+  { id: 'at3', name: 'Suspended account views', tone: 'mute', sortOrder: 3, isActive: true },
+]
+
+export const demoClientLinks: ClientLink[] = [
+  { id: 'cln1', clientId: 'cl3', label: 'Podcast sheet', url: 'https://docs.google.com/spreadsheets/d/demo-podcast', sortOrder: 1 },
+  { id: 'cln2', clientId: 'cl3', label: 'Raw footage (Drive)', url: 'https://drive.google.com/drive/folders/demo-raw', sortOrder: 2 },
+  { id: 'cln3', clientId: 'cl4', label: 'Brand guidelines', url: 'https://drive.google.com/file/d/demo-brand', sortOrder: 1 },
+]
+
+export const demoClientFinancials: ClientFinancials[] = [
+  { clientId: 'cl1', monthlyValue: 45000, paymentStatus: 'Paid', notes: '', updatedAt: iso(12) },
+  { clientId: 'cl3', monthlyValue: 150000, paymentStatus: 'Paid', notes: 'Invoiced quarterly', updatedAt: iso(20) },
+  { clientId: 'cl4', monthlyValue: 200000, paymentStatus: 'Pending', notes: '', updatedAt: iso(6) },
+]
+
+/** Instagram for every page with a handle (what 0036's backfill does), and a
+ *  YouTube channel on the pages the Client Master gives one. */
+export const demoPageChannels: PageChannel[] = [
+  ...demoPages.filter((p) => p.instagramHandle).map((p): PageChannel => ({
+    id: 'ch-ig-' + p.id, pageId: p.id, platform: 'instagram', handle: p.instagramHandle,
+    url: 'https://www.instagram.com/' + p.instagramHandle.replace(/^@/, '') + '/', isActive: p.isActive, createdAt: p.createdAt,
+  })),
+  ...['pg5', 'pg6', 'pg7', 'pg8', 'pg9', 'pg10', 'pg11', 'pg12'].map((id, i): PageChannel => {
+    const p = demoPages.find((x) => x.id === id)!
+    return {
+      id: 'ch-yt-' + id, pageId: id, platform: 'youtube', handle: p.label,
+      url: 'https://www.youtube.com/channel/UCdemo' + (i + 1), isActive: true, createdAt: p.createdAt,
+    }
+  }),
+]
+
+/** The Client Master's TEAM block for Subhash Goyal (two SMMs, three
+ *  editors), plus one ended row so a team's history has something in it. */
+export const demoClientAssignments: ClientAssignment[] = [
+  { id: 'ca1', clientId: 'cl1', employeeId: 'e6', roleId: 'role-smm', assignedAt: iso(60), endedAt: null },
+  { id: 'ca2', clientId: 'cl2', employeeId: 'e6', roleId: 'role-smm', assignedAt: iso(30), endedAt: null },
+  { id: 'ca3', clientId: 'cl3', employeeId: 'e7', roleId: 'role-smm', assignedAt: iso(160), endedAt: null },
+  { id: 'ca4', clientId: 'cl3', employeeId: 'e8', roleId: 'role-smm', assignedAt: iso(155), endedAt: null },
+  { id: 'ca5', clientId: 'cl3', employeeId: 'e6', roleId: 'role-smm', assignedAt: iso(150), endedAt: null },
+  { id: 'ca6', clientId: 'cl3', employeeId: 'e9', roleId: 'role-editor', assignedAt: iso(150), endedAt: null },
+  { id: 'ca7', clientId: 'cl3', employeeId: 'e10', roleId: 'role-editor', assignedAt: iso(150), endedAt: null },
+  { id: 'ca8', clientId: 'cl3', employeeId: 'e11', roleId: 'role-editor', assignedAt: iso(120), endedAt: null },
+  { id: 'ca9', clientId: 'cl4', employeeId: 'e6', roleId: 'role-smm', assignedAt: iso(250), endedAt: null },
+  { id: 'ca10', clientId: 'cl4', employeeId: 'e9', roleId: 'role-editor', assignedAt: iso(250), endedAt: null },
+  { id: 'ca11', clientId: 'cl1', employeeId: 'e8', roleId: 'role-smm', assignedAt: iso(240), endedAt: iso(180) },
+]
+
+export const demoTargets: ViewTarget[] = [
+  {
+    id: 'vt1', clientId: 'cl3', label: 'Apr – Dec 2026', totalViews: 750_000_000, startsOn: '2026-04-01', endsOn: '2026-12-31',
+    countMain: true, countFan: true, platforms: ['instagram', 'youtube'], weekCountsIn: 'start', isActive: true, notes: '',
+  },
+  {
+    id: 'vt2', clientId: 'cl4', label: '2026', totalViews: 1_000_000_000, startsOn: '2026-01-01', endsOn: '2026-12-31',
+    countMain: true, countFan: true, platforms: ['instagram', 'youtube'], weekCountsIn: 'end', isActive: true, notes: '',
+  },
+]
+
+/** Subhash: the sheet's own 20 / 30 / 50. LavBhushan: his tabs, with May–Aug
+ *  carrying the sheet's own 425,296,713 over "30%" (Q3) — both kept. */
+export const demoTargetPeriods: ViewTargetPeriod[] = [
+  { id: 'tp1', targetId: 'vt1', label: 'April – June', startsOn: '2026-04-01', endsOn: '2026-06-30', sharePct: 20, targetViews: null, sortOrder: 1 },
+  { id: 'tp2', targetId: 'vt1', label: 'July – Sep', startsOn: '2026-07-01', endsOn: '2026-09-30', sharePct: 30, targetViews: null, sortOrder: 2 },
+  { id: 'tp3', targetId: 'vt1', label: 'Oct – Dec', startsOn: '2026-10-01', endsOn: '2026-12-31', sharePct: 50, targetViews: null, sortOrder: 3 },
+  { id: 'tp4', targetId: 'vt2', label: 'Jan – Apr', startsOn: '2026-01-01', endsOn: '2026-04-30', sharePct: 30, targetViews: null, sortOrder: 1 },
+  { id: 'tp5', targetId: 'vt2', label: 'May – Aug', startsOn: '2026-05-01', endsOn: '2026-08-31', sharePct: 30, targetViews: 425_296_713, sortOrder: 2 },
+  { id: 'tp6', targetId: 'vt2', label: 'Sep – Dec', startsOn: '2026-09-01', endsOn: '2026-12-31', sharePct: 40, targetViews: null, sortOrder: 3 },
+]
+
+/** A fixed pseudo-random sequence, so the demo's numbers are the same on
+ *  every load (mulberry32). */
+function seeded(seed: number) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const DEMO_TODAY = new Date().toISOString().slice(0, 10)
+const DEMO_LAST_WEEK = lastCompletedWeek(DEMO_TODAY)
+
+/** LavBhusan's May – Aug tab, typed in as the sheet shows it: Views (Fanages),
+ *  Views (Mainages), and Followers where the sheet has them. */
+const LB_WEEKS: [string, number, number, number | null][] = [
+  ['2026-04-27', 6_968_874, 323_773, 2663], ['2026-05-04', 20_763_930, 654_064, 5965],
+  ['2026-05-11', 28_873_010, 519_951, 7992], ['2026-05-18', 37_262_242, 831_573, 7249],
+  ['2026-05-25', 24_602_639, 954_910, null], ['2026-06-01', 26_767_499, 708_576, null],
+  ['2026-06-08', 23_920_735, 861_249, null], ['2026-06-15', 19_286_472, 1_612_580, null],
+  ['2026-06-22', 39_397_125, 2_100_114, null], ['2026-06-29', 34_083_178, 3_274_908, null],
+  ['2026-07-06', 27_474_301, 2_563_989, null], ['2026-07-13', 19_734_080, 2_132_142, null],
+  ['2026-07-20', 30_629_088, 3_376_514, null], ['2026-07-27', 29_250_316, 4_754_120, null],
+  ['2026-08-03', 56_008_407, 3_451_426, null], ['2026-08-10', 54_172_258, 3_078_993, null],
+  ['2026-08-17', 44_463_077, 5_892_277, null], ['2026-08-24', 39_543_497, 3_693_526, null],
+]
+
+const wv = (channelId: string, weekStart: string, views: number, followers: number | null, proof: boolean): WeeklyView => ({
+  id: `wv-${channelId}-${weekStart}`, channelId, weekStart, views, followers,
+  proofPath: proof ? `${channelId}/${weekStart}-demo.jpg` : null,
+  enteredBy: null, enteredAt: addDays(weekStart, 8) + 'T05:30:00Z', updatedBy: null, updatedAt: null,
+})
+
+export const demoWeeklyViews: WeeklyView[] = [
+  ...LB_WEEKS.flatMap(([w, fan, main, followers]) => [
+    wv('ch-ig-pg13', w, fan, followers, true),
+    wv('ch-ig-pg12', w, main, null, true),
+  ]),
+  // Subhash Goyal — every channel, every week of the target so far. The
+  // week that just ended is only half in, so "This week" has something to do.
+  ...(() => {
+    const rand = seeded(20260401)
+    const chans = demoPageChannels.filter((c) => ['pg5', 'pg6', 'pg7', 'pg8', 'pg9', 'pg10', 'pg11'].includes(c.pageId))
+    const holder = (pageId: string) => demoPageAssignments.find((a) => a.pageId === pageId)?.employeeId
+    return weeksOf('2026-04-01', '2026-12-31', 'start').filter((w) => w <= DEMO_LAST_WEEK).flatMap((w, wi) =>
+      chans.flatMap((c) => {
+        if (w === DEMO_LAST_WEEK && holder(c.pageId) === 'e6') return []
+        // Sized like the sheet: April–June lands near its 88M.
+        const base = c.platform === 'instagram' ? 340_000 : 160_000
+        const growth = 1 + wi * 0.16
+        const views = Math.round(base * growth * (0.35 + rand() * 1.3))
+        return [wv(c.id, w, views, null, rand() > 0.25)]
+      }))
+  })(),
+]
+
+export const demoAdjustments: ViewAdjustment[] = [
+  { id: 'va1', targetId: 'vt2', periodId: null, weekStart: '2026-05-18', typeId: 'at1', views: -13_301_000, note: '', createdAt: iso(120) },
+  { id: 'va2', targetId: 'vt2', periodId: null, weekStart: '2026-05-18', typeId: 'at2', views: -287_520, note: '', createdAt: iso(120) },
+  { id: 'va3', targetId: 'vt2', periodId: null, weekStart: '2026-05-18', typeId: 'at3', views: -46_424_811, note: '', createdAt: iso(120) },
+  { id: 'va4', targetId: 'vt2', periodId: null, weekStart: '2026-05-25', typeId: 'at3', views: -1_333_308, note: 'jyotidrishti views', createdAt: iso(115) },
+  { id: 'va5', targetId: 'vt2', periodId: null, weekStart: '2026-05-25', typeId: 'at3', views: -77_171_841, note: 'zone,', createdAt: iso(115) },
+  { id: 'va6', targetId: 'vt2', periodId: null, weekStart: '2026-05-25', typeId: 'at3', views: -7_255_797, note: 'Lavbhushanworld views', createdAt: iso(115) },
+  { id: 'va7', targetId: 'vt1', periodId: null, weekStart: '2026-07-13', typeId: 'at3', views: -4_624_811, note: 'Herbal Diary suspended', createdAt: iso(70) },
+  { id: 'va8', targetId: 'vt1', periodId: null, weekStart: '2026-08-03', typeId: 'at2', views: -287_520, note: '', createdAt: iso(50) },
 ]

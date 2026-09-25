@@ -6,7 +6,7 @@ type Row = Record<string, unknown>
 
 export interface AppNotification {
   id: string
-  type: 'broadcast' | 'birthday' | 'shift_reminder' | 'visit_request' | 'wfh_request'
+  type: 'broadcast' | 'birthday' | 'shift_reminder' | 'visit_request' | 'wfh_request' | 'incentive_claim' | 'views_reminder'
   title: string
   body: string
   createdAt: string
