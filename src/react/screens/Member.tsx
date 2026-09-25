@@ -367,6 +367,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     toast(`${count(got.length, 'claim')} updated` + (missed ? ` · ${missed} couldn't be read — HR can enter those by hand` : '') + '.')
   }, [toast])
   const openClaimIds = useMemo(() => myClaims.filter((c) => isClaimOpen(c)).map((c) => c.id), [myClaims])
+  // Opening the Claims tab re-checks any claim whose views are over 12
+  // hours old — silently, the rows just update (useIncentiveClaims).
+  const { autoCheckViews } = incentiveClaims
+  const claimsReady = !incentiveClaims.loading
+  useEffect(() => {
+    if (sec === 'sales' && isContentMarketing && claimsReady) autoCheckViews(myClaims)
+  }, [sec, isContentMarketing, claimsReady, myClaims, autoCheckViews])
   const checkingMine = openClaimIds.some((id) => incentiveClaims.checking.has(id))
   const tz = att.settings?.timezone ?? 'Asia/Kolkata'
 

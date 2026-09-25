@@ -5850,3 +5850,35 @@ Nothing breaks.
 - Nothing stops the same reel being claimed twice, by one person or by two.
   There is no unique index on `reel_url`. That could mean double payouts, so it
   is worth a rule once Adarsh says who should win a duplicate.
+
+## Follow-up, 2026-09-25 — automatic re-check when a claims list opens (12-hour rule)
+
+Adarsh asked for automatic re-checks instead of pressing ↻. The options, costed
+at Apify's ~$2.30–2.70 per 1,000 lookups for 50 open claims:
+- every hour: about ₹7,500/month
+- every 4 hours: about ₹1,900/month
+- every 12 hours: about ₹650/month
+
+He picked "better and save": **opening an employee's Claims tab, or HR's Salary
+section (where the claims list lives), silently re-checks only the open claims
+whose views are more than 12 hours old.** That is at most two lookups per claim
+per day, and nothing on days nobody looks. It lives in `autoCheckViews` in
+useIncentiveClaims.
+
+How the 12 hours is enforced:
+- `views_checked_at` is shared by everyone, so it throttles every claim Instagram
+  can read.
+- A claim it can't read never gets a `views_checked_at`. Those are throttled per
+  browser: localStorage `metrol-claim-view-attempts` records each try, plus an
+  in-memory set per page visit. The in-memory set guarantees that a list reload
+  after a check can never trigger another check, even when storage is
+  unavailable.
+- A global "last tried" timestamp would need the Edge Function re-pasted. Not
+  worth it at ₹0.2 a lookup.
+
+Demo mode now shows a 0.7s "checking…" beat for any check.
+
+**Not built:** a timed schedule (every 12h) with "your reel crossed 1M" alerts.
+It needs Supabase Cron. The org shows the PRO plan, so re-check the "no cron"
+note in INCENTIVE-AUTOMATION-PLAN.md before assuming it. That plan's step 4
+covers it.

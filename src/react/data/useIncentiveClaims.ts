@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { functionErrorMessage, supabase } from '@/lib/supabase'
 import { demoIncentiveClaims, demoIncentiveRules, demoPages, isDemo } from '@/data/demo'
-import type { IncentiveClaim } from '@/lib/hr'
+import { isClaimOpen, type IncentiveClaim } from '@/lib/hr'
 
 type Row = Record<string, unknown>
 
@@ -46,6 +46,35 @@ export interface ViewCheckResult {
 /** Matches MAX_CLAIMS in fetch-page-reels — bigger batches go in chunks. */
 const CHECK_CHUNK = 10
 
+/* The automatic check (Adarsh, 2026-09-25: "better and save"). Opening a
+ * claims list re-checks only claims whose views are more than 12 hours old,
+ * so a claim costs at most two Apify lookups a day, and only on days
+ * somebody actually looks. The ↻ button stays for "right now".
+ *
+ * views_checked_at (server-side, shared by everyone) throttles every claim
+ * Instagram can read. A claim it CANNOT read (private, deleted) never gets a
+ * views_checked_at, so this browser also remembers when it last tried each
+ * claim. If storage is unavailable the only cost is a few extra ₹0.2
+ * lookups. Making that global would mean re-pasting the Edge Function,
+ * which isn't worth it for cost this small. */
+const AUTO_CHECK_AFTER_MS = 12 * 60 * 60 * 1000
+const ATTEMPTS_KEY = 'metrol-claim-view-attempts'
+
+function readAttempts(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(ATTEMPTS_KEY) ?? '{}') ?? {} } catch { return {} }
+}
+
+function recordAttempts(ids: string[]) {
+  try {
+    const now = Date.now()
+    const map = readAttempts()
+    for (const id of ids) map[id] = now
+    // A claim stops being watched after 30 days — anything older is dead weight.
+    for (const [id, at] of Object.entries(map)) if (now - at > 31 * 24 * 60 * 60 * 1000) delete map[id]
+    localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(map))
+  } catch { /* private window etc. — views_checked_at still throttles every readable claim */ }
+}
+
 let channelSeq = 0
 
 /**
@@ -61,6 +90,11 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
   /** Claims with a view check in flight — the table says "checking…" for
    *  these instead of "not checked", so a fresh submit reads as working. */
   const [checking, setChecking] = useState<ReadonlySet<string>>(() => new Set())
+  const checkingRef = useRef<ReadonlySet<string>>(checking)
+  useEffect(() => { checkingRef.current = checking }, [checking])
+  /** Claims the automatic check already tried during this page visit, so a
+   *  reload of the list after a check can never set off another one. */
+  const autoTried = useRef(new Set<string>())
   const rowsRef = useRef<IncentiveClaim[]>([])
   useEffect(() => { rowsRef.current = rows }, [rows])
 
@@ -140,8 +174,19 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
    *  HR/owner/the C&M lead any. */
   const checkViews = useCallback(async (ids: string[]): Promise<ViewCheckResult> => {
     if (ids.length === 0) return { message: 'No open claims to check.', results: [] }
-    if (isDemo()) return { message: 'Not available in demo mode.', results: [] }
     setChecking((prev) => new Set([...prev, ...ids]))
+    if (isDemo()) {
+      // No Instagram in demo mode, but the same "checking…" beat the real
+      // check shows, so the screen can still be seen working.
+      await new Promise((r) => setTimeout(r, 700))
+      setChecking((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+      return { message: 'Not available in demo mode.', results: [] }
+    }
+    recordAttempts(ids)
     const results: ViewCheckResult['results'] = []
     let message: string | null = null
     try {
@@ -164,6 +209,22 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
     }
     return { message, results }
   }, [load])
+
+  /** The automatic check: the claims among `claims` still being watched
+   *  whose views are more than 12 hours old, checked silently. The screen
+   *  calls this when a claims list is opened, and the rows update in place. */
+  const autoCheckViews = useCallback((claims: IncentiveClaim[]) => {
+    const attempts = isDemo() ? {} : readAttempts()
+    const now = Date.now()
+    const stale = claims.filter((c) => {
+      if (!isClaimOpen(c) || checkingRef.current.has(c.id) || autoTried.current.has(c.id)) return false
+      const lastTried = Math.max(c.viewsCheckedAt ? Date.parse(c.viewsCheckedAt) : 0, attempts[c.id] ?? 0)
+      return now - lastTried >= AUTO_CHECK_AFTER_MS
+    }).map((c) => c.id)
+    if (stale.length === 0) return
+    for (const id of stale) autoTried.current.add(id)
+    void checkViews(stale)
+  }, [checkViews])
 
   /** HR typing today's view count in — later, the Apify Edge Function calls
    *  this same path. The tier and current_amount are recomputed by the
@@ -208,7 +269,7 @@ export function useIncentiveClaims(enabled = true, onIncoming?: (row: IncentiveC
     return null
   }, [])
 
-  return { rows, loading, error, checking, reload: () => load(true), create, checkViews, setViews, reject, clearError: () => setError(null) }
+  return { rows, loading, error, checking, reload: () => load(true), create, checkViews, autoCheckViews, setViews, reject, clearError: () => setError(null) }
 }
 
 export type IncentiveClaims = ReturnType<typeof useIncentiveClaims>

@@ -729,6 +729,14 @@ export function HrPage({
    *  on "not checked" (fetch-page-reels, claimIds mode). */
   const openClaimIds = incentiveClaims.rows.filter((c) => isClaimOpen(c)).map((c) => c.id)
   const checkingClaims = openClaimIds.some((id) => incentiveClaims.checking.has(id))
+  // Opening Salary (where the claims list lives) re-checks any claim whose
+  // views are over 12 hours old — silently, same rule as an employee's tab.
+  const { autoCheckViews } = incentiveClaims
+  const claimsReady = !incentiveClaims.loading
+  const claimsOnScreen = !open && section === 'salary'
+  useEffect(() => {
+    if (claimsOnScreen && claimsReady) autoCheckViews(incentiveClaims.rows)
+  }, [claimsOnScreen, claimsReady, incentiveClaims.rows, autoCheckViews])
   const checkAllClaimViews = async () => {
     const r = await incentiveClaims.checkViews(openClaimIds)
     if (r.message) { toast(r.message); return }
