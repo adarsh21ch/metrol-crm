@@ -2311,10 +2311,12 @@ table.grid.tg-sum .is-on{background:var(--accent-soft)}
 .tg-counts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
 .tg-counts-l{font-size:12px;font-weight:500;color:var(--ink-2);margin-right:2px}
 .tg-periods{display:flex;flex-direction:column;gap:6px}
-.tg-period{display:grid;grid-template-columns:minmax(90px,1.2fr) 1fr 1fr 64px minmax(80px,.9fr) 28px;gap:6px;align-items:center}
+.tg-period{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 64px minmax(0,.9fr) 28px;gap:6px;align-items:center}
+/* a date box will not shrink below its own content unless told it may */
+.tg-period .input{min-width:0;width:100%}
 .tg-period--head span{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
 @media (max-width:600px){
-  .tg-period{grid-template-columns:1fr 1fr;row-gap:4px;padding-bottom:8px;border-bottom:1px solid var(--line-2)}
+  .tg-period{grid-template-columns:minmax(0,1fr) minmax(0,1fr);row-gap:4px;padding-bottom:8px;border-bottom:1px solid var(--line-2)}
   .tg-period--head{display:none}
 }
 

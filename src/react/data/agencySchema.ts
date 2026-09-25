@@ -35,7 +35,12 @@ export function agencySchema(): Promise<AgencySchema> {
   if (isDemo()) return Promise.resolve({ access: true, clients: true, targets: true })
   probe ??= (async () => {
     const has = async (table: string) => {
-      const { error } = await supabase.from(table).select('id', { head: true, count: 'exact' }).limit(1)
+      // A plain one-row read, NOT a HEAD request: PostgREST answers HEAD on a
+      // missing table with a bodiless 404, which supabase-js turns into
+      // "204 No Content, no error" — every table looked installed, and the
+      // new screens switched on before the SQL had run. A GET carries the
+      // PGRST205 body that says the table is not there.
+      const { error } = await supabase.from(table).select('id').limit(1)
       // Anything but "missing" means the table is there — a refused read is
       // still a table that exists.
       return !isMissingTable(error)
