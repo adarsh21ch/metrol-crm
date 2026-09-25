@@ -87,7 +87,6 @@ export function ClientPage({
         {client.code && <span className="emp-code">{client.code}</span>}
         {status && <Chip cls={'chip--' + status.tone}>{status.name}</Chip>}
         {!client.isActive && <Chip cls="chip--mute">Retired</Chip>}
-        {canManage && <button className="btn btn--sm head-cta" onClick={() => setEditing(true)}>Edit</button>}
       </div>
 
       <div className="tabs prof-tabs">
@@ -107,6 +106,7 @@ export function ClientPage({
 
       {shownTab === 'overview' && (
         <OverviewTab agency={agency} client={client} canManage={canManage} canMoney={canMoney} toast={toast}
+                     onEdit={() => setEditing(true)}
                      departmentName={ws.departmentName} targetCount={clientTargets.length}
                      onOpenTargets={canTargets ? () => setTab('targets') : null} />
       )}
@@ -136,11 +136,12 @@ export function ClientPage({
 /* ================================================================ Overview */
 
 function OverviewTab({
-  agency, client, canManage, canMoney, toast, departmentName, targetCount, onOpenTargets,
+  agency, client, canManage, canMoney, toast, onEdit, departmentName, targetCount, onOpenTargets,
 }: {
   agency: Agency
   client: Client
   canManage: boolean
+  onEdit: () => void
   canMoney: boolean
   toast: (m: string) => void
   departmentName: (id: string | null) => string | null
@@ -168,7 +169,10 @@ function OverviewTab({
   return (
     <div className="section">
       <div className="ov-card">
-        <div className="ov-head"><h4>Details</h4></div>
+        <div className="ov-head">
+          <h4>Details</h4>
+          {canManage && <button className="btn btn--sm" style={{ marginLeft: 'auto' }} onClick={onEdit}>Edit</button>}
+        </div>
         <div className="hr-fields">
           <Fld l="Client ID" v={client.code} />
           <Fld l="Company" v={client.company} />

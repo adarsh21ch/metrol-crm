@@ -48,6 +48,7 @@ export function WeeklyViewsSection({
   const from = week < addDays(lastWeek, -77) ? addDays(week, -77) : addDays(lastWeek, -77)
   const weekly = useWeeklyViews(ids, from)
   const summary = useTargetSummary(lastWeek)
+  const reloadSummary = summary.reload
 
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [state, setState] = useState<Record<string, RowState>>({})
@@ -72,7 +73,11 @@ export function WeeklyViewsSection({
     const m = await weekly.saveViews(c.id, week, n)
     setState((p) => ({ ...p, [c.id]: m ? 'error' : 'saved' }))
     if (m) toast(m)
-    else setDrafts((p) => { const q = { ...p }; delete q[c.id]; return q })
+    else {
+      setDrafts((p) => { const q = { ...p }; delete q[c.id]; return q })
+      // The client's "July – Sep: 142M / 225M" line moves with the number.
+      void reloadSummary()
+    }
   }
 
   const attach = async (file: File | undefined) => {
@@ -104,12 +109,10 @@ export function WeeklyViewsSection({
 
   return (
     <div className="section">
-      <div className="section-head">
-        <h3>{weekLabel(week)}</h3>
-        <div className="month-step">
-          <button className="btn btn--sm" aria-label="Previous week" onClick={() => setWeek((w) => addDays(w, -7))}>←</button>
-          <button className="btn btn--sm" aria-label="Next week" disabled={week >= lastWeek} onClick={() => setWeek((w) => addDays(w, 7))}>→</button>
-        </div>
+      <div className="month-step wk-step">
+        <button className="btn btn--sm" aria-label="Previous week" onClick={() => setWeek((w) => addDays(w, -7))}>←</button>
+        <strong>{weekLabel(week)}{week === lastWeek ? ' · last week' : ''}</strong>
+        <button className="btn btn--sm" aria-label="Next week" disabled={week >= lastWeek} onClick={() => setWeek((w) => addDays(w, 7))}>→</button>
       </div>
 
       {byClient.map(({ client, rows }) => {

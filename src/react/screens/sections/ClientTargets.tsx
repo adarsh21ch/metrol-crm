@@ -246,17 +246,17 @@ export function ClientTargets({
 
       <div className="section-head">
         <h3>{period ? period.label : target ? 'Weeks' : 'Weekly views'}</h3>
-        {period && periods.length > 1 && (
-          <div className="month-step">
-            <button className="btn btn--sm" aria-label="Previous period" disabled={periods[0]?.id === period.id}
-                    onClick={() => setPickedPeriod(periods[periods.findIndex((p) => p.id === period.id) - 1]!.id)}>←</button>
-            <button className="btn btn--sm" aria-label="Next period" disabled={periods[periods.length - 1]?.id === period.id}
-                    onClick={() => setPickedPeriod(periods[periods.findIndex((p) => p.id === period.id) + 1]!.id)}>→</button>
-          </div>
-        )}
-        {target && canManageTargets && (
+        {((period && periods.length > 1) || (target && canManageTargets)) && (
           <div className="section-tools section-tools--tight">
-            <button className="btn btn--sm" onClick={() => setAdjusting('new')}>+ Adjustment</button>
+            {period && periods.length > 1 && (
+              <>
+                <button className="btn btn--sm" aria-label="Previous period" disabled={periods[0]?.id === period.id}
+                        onClick={() => setPickedPeriod(periods[periods.findIndex((p) => p.id === period.id) - 1]!.id)}>←</button>
+                <button className="btn btn--sm" aria-label="Next period" disabled={periods[periods.length - 1]?.id === period.id}
+                        onClick={() => setPickedPeriod(periods[periods.findIndex((p) => p.id === period.id) + 1]!.id)}>→</button>
+              </>
+            )}
+            {target && canManageTargets && <button className="btn btn--sm" onClick={() => setAdjusting('new')}>+ Adjustment</button>}
           </div>
         )}
       </div>

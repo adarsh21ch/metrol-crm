@@ -2377,3 +2377,12 @@ table.grid.imp-check td.num{font-family:var(--mono);font-size:12.5px}
 .imp-lump .input{width:auto;min-width:200px}
 .imp-warn{font-size:12px;color:var(--ink-3)}
 .imp-warn summary{cursor:pointer}
+/* first columns read left to right, whatever the numbers beside them do */
+table.grid.tg-grid .tg-sticky,table.grid.tg-sum .tg-sticky,.tg-name{text-align:left}
+/* the weekly stepper sits at the start of its row on a desktop */
+.wk-step{margin-left:0}
+/* Links inside tables and detail fields: the app never styled a link, so
+   every one of them fell back to the browser's blue — unreadable in dark
+   mode. Quiet ink with a line under it, the accent on hover. */
+table.grid a,.hr-fld .v a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:2px}
+table.grid a:hover,.hr-fld .v a:hover{color:var(--accent-ink);text-decoration-color:currentColor}
