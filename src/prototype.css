@@ -2582,3 +2582,102 @@ table.grid a:hover,.hr-fld .v a:hover,.grid-cards a:hover{color:var(--accent-ink
   .ver-review-btns{width:100%}
   .ver-review-btns .btn{flex:1}
 }
+
+/* ------------------------------------------------ Phase 2, Round 4: shoots */
+.cell-good{color:var(--good);font-weight:600}
+/* A reel's shoot, one line in the item and task modals — a way into it. */
+.shoot-line{
+  display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;text-align:left;font-size:12.5px;
+  border:1px solid var(--info-line);border-radius:var(--r);background:var(--info-soft);color:var(--ink);
+}
+button.shoot-line{cursor:pointer}
+button.shoot-line:hover{border-color:var(--info)}
+.shoot-line.is-empty{background:var(--surface-2);border-style:dashed;border-color:var(--line)}
+.shoot-line-k{flex:none;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--info)}
+.shoot-line.is-empty .shoot-line-k{color:var(--ink-3)}
+.shoot-line-v{flex:1;min-width:0;color:var(--ink-2);overflow-wrap:anywhere}
+.shoot-line-v b{color:var(--ink)}
+.shoot-line-go{flex:none;font-size:12px;font-weight:600;color:var(--accent-ink);white-space:nowrap}
+/* The shoot modal's reel picker. */
+.shoot-reels{display:flex;flex-direction:column;gap:6px}
+.shoot-reel{
+  display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto;align-items:center;gap:10px;
+  padding:7px 10px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface-2);font-size:12.5px;cursor:pointer;
+}
+.shoot-reel:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.shoot-reel.is-locked{cursor:default;opacity:.8}
+.shoot-reel-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:500}
+/* The month: seven columns, hairlines between the days. */
+.shoot-cal-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.shoot-cal-head .month-step{margin-left:0}
+.shoot-cal{
+  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+}
+.shoot-cal-dow{background:var(--surface-2);padding:6px 8px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.shoot-cal-day{background:var(--surface);min-height:92px;min-width:0;padding:6px;display:flex;flex-direction:column;gap:4px}
+.shoot-cal-day.is-out{background:var(--surface-2)}
+.shoot-cal-day.is-out .shoot-cal-d{opacity:.45}
+.shoot-cal-day.is-open{cursor:pointer}
+.shoot-cal-day.is-open:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+.shoot-cal-d{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:20px;height:20px}
+.shoot-cal-day.is-today .shoot-cal-d{
+  display:inline-grid;place-items:center;width:20px;border-radius:50%;background:var(--accent);color:var(--accent-on);font-weight:700;
+}
+.shoot-chip{
+  display:flex;align-items:baseline;gap:4px;width:100%;min-width:0;padding:3px 6px;text-align:left;cursor:pointer;
+  border:1px solid var(--info-line);border-radius:5px;background:var(--info-soft);color:var(--info);font-size:11.5px;
+}
+.shoot-chip-t{flex:none;font-family:var(--mono);font-size:10.5px}
+.shoot-chip-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.shoot-chip.is-done{background:var(--good-soft);border-color:var(--good-line);color:var(--good)}
+.shoot-chip.is-cancelled{background:var(--surface-2);border-color:var(--line);color:var(--ink-3);text-decoration:line-through}
+.shoot-chip.is-late{background:var(--bad-soft);border-color:var(--bad-line);color:var(--bad)}
+/* The month as a list — the phone's way to read it (the days carry dots). */
+.shoot-agenda{display:none}
+.shoot-agenda-row{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;
+  padding:9px 11px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);text-align:left;font-size:12.5px;cursor:pointer;
+}
+.shoot-agenda-row:hover{border-color:var(--accent)}
+.shoot-agenda-day{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:var(--ink-2)}
+.shoot-agenda-what{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:860px){
+  .shoot-cal-dow{padding:5px 0;text-align:center;font-size:10px}
+  .shoot-cal-day{min-height:50px;padding:4px;flex-direction:row;flex-wrap:wrap;align-content:flex-start;gap:3px}
+  .shoot-cal-d{width:100%;text-align:center}
+  .shoot-cal-day.is-today .shoot-cal-d{width:20px;margin:0 auto}
+  .shoot-chip{width:8px;height:8px;padding:0;border:0;border-radius:50%;background:var(--info)}
+  .shoot-chip > *{display:none}
+  .shoot-chip.is-done{background:var(--good)}
+  .shoot-chip.is-cancelled{background:var(--ink-3)}
+  .shoot-chip.is-late{background:var(--bad)}
+  .shoot-cal-day{justify-content:center}
+  .shoot-agenda{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+}
+@media (max-width:600px){
+  .shoot-reel{grid-template-columns:auto auto minmax(0,1fr);row-gap:4px}
+  .shoot-reel .chip{grid-column:2/-1;justify-self:start}
+  .shoot-agenda-row{grid-template-columns:minmax(0,1fr) auto}
+  .shoot-agenda-what{grid-column:1/-1}
+  .shoot-cal-head{justify-content:space-between}
+}
+
+/* ------------------------------------------- the employee's work history */
+/* Done per week of the month — a small strip under the cards. */
+.hist-weeks{
+  display:flex;gap:10px;align-items:flex-end;margin:12px 0;padding:12px 14px;
+  border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
+}
+.hist-week{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.hist-bar{height:54px;width:100%;max-width:56px;display:flex;align-items:flex-end;border-radius:4px;background:var(--surface-2)}
+.hist-bar span{display:block;width:100%;min-height:2px;border-radius:4px;background:var(--accent)}
+.hist-n{font-family:var(--display);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.hist-l{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);white-space:nowrap}
+/* This week: the automatic figure beside the typed one (0047). */
+.wv-auto{
+  flex:none;padding:3px 7px;border:1px dashed var(--line);border-radius:6px;background:var(--surface-2);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap;
+}
+.wv-auto:hover:not(:disabled){border-color:var(--accent);color:var(--accent-ink)}
+.wv-auto:disabled{cursor:default;opacity:.75}

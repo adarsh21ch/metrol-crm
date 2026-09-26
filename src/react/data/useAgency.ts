@@ -48,7 +48,8 @@ export function useAgency(ws: Workspace, staff: Employee[], pages: Pages, enable
   return {
     /** null until the database has answered */
     schema,
-    installed: { access: !!schema?.access, clients: !!schema?.clients, targets: !!schema?.targets, workflows: !!schema?.workflows, work: !!schema?.work },
+    installed: { access: !!schema?.access, clients: !!schema?.clients, targets: !!schema?.targets, workflows: !!schema?.workflows, work: !!schema?.work,
+      shoots: !!schema?.shoots, posting: !!schema?.posting },
     access, accessData, team, lists, channels, extras, targets, myEmployee,
   }
 }

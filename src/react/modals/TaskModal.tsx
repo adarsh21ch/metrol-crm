@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { VersionsPanel } from '@/components/VersionsPanel'
+import { ShootLine, ShootModal } from '@/modals/ShootModal'
 import { isOwnerLevel, type Client, type Employee } from '@/lib/hr'
 import {
   NO_VERSION_DRAFT, PRIORITIES, canEditWorkOn, doneStatusIds, eventWords, fmtStamp, fromLocalInput, nextStage, toLocalInput,
-  type ContentItem, type ContentVersion, type Priority, type Task, type TaskPatch, type ThreadEntry, type VersionDraft,
+  type ContentItem, type ContentVersion, type Priority, type Shoot, type Task, type TaskPatch, type ThreadEntry, type VersionDraft,
 } from '@/lib/work'
 import type { StaffPick } from '@/data/useClientTeam'
 import type { Agency } from '@/data/useAgency'
@@ -77,6 +78,7 @@ export function TaskModal({
   const [thread, setThread] = useState<ThreadEntry[] | null>(null)
   const [note, setNote] = useState('')
   const [verDraft, setVerDraft] = useState<VersionDraft>(NO_VERSION_DRAFT)
+  const [shootOpen, setShootOpen] = useState<Shoot | 'new' | null>(null)
   const [busy, setBusy] = useState<'save' | 'delete' | 'comment' | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
@@ -184,6 +186,15 @@ export function TaskModal({
     await reloadThread()
   }
 
+  if (shootOpen && item) {
+    return (
+      <ShootModal ws={ws} agency={agency} flows={flows} work={work}
+                  shoot={shootOpen === 'new' ? null : work.shoots.find((s) => s.id === shootOpen.id) ?? shootOpen}
+                  clients={clients} staff={staff} presetClientId={item.clientId} presetItemIds={[item.id]}
+                  toast={toast} onClose={() => setShootOpen(null)} />
+    )
+  }
+
   const canSave = isNew || rights.manage || rights.status
   const sub = isNew
     ? 'They are told the moment you save it.'
@@ -227,6 +238,10 @@ export function TaskModal({
               ? <>Approving it moves {item.code} on to <b>{next.name}</b>.</>
               : <>{stage?.isReview ? 'A review. ' : ''}Finishing it moves {item.code} on to <b>{next.name}</b> — whoever holds that gets the next task.</>}
           </p>
+        )}
+        {task && item && (
+          <ShootLine item={item} work={work} flows={flows} canPlan={!!client && canEditWorkOn(ws, agency.access, client)}
+                     onOpen={setShootOpen} />
         )}
         {task && item && work.versionsOn && verRights && (
           <VersionsPanel

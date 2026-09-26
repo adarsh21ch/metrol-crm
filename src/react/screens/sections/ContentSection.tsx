@@ -9,7 +9,8 @@ import { usePersistedState } from '@/lib/usePersistedState'
 import { count } from '@/lib/format'
 import { fmtDate, type Client, type Employee, type Page, type PageAssignment } from '@/lib/hr'
 import {
-  boardStages, canEditWorkOn, doneStatusIds, fmtDue, isOverdue, versionMark,
+  boardStages, canEditWorkOn, doneStatusIds, fmtDue, isOverdue, officeDay, plannedShootOf, safeUrl, shootDayLabel, stagesToGo,
+  versionMark,
   type ContentItem, type ContentReview, type ContentVersion, type Task,
 } from '@/lib/work'
 import type { Agency } from '@/data/useAgency'
@@ -104,6 +105,10 @@ export function ContentSection({
     )
   }
 
+  /** The planned shoot a reel waits on (0046), as a card and the list say it. */
+  const today = officeDay()
+  const shootOf = (it: ContentItem) => (work.shootsOn ? plannedShootOf(it.id, work.shoots, work.shootItems) : null)
+
   const canEdit = (it: ContentItem) => { const c = clientById.get(it.clientId); return !!c && canEditWorkOn(ws, access, c) }
   const addable = clients.filter((c) => c.isActive && canEditWorkOn(ws, access, c))
   const canAdd = scoped ? addable.some((c) => c.id === clientId) : addable.length > 0
@@ -137,7 +142,9 @@ export function ContentSection({
 
   const card = (it: ContentItem) => {
     const p = it.pageId ? pageById.get(it.pageId) : null
-    const sub = [!scoped ? clientById.get(it.clientId)?.name : null, p ? (p.label || p.instagramHandle) : null].filter(Boolean).join(' · ')
+    const sh = shootOf(it)
+    const sub = [!scoped ? clientById.get(it.clientId)?.name : null, p ? (p.label || p.instagramHandle) : null,
+      sh ? `shoot ${shootDayLabel(sh.shootOn, null).replace(/^\w+ /, '')}` : null].filter(Boolean).join(' · ')
     return (
       <>
         <div className="board-card-head">
@@ -182,7 +189,29 @@ export function ContentSection({
         return <span className={isOverdue(t, done) ? 'cell-late' : undefined}>{fmtDue(t.dueAt)}</span>
       },
     },
+    ...(work.shootsOn ? [{
+      key: 'shoot', label: 'Shoot', width: 150,
+      render: (r: ContentItem) => {
+        const sh = shootOf(r)
+        if (!sh) return <span className="cell-dash">—</span>
+        return <span className={sh.shootOn < today ? 'cell-late' : undefined}>{sh.code} · {shootDayLabel(sh.shootOn, null)}</span>
+      },
+    }] : []),
+    {
+      key: 'togo', label: 'To go', width: 90,
+      render: (r) => {
+        const n = stagesToGo(flows.stages, r)
+        return n ? <span title="Stages left before it is finished">{n === 1 ? '1 stage' : `${n} stages`}</span> : <span className="cell-mute">Done</span>
+      },
+    },
     { key: 'post', label: 'Post on', width: 110, render: (r) => (r.plannedPostOn ? fmtDate(r.plannedPostOn) : <span className="cell-dash">—</span>) },
+    ...(work.postingOn ? [{
+      key: 'live', label: 'Posted', width: 90,
+      render: (r: ContentItem) => {
+        const u = safeUrl(r.postedUrl)
+        return u ? <a href={u} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Open ↗</a> : <span className="cell-dash">—</span>
+      },
+    }] : []),
   ]
 
   // Counted over what each view shows: the board is one workflow, the list

@@ -2,16 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   demoAccess, demoClientAssignments, demoClients, demoContentItems, demoDepartments, demoEmployees, demoItemPeople, demoMe,
-  demoPageAssignments, demoReviews, demoTaskStatuses, demoTasks, demoThreads, demoVersions, demoWorkflowStages, isDemo,
+  demoPageAssignments, demoReviews, demoShootItems, demoShoots, demoTaskStatuses, demoTasks, demoThreads, demoVersions,
+  demoWorkflowStages, isDemo,
 } from '@/data/demo'
 import { HR_DEPARTMENT } from '@/lib/hr'
-import { loadTable, newId, str, type Row } from '@/data/agencySchema'
+import { agencySchema, loadTable, newId, str, type Row } from '@/data/agencySchema'
 import { flushPushes } from '@/data/useNotifications'
 import type { StaffPick } from '@/data/useClientTeam'
 import {
-  backStage, firstNoteLine, fmtStamp, nextStage, normalizeUrl, personFor, reviewWords, safeUrl,
+  backStage, firstNoteLine, fmtStamp, nextStage, normalizeUrl, personFor, postCode, reviewWords, safeUrl, shootDayLabel,
+  shootStageFor,
   type ContentItem, type ContentReview, type ContentVersion, type ItemDraft, type ItemPatch, type ItemPerson, type Priority,
-  type ReviewDraft, type ReviewNote, type Task, type TaskDraft, type TaskPatch, type ThreadEntry,
+  type ReviewDraft, type ReviewNote, type Shoot, type ShootDraft, type ShootItem, type ShootStatus, type Task, type TaskDraft,
+  type TaskPatch, type ThreadEntry,
 } from '@/lib/work'
 
 const toItem = (r: Row): ContentItem => ({
@@ -30,6 +33,41 @@ const toItem = (r: Row): ContentItem => ({
   completedAt: (r.completed_at as string | null) ?? null,
   createdBy: (r.created_by as string | null) ?? null,
   createdAt: str(r.created_at),
+  postedUrl: str(r.posted_url),
+  postShortCode: (r.post_short_code as string | null) ?? null,
+  postedAt: (r.posted_at as string | null) ?? null,
+})
+
+const toShoot = (r: Row): Shoot => ({
+  id: str(r.id),
+  code: str(r.code),
+  clientId: str(r.client_id),
+  clientName: str(r.client_name),
+  shootOn: str(r.shoot_on),
+  startsAt: r.starts_at ? str(r.starts_at).slice(0, 5) : null,
+  location: str(r.location),
+  dopId: (r.dop_id as string | null) ?? null,
+  dopName: str(r.dop_name),
+  smmId: (r.smm_id as string | null) ?? null,
+  smmName: str(r.smm_name),
+  brief: str(r.brief),
+  equipment: str(r.equipment),
+  footageUrl: str(r.footage_url),
+  status: r.status === 'done' || r.status === 'cancelled' ? r.status : 'planned',
+  completedAt: (r.completed_at as string | null) ?? null,
+  createdBy: (r.created_by as string | null) ?? null,
+  creatorName: str(r.creator_name),
+  createdAt: str(r.created_at),
+  itemCount: Number(r.item_count ?? 0),
+})
+
+const toShootItem = (r: Row): ShootItem => ({
+  shootId: str(r.shoot_id),
+  itemId: str(r.item_id),
+  itemCode: str(r.item_code),
+  itemTitle: str(r.item_title),
+  stageName: str(r.stage_name),
+  stageDone: r.stage_done === true,
 })
 
 const toPerson = (r: Row): ItemPerson => ({
@@ -110,6 +148,8 @@ function sentence(err: { code?: string; message: string }): string {
 
 /** Finished work older than this stays in the database, not on the screen. */
 const KEEP_DONE_DAYS = 30
+/** Shoots: every planned one, and the done or cancelled ones of this long. */
+const KEEP_SHOOT_DAYS = 180
 
 /* ---------------------------------------------------------------- demo mode
    The same rules 0044's triggers run, restated, so the demo hands work on
@@ -147,9 +187,9 @@ function demoPersonFor(it: ContentItem, roleId: string, people: ItemPerson[]): s
  *  content_items read rule (0044), restated. The demo has no database to
  *  hide anything, so without this a salesperson's "All" listed the content
  *  team's reels — which the live site never shows them. */
-function demoVisible(): { items: ContentItem[]; tasks: Task[] } {
+function demoVisible(): { items: ContentItem[]; tasks: Task[]; shoots: Shoot[] } {
   const dept = demoDepartments.find((d) => d.id === demoMe.departmentId)?.name
-  if (demoMe.role === 'owner' || dept === HR_DEPARTMENT) return { items: demoContentItems, tasks: demoTasks }
+  if (demoMe.role === 'owner' || dept === HR_DEPARTMENT) return { items: demoContentItems, tasks: demoTasks, shoots: demoShoots }
   const me = demoEmployees.find((e) => e.profileId === demoMe.id)?.id ?? null
   // can_see_client(): the client's team; a department head sees all of theirs.
   const clients = new Set(demoClients.filter((c) =>
@@ -161,7 +201,63 @@ function demoVisible(): { items: ContentItem[]; tasks: Task[] } {
   const items = demoContentItems.filter((i) => clients.has(i.clientId)
     || demoItemPeople.some((p) => p.itemId === i.id && !!me && p.employeeId === me)
     || demoTasks.some((t) => t.contentItemId === i.id && !!me && t.assigneeId === me))
-  return { items, tasks }
+  // shoot_visible() (0046): the client's team, and the shoot's own DOP and SMM.
+  const shoots = demoShoots.filter((s) => clients.has(s.clientId) || (!!me && (s.dopId === me || s.smmId === me)))
+  return { items, tasks, shoots }
+}
+
+/** shoot_name_dop() (0046), restated: a planned shoot's DOP is named for
+ *  the shoot stage's role on each of its reels not yet past it, and a task
+ *  waiting there goes to them — the content_item_person_changed hand-over. */
+function demoNameDop(sh: Shoot, items: ContentItem[], tasks: Task[], people: ItemPerson[]): { tasks: Task[]; people: ItemPerson[] } {
+  if (sh.status !== 'planned' || !sh.dopId) return { tasks, people }
+  const dop = sh.dopId
+  const doneIds = new Set(demoTaskStatuses.filter((s) => s.isDone).map((s) => s.id))
+  let ppl = people
+  let list = tasks
+  for (const si of demoShootItems.filter((x) => x.shootId === sh.id)) {
+    const it = items.find((x) => x.id === si.itemId)
+    const st = it ? shootStageFor(demoWorkflowStages, it) : null
+    if (!it || !st?.ownerRoleId) continue
+    const role = st.ownerRoleId
+    ppl = [...ppl.filter((p) => !(p.itemId === it.id && p.roleId === role)), { id: newId('cip'), itemId: it.id, roleId: role, employeeId: dop }]
+    list = list.map((t) => {
+      if (t.contentItemId !== it.id || t.stageId !== st.id || t.roleId !== role || doneIds.has(t.statusId) || t.assigneeId === dop) return t
+      demoLog(t.id, { event: 'assigned', body: `Named on ${sh.code}`, fromValue: t.assigneeName || null, toValue: demoName(dop) })
+      return { ...t, assigneeId: dop, assigneeName: demoName(dop), assigneeProfileId: demoProfileOf(dop) }
+    })
+  }
+  return { tasks: list, people: ppl }
+}
+
+/** shoot_move_on() (0046), restated: each reel on a done shoot that has not
+ *  passed its shoot stage moves to the stage after it, the notes saying why. */
+function demoShotOn(sh: Shoot, itemIds: string[], items: ContentItem[], tasks: Task[], people: ItemPerson[]): { items: ContentItem[]; tasks: Task[] } {
+  let out = items
+  let list = tasks
+  const now = new Date().toISOString()
+  for (const id of itemIds) {
+    const it = out.find((x) => x.id === id)
+    const st = it ? shootStageFor(demoWorkflowStages, it) : null
+    const nx = st ? nextStage(demoWorkflowStages, st) : null
+    if (!it || !nx) continue
+    const moved = { ...it, stageId: nx.id, stageEnteredAt: now, completedAt: nx.isDone ? now : null }
+    out = out.map((x) => (x.id === id ? moved : x))
+    list = demoEnterStage(moved, list, people, {
+      closeNote: `Shot on ${sh.code} — moved to ${nx.name}`,
+      handoffNote: `Shot on ${sh.code}` + (sh.footageUrl ? ' — the raw footage link is on the shoot' : ''),
+    })
+  }
+  return { items: out, tasks: list }
+}
+
+/** shoot_clashes(): reels already on ANOTHER planned shoot, as words. */
+function demoClashes(shootId: string | null, itemIds: string[]): string | null {
+  const bad = demoShootItems.filter((x) => itemIds.includes(x.itemId) && x.shootId !== shootId)
+    .map((x) => ({ x, s: demoShoots.find((s) => s.id === x.shootId) }))
+    .filter((r) => r.s?.status === 'planned')
+    .map((r) => `${r.x.itemCode} (on ${r.s!.code}, ${shootDayLabel(r.s!.shootOn, r.s!.startsAt)})`)
+  return bad.length ? bad.sort().join(', ') : null
 }
 
 /** content_item_enter_stage(): close what the move left behind, then make
@@ -218,7 +314,12 @@ export function useWork(enabled = true) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [versions, setVersions] = useState<ContentVersion[]>([])
   const [reviews, setReviews] = useState<ContentReview[]>([])
+  const [shoots, setShoots] = useState<Shoot[]>([])
+  const [shootItems, setShootItems] = useState<ShootItem[]>([])
   const [installed, setInstalled] = useState(true)
+  // 0046 (shoots) and 0047 (posting): each screen part waits for its SQL.
+  const [shootsOn, setShootsOn] = useState(false)
+  const [postingOn, setPostingOn] = useState(false)
   // 0045 — versions and reviews. Until it is on the database the screens
   // stay exactly as Round 2 left them.
   const [versionsOn, setVersionsOn] = useState(false)
@@ -226,8 +327,8 @@ export function useWork(enabled = true) {
   const [error, setError] = useState<string | null>(null)
   const fetched = useRef(false)
   // Demo writes read the latest lists without widening every callback's deps.
-  const cur = useRef({ items, people, tasks, versions, reviews })
-  cur.current = { items, people, tasks, versions, reviews }
+  const cur = useRef({ items, people, tasks, versions, reviews, shoots, shootItems })
+  cur.current = { items, people, tasks, versions, reviews, shoots, shootItems }
 
   const load = useCallback(async (force = false) => {
     if (!enabled) { setLoading(false); return }
@@ -240,7 +341,9 @@ export function useWork(enabled = true) {
       setPeople(demoItemPeople.filter((p) => seen(p.itemId)))
       setVersions(demoVersions.filter((x) => seen(x.itemId)))
       setReviews(demoReviews.filter((x) => seen(x.itemId)))
-      setVersionsOn(true)
+      setShoots([...v.shoots].sort((a, b) => a.shootOn.localeCompare(b.shootOn)))
+      setShootItems(demoShootItems.filter((x) => v.shoots.some((s) => s.id === x.shootId)))
+      setVersionsOn(true); setShootsOn(true); setPostingOn(true)
       setLoading(false)
       return
     }
@@ -248,17 +351,25 @@ export function useWork(enabled = true) {
     const recent = `completed_at.is.null,completed_at.gte.${since}`
     // A version or review loads with its reel: the views carry the reel's finish time.
     const withItem = `item_completed_at.is.null,item_completed_at.gte.${since}`
-    const [i, p, t, v, r] = await Promise.all([
+    const shootSince = new Date(Date.now() - KEEP_SHOOT_DAYS * 86400000).toISOString().slice(0, 10)
+    const [i, p, t, v, r, s, si, schema] = await Promise.all([
       loadTable('content_items', toItem, (q) => q.or(recent).order('created_at', { ascending: false })),
       loadTable('content_item_assignees', toPerson),
       loadTable('v_tasks', toTask, (q) => q.or(recent).order('created_at', { ascending: false })),
       loadTable('v_content_versions', toVersion, (q) => q.or(withItem).order('number', { ascending: false })),
       loadTable('v_content_reviews', toReview, (q) => q.or(withItem).order('created_at', { ascending: true })),
+      loadTable('v_shoots', toShoot, (q) => q.or(`status.eq.planned,shoot_on.gte.${shootSince}`)
+        .order('shoot_on', { ascending: true }).order('starts_at', { ascending: true, nullsFirst: true })),
+      loadTable('v_shoot_items', toShootItem, (q) => q.or(`shoot_status.eq.planned,shoot_on.gte.${shootSince}`)),
+      agencySchema(),
     ])
     setInstalled(!i.missing)
     setVersionsOn(!i.missing && !v.missing && !r.missing)
-    setError(i.error ?? p.error ?? t.error ?? v.error ?? r.error)
+    setShootsOn(!i.missing && !s.missing)
+    setPostingOn(!i.missing && schema.posting)
+    setError(i.error ?? p.error ?? t.error ?? v.error ?? r.error ?? s.error ?? si.error)
     setItems(i.rows); setPeople(p.rows); setTasks(t.rows); setVersions(v.rows); setReviews(r.rows)
+    setShoots(s.rows); setShootItems(si.rows)
     setLoading(false)
   }, [enabled])
 
@@ -286,6 +397,7 @@ export function useWork(enabled = true) {
         workflowId: d.workflowId, stageId: first.id, title, formatId: d.formatId, script: d.script.trim(),
         scriptUrl: d.scriptUrl.trim(), plannedPostOn: d.plannedPostOn, stageEnteredAt: new Date().toISOString(),
         completedAt: null, createdBy: demoMe.id, createdAt: new Date().toISOString(),
+        postedUrl: '', postShortCode: null, postedAt: null,
       }
       const ppl = [...cur.current.people, ...d.people.map((x) => ({ id: newId('cip'), itemId: it.id, ...x }))]
       setPeople(ppl)
@@ -626,6 +738,188 @@ export function useWork(enabled = true) {
     return null
   }, [settle])
 
+  /* ------------------------------------------------------ shoots (0046) */
+
+  /** Plan a shoot (id null) or change one — the day, the place, the DOP, the
+   *  reels. One call; the database names the DOP on the reels and tells the
+   *  people once — save_shoot(). */
+  const saveShoot = useCallback(async (id: string | null, d: ShootDraft): Promise<{ error: string | null; id: string | null }> => {
+    if (!d.shootOn) return { error: 'Pick the day of the shoot.', id: null }
+    const footage = normalizeUrl(d.footageUrl)
+    if (footage && !safeUrl(footage)) return { error: 'Paste the whole footage link — it starts with https://', id: null }
+    const wanted = [...new Set(d.itemIds)]
+    if (isDemo()) {
+      const prev = id ? demoShoots.find((s) => s.id === id) ?? null : null
+      if (id && !prev) return { error: 'That shoot no longer exists.', id: null }
+      const clientId = prev?.clientId ?? d.clientId
+      const items = cur.current.items
+      const had = demoShootItems.filter((x) => x.shootId === id).map((x) => x.itemId)
+      const added = wanted.filter((x) => !had.includes(x))
+      const removed = had.filter((x) => !wanted.includes(x))
+      const codes = (ids: string[]) => ids.map((x) => items.find((i) => i.id === x)?.code ?? '?').sort().join(', ')
+      if (prev?.status === 'done' && removed.length) return { error: `${prev.code} is done — the reels it shot stay on it.`, id: null }
+      if (prev?.status === 'cancelled' && added.length) return { error: `${prev.code} is cancelled — put it back on before adding reels.`, id: null }
+      const other = added.filter((x) => items.find((i) => i.id === x)?.clientId !== clientId)
+      if (other.length) return { error: `Another client's reel: ${codes(other)}.`, id: null }
+      const finished = added.filter((x) => demoWorkflowStages.find((s) => s.id === items.find((i) => i.id === x)?.stageId)?.isDone)
+      if (finished.length) return { error: `Already finished: ${codes(finished)}.`, id: null }
+      const clash = demoClashes(id, added)
+      if (clash) return { error: `Already on another shoot: ${clash} — take it off that one first.`, id: null }
+      const n = demoShoots.reduce((m, s) => Math.max(m, Number(s.code.slice(2)) || 0), 0) + 1
+      const sh: Shoot = {
+        id: prev?.id ?? newId('sh'), code: prev?.code ?? 'S-' + String(n).padStart(4, '0'), clientId,
+        clientName: demoClients.find((c) => c.id === clientId)?.name ?? '', shootOn: d.shootOn, startsAt: d.startsAt,
+        location: d.location.trim(), dopId: d.dopId, dopName: demoName(d.dopId), smmId: d.smmId, smmName: demoName(d.smmId),
+        brief: d.brief.trim(), equipment: d.equipment.trim(), footageUrl: footage, status: prev?.status ?? 'planned',
+        completedAt: prev?.completedAt ?? null, createdBy: prev?.createdBy ?? demoMe.id,
+        creatorName: prev?.creatorName ?? demoMe.name, createdAt: prev?.createdAt ?? new Date().toISOString(),
+        itemCount: wanted.length,
+      }
+      if (prev) demoShoots.splice(demoShoots.indexOf(prev), 1, sh)
+      else demoShoots.push(sh)
+      for (let k = demoShootItems.length - 1; k >= 0; k--) {
+        if (demoShootItems[k]!.shootId === sh.id && removed.includes(demoShootItems[k]!.itemId)) demoShootItems.splice(k, 1)
+      }
+      for (const x of added) {
+        const it = items.find((i) => i.id === x)!
+        demoShootItems.push({ shootId: sh.id, itemId: x, itemCode: it.code, itemTitle: it.title,
+          stageName: demoWorkflowStages.find((s) => s.id === it.stageId)?.name ?? '', stageDone: false })
+      }
+      let nextItems = items
+      let nextTasks = cur.current.tasks
+      let nextPeople = cur.current.people
+      if (sh.status === 'planned' && sh.dopId && (!prev || prev.dopId !== sh.dopId || added.length)) {
+        const r = demoNameDop(sh, nextItems, nextTasks, nextPeople)
+        nextTasks = r.tasks; nextPeople = r.people
+      }
+      if (sh.status === 'done' && added.length) {
+        const r = demoShotOn(sh, added, nextItems, nextTasks, nextPeople)
+        nextItems = r.items; nextTasks = r.tasks
+      }
+      setItems(nextItems); setTasks(nextTasks); setPeople(nextPeople)
+      setShoots((p) => (prev ? p.map((s) => (s.id === sh.id ? sh : s)) : [...p, sh]).sort((a, b) => a.shootOn.localeCompare(b.shootOn)))
+      setShootItems(demoShootItems.filter((x) => x.shootId === sh.id || cur.current.shoots.some((s) => s.id === x.shootId)))
+      return { error: null, id: sh.id }
+    }
+    const { data, error: err } = await supabase.rpc('save_shoot', {
+      p_id: id, p_client: d.clientId, p_shoot_on: d.shootOn, p_starts_at: d.startsAt, p_location: d.location.trim() || null,
+      p_dop: d.dopId, p_smm: d.smmId, p_brief: d.brief.trim() || null, p_equipment: d.equipment.trim() || null,
+      p_footage_url: footage || null, p_items: wanted,
+    })
+    if (err) return { error: sentence(err), id: null }
+    await settle()
+    return { error: null, id: data ? str((data as Row).id) : id }
+  }, [settle])
+
+  /** Done (its reels move on past the shoot), cancelled, or back on. */
+  const setShootStatus = useCallback(async (id: string, status: ShootStatus, footageUrl?: string): Promise<string | null> => {
+    const footage = footageUrl !== undefined ? normalizeUrl(footageUrl) : ''
+    if (footage && !safeUrl(footage)) return 'Paste the whole footage link — it starts with https://'
+    if (isDemo()) {
+      const sh = demoShoots.find((s) => s.id === id)
+      if (!sh) return 'That shoot no longer exists.'
+      if (sh.status === status) return null
+      if (sh.status === 'done') return `${sh.code} is done — its reels have moved on.`
+      if (status === 'done' && sh.status === 'cancelled') return `${sh.code} is cancelled — put it back on first.`
+      const mine = demoShootItems.filter((x) => x.shootId === id).map((x) => x.itemId)
+      if (status === 'planned') {
+        const clash = demoClashes(id, mine)
+        if (clash) return `Already on another shoot: ${clash} — take it off that one first.`
+      }
+      const next: Shoot = { ...sh, status, footageUrl: footage || sh.footageUrl,
+        completedAt: status === 'done' ? new Date().toISOString() : sh.completedAt }
+      demoShoots.splice(demoShoots.indexOf(sh), 1, next)
+      if (status === 'done') {
+        const r = demoShotOn(next, mine, cur.current.items, cur.current.tasks, cur.current.people)
+        setItems(r.items); setTasks(r.tasks)
+      } else if (status === 'planned') {
+        const r = demoNameDop(next, cur.current.items, cur.current.tasks, cur.current.people)
+        setTasks(r.tasks); setPeople(r.people)
+      }
+      setShoots((p) => p.map((s) => (s.id === id ? next : s)))
+      return null
+    }
+    const { error: err } = await supabase.rpc('set_shoot_status', {
+      p_shoot: id, p_status: status, p_footage_url: footage || null,
+    })
+    if (err) return sentence(err)
+    await settle()
+    return null
+  }, [settle])
+
+  /** A planned or cancelled shoot, gone. A done one stays on record. */
+  const deleteShoot = useCallback(async (id: string): Promise<string | null> => {
+    const before = cur.current
+    const sh = before.shoots.find((s) => s.id === id)
+    if (!sh) return 'That shoot is no longer on the list.'
+    if (sh.status === 'done') return `${sh.code} is done — it stays on record.`
+    setShoots((p) => p.filter((s) => s.id !== id))
+    setShootItems((p) => p.filter((x) => x.shootId !== id))
+    if (isDemo()) {
+      demoShoots.splice(demoShoots.findIndex((s) => s.id === id), 1)
+      for (let k = demoShootItems.length - 1; k >= 0; k--) if (demoShootItems[k]!.shootId === id) demoShootItems.splice(k, 1)
+      return null
+    }
+    const { data, error: err } = await supabase.from('shoots').delete().eq('id', id).select('id')
+    if (err || !data || data.length === 0) {
+      setShoots(before.shoots); setShootItems(before.shootItems)
+      return err ? sentence(err) : 'Only the client\'s team (or whoever manages it) can delete a shoot.'
+    }
+    return null
+  }, [])
+
+  /* ------------------------------------------------------ posting (0047) */
+
+  /** The live post's link. Posting finishes the reel; an empty link takes the
+   *  post off and leaves the reel where it is — post_content_item(). */
+  const postItem = useCallback(async (itemId: string, url: string): Promise<string | null> => {
+    const link = normalizeUrl(url)
+    if (link && !safeUrl(link)) return 'Paste the whole link — it starts with https://'
+    if (link && /instagram\.com/i.test(link) && !postCode(link)) {
+      return 'That Instagram link hides the reel — open the reel and copy its link (instagram.com/reel/…), not a share link.'
+    }
+    if (isDemo()) {
+      const it = cur.current.items.find((x) => x.id === itemId)
+      if (!it) return 'That item is no longer on the list.'
+      const code = postCode(link)
+      const other = code ? cur.current.items.find((x) => x.id !== itemId && x.postShortCode === code) : null
+      if (other) return `That reel is already posted as ${other.code}.`
+      const now = new Date().toISOString()
+      let next: ContentItem = { ...it, postedUrl: link, postShortCode: code, postedAt: link ? (it.postedUrl ? it.postedAt : now) : null }
+      const st = demoWorkflowStages.find((s) => s.id === it.stageId)
+      const finish = demoWorkflowStages.filter((s) => s.workflowId === it.workflowId && s.isActive && s.isDone)
+        .sort((a, b) => a.sortOrder - b.sortOrder)[0]
+      if (link && !st?.isDone && finish) {
+        next = { ...next, stageId: finish.id, stageEnteredAt: now, completedAt: now }
+        setTasks(demoEnterStage(next, cur.current.tasks, cur.current.people, { closeNote: 'Posted', handoffNote: '' }))
+      }
+      setItems((p) => p.map((x) => (x.id === itemId ? next : x)))
+      return null
+    }
+    const { error: err } = await supabase.rpc('post_content_item', { p_item: itemId, p_url: link || null })
+    if (err) return sentence(err)
+    await settle()
+    return null
+  }, [settle])
+
+  /* ------------------------------------------------------ history */
+
+  /** Tasks finished between two moments — one person's, or everyone's this
+   *  login may see. Read fresh: the lists above keep only 30 days. */
+  const doneBetween = useCallback(async (employeeId: string | null, from: string, to: string): Promise<{ rows: Task[]; error: string | null }> => {
+    if (isDemo()) {
+      const rows = cur.current.tasks.filter((t) => !!t.completedAt && t.completedAt >= from && t.completedAt < to
+        && (!employeeId || t.assigneeId === employeeId))
+      return { rows, error: null }
+    }
+    let q = supabase.from('v_tasks').select('*').gte('completed_at', from).lt('completed_at', to)
+      .order('completed_at', { ascending: false }).limit(1000)
+    if (employeeId) q = q.eq('assignee_id', employeeId)
+    const { data, error: err } = await q
+    if (err) return { rows: [], error: sentence(err) }
+    return { rows: ((data ?? []) as Row[]).map(toTask), error: null }
+  }, [])
+
   /** Who this person may give a task to — on a client, or anyone at all. */
   const assignable = useCallback(async (clientId: string | null): Promise<{ rows: StaffPick[]; error: string | null }> => {
     if (isDemo()) {
@@ -650,11 +944,12 @@ export function useWork(enabled = true) {
   }, [])
 
   return {
-    items, people, tasks, versions, reviews, installed, versionsOn, loading, error,
+    items, people, tasks, versions, reviews, shoots, shootItems, installed, versionsOn, shootsOn, postingOn, loading, error,
     reload: () => load(true),
     createItem, updateItem, moveItem, deleteItem, setPerson,
     createTask, updateTask, deleteTask, thread, comment, assignable,
     addVersion, fixVersion, review,
+    saveShoot, setShootStatus, deleteShoot, postItem, doneBetween,
   }
 }
 

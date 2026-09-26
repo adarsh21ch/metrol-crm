@@ -21,14 +21,14 @@ import type { ProfileRow } from '@/components/ProfileSection'
 export type OwnerDest =
   | 'dashboard'
   | 'directory' | 'attendance' | 'salary' | 'joining' | 'departments'
-  | 'clientsPages' | 'content' | 'tasks' | 'reels'
+  | 'clientsPages' | 'content' | 'tasks' | 'shoots' | 'reels'
   | 'projects' | 'team'
   | 'access' | 'workflows' | 'company' | 'terms'
 
 /** Destinations that live on HR's screen (HrPage), as its section names. */
 export const HR_SECTIONS = [
   'dashboard', 'directory', 'attendance', 'salary', 'joining', 'departments',
-  'clientsPages', 'content', 'tasks', 'reels', 'access', 'workflows', 'terms',
+  'clientsPages', 'content', 'tasks', 'shoots', 'reels', 'access', 'workflows', 'terms',
 ] as const
 export type HrSection = (typeof HR_SECTIONS)[number] | 'profile'
 export const isHrSection = (d: string): d is (typeof HR_SECTIONS)[number] => (HR_SECTIONS as readonly string[]).includes(d)
@@ -48,6 +48,7 @@ export const DEST: Record<OwnerDest, { label: string; icon: React.ReactNode }> =
   clientsPages: { label: 'Clients', icon: svg(<><path d="M3 21h18" /><path d="M5 21V9l7-5 7 5v12" /><path d="M10 21v-6h4v6" /></>) },
   content: { label: 'Content', icon: svg(<><rect x="3" y="4" width="5" height="16" rx="1.5" /><rect x="10" y="4" width="5" height="11" rx="1.5" /><rect x="17" y="4" width="4" height="7" rx="1.5" /></>) },
   tasks: { label: 'Tasks', icon: svg(<><path d="M9 6h11M9 12h11M9 18h11" /><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17" /></>) },
+  shoots: { label: 'Shoots', icon: svg(<><path d="M3 8a2 2 0 0 1 2-2h2.2l1.4-2h6.8l1.4 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="3.6" /></>) },
   reels: { label: 'Reels', icon: svg(<><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 8h18M8 3l3 5M14 3l3 5" /><path d="M10.5 12.5v5l4-2.5z" /></>) },
   projects: { label: 'Projects', icon: svg(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>) },
   team: { label: 'Sales team', icon: svg(<path d="M3 20V10M9 20V4M15 20v-7M21 20v-11" />, 15) },
@@ -61,7 +62,7 @@ export const DEST: Record<OwnerDest, { label: string; icon: React.ReactNode }> =
 export const GROUPS: { label: string | null; items: OwnerDest[] }[] = [
   { label: null, items: ['dashboard'] },
   { label: 'People', items: ['directory', 'attendance', 'salary', 'joining', 'departments'] },
-  { label: 'Clients & content', items: ['clientsPages', 'content', 'tasks', 'reels'] },
+  { label: 'Clients & content', items: ['clientsPages', 'content', 'tasks', 'shoots', 'reels'] },
   { label: 'Sales', items: ['projects', 'team'] },
   { label: 'Settings', items: ['access', 'workflows', 'company', 'terms'] },
 ]

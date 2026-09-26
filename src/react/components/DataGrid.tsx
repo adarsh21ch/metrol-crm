@@ -136,11 +136,19 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   const controlled = phoneViewProp !== undefined
   const phoneView = controlled ? phoneViewProp : ownView
 
-  const total = widths.reduce((a, b) => a + b, 0)
+  // Columns can change after the first draw — one that arrives with the data
+  // (0046's Shoot column on the Clients list). Widths kept for the old set are
+  // dropped then; until the reset lands, the defaults draw, never a stale set.
+  const fits = widths.length === cols.length
+  const shownW = fits ? widths : cols.map((c) => c.width)
+  const colCount = cols.length
+  useEffect(() => { if (!fits) setWidths(cols.map((c) => c.width)) }, [fits, colCount]) // eslint-disable-line react-hooks/exhaustive-deps
+  const total = shownW.reduce((a, b) => a + b, 0)
 
   useEffect(() => {
+    if (!fits) return
     try { localStorage.setItem('metrol-cols-' + storageKey, JSON.stringify(widths)) } catch { /* not worth breaking a drag over */ }
-  }, [widths, storageKey])
+  }, [widths, storageKey, fits])
 
   // The container width decides the slack, so recompute when either changes.
   const measure = useCallback(() => {
@@ -221,7 +229,7 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
   // Strip positions follow the running sum of the widths, less half a strip.
   const offsets: number[] = []
   let run = 0
-  for (let i = 0; i < widths.length - 1; i++) { run += widths[i]!; offsets.push(run - 5) }
+  for (let i = 0; i < shownW.length - 1; i++) { run += shownW[i]!; offsets.push(run - 5) }
 
   /* ------------------------------------------------------------- phone
      A 972px table in a 375px window is read by dragging it sideways, which
@@ -309,8 +317,8 @@ export function DataGrid<T extends { id: string; isNew?: boolean }>({
       <div className="grid-scroll grid-scroll--page" ref={scrollRef}>
         <table className="grid" ref={tableRef} style={{ width: total + slack }}>
           <colgroup>
-            {widths.map((w, i) => (
-              <col key={cols[i]!.key} style={{ width: w + (i === widths.length - 1 ? slack : 0) }} />
+            {shownW.map((w, i) => (
+              <col key={cols[i]!.key} style={{ width: w + (i === shownW.length - 1 ? slack : 0) }} />
             ))}
           </colgroup>
           <thead>

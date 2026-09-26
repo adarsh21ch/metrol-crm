@@ -227,6 +227,22 @@ export function reelShortCode(url: string): string | null {
   return m ? m[1] : null
 }
 
+/** Q16 (0047): one reel, one claim — the first claim on a reel wins, and a
+ *  later one on the same reel is flagged for HR. claimId → the earlier claim.
+ *  claim_first_on() writes the same answer into incentive_claims.duplicate_of. */
+export function duplicateClaims(claims: IncentiveClaim[]): Map<string, IncentiveClaim> {
+  const out = new Map<string, IncentiveClaim>()
+  const first = new Map<string, IncentiveClaim>()
+  for (const c of [...claims].filter((x) => !x.rejected).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))) {
+    const code = reelShortCode(c.reelUrl.trim())
+    if (!code) continue
+    const f = first.get(code)
+    if (f) out.set(c.id, f)
+    else first.set(code, c)
+  }
+  return out
+}
+
 /** Still being watched for views: not rejected and inside its 30-day window
  *  (0031). The same rule fetch-page-reels applies server-side. */
 export function isClaimOpen(c: IncentiveClaim, today = new Date().toISOString().slice(0, 10)): boolean {

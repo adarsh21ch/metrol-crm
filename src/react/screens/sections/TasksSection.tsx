@@ -5,14 +5,15 @@ import { Menu } from '@/components/Menu'
 import { TaskModal, taskRights } from '@/modals/TaskModal'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { count } from '@/lib/format'
-import { byUrgency, doneStatusIds, fmtDue, isOverdue, priorityOf, type Task } from '@/lib/work'
+import { byUrgency, doneStatusIds, fmtDue, isOverdue, officeDay, priorityOf, type Task } from '@/lib/work'
+import { WorkHistory, historyMonthLabel, stepHistoryMonth } from '@/screens/sections/WorkHistory'
 import { isOwnerLevel, type Client, type Employee } from '@/lib/hr'
 import type { Agency } from '@/data/useAgency'
 import type { Work } from '@/data/useWork'
 import type { Workflows } from '@/data/useWorkflows'
 import type { Workspace } from '@/data/useWorkspace'
 
-type Whose = 'mine' | 'given' | 'all'
+type Whose = 'mine' | 'given' | 'all' | 'history'
 
 /**
  * Tasks (Phase 2, Round 2) — everybody's, the owner's and HR's alike, and
@@ -23,6 +24,7 @@ type Whose = 'mine' | 'given' | 'all'
  *   Mine    given to me
  *   Given   given by me
  *   All     everything I can see — my team's, my clients'
+ *   History one person's finished work, month by month (WorkHistory)
  *
  * Finished tasks hide until "Show done"; the database keeps them all.
  */
@@ -53,6 +55,9 @@ export function TasksSection({
   const [phoneView, setPhoneView] = usePhoneView('tasks')
   const [open, setOpen] = useState<Task | 'new' | null>(null)
   const [statusMenu, setStatusMenu] = useState<{ anchor: HTMLElement; task: Task } | null>(null)
+  const [histPick, setHistPick] = usePersistedState<string>('tasks-history-who', '')
+  const thisMonth = officeDay().slice(0, 7)
+  const [histMonth, setHistMonth] = useState(thisMonth)
 
   const done = useMemo(() => doneStatusIds(flows.statuses), [flows.statuses])
   const statusById = useMemo(() => new Map(flows.statuses.map((s) => [s.id, s])), [flows.statuses])
@@ -66,6 +71,20 @@ export function TasksSection({
   const rows = (showDone ? scoped : openRows).slice().sort(byUrgency(done))
   const late = openRows.filter((t) => isOverdue(t, done)).length
   const doneCount = scoped.length - openRows.length
+
+  // History's people: the owner and HR pick anyone; everybody else, the
+  // people whose tasks they can already see (themselves, their team).
+  const histPeople = useMemo(() => {
+    const seen = new Map<string, string>()
+    if (isOwnerLevel(ws)) for (const e of staff) if (e.status !== 'resigned') seen.set(e.id, e.fullName)
+    for (const t of work.tasks) if (t.assigneeId && !seen.has(t.assigneeId)) seen.set(t.assigneeId, t.assigneeName || 'Someone')
+    if (meEmployee && !seen.has(meEmployee)) seen.set(meEmployee, agency.myEmployee?.fullName ?? 'Me')
+    return [...seen].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [ws, staff, work.tasks, meEmployee, agency.myEmployee?.fullName])
+  const histWho: string | null = histPick === 'all' ? null
+    : histPeople.some((p) => p.id === histPick) ? histPick : meEmployee
+  const histName = histWho ? (histWho === meEmployee ? 'you' : histPeople.find((p) => p.id === histWho)?.name ?? 'them') : 'everyone'
+  const history = whose === 'history'
 
   const setStatus = (t: Task, statusId: string) => {
     const st = statusById.get(statusId)
@@ -119,14 +138,29 @@ export function TasksSection({
       <div className="page-head">
         {lead}
         <h1>Tasks</h1>
-        <PhoneViewPick view={phoneView} onPick={setPhoneView} className="head-cta" />
+        {!history && <PhoneViewPick view={phoneView} onPick={setPhoneView} className="head-cta" />}
         <div className="section-tools">
           <div className="seg" role="group" aria-label="Whose tasks">
             {meEmployee && <button className={whose === 'mine' ? 'is-on' : ''} onClick={() => setWhose('mine')}>Mine</button>}
             <button className={whose === 'given' ? 'is-on' : ''} onClick={() => setWhose('given')}>Given</button>
             <button className={whose === 'all' ? 'is-on' : ''} onClick={() => setWhose('all')}>All</button>
+            <button className={history ? 'is-on' : ''} onClick={() => setWhose('history')}>History</button>
           </div>
-          {agency.installed.work && (
+          {history && histPeople.length > 1 && (
+            <select className="input" aria-label="Whose history" value={histWho ?? 'all'} onChange={(e) => setHistPick(e.target.value)}>
+              <option value="all">Everyone{isOwnerLevel(ws) ? '' : ' I can see'}</option>
+              {histPeople.map((p) => <option key={p.id} value={p.id}>{p.name}{p.id === meEmployee ? ' (you)' : ''}</option>)}
+            </select>
+          )}
+          {history && (
+            <div className="month-step">
+              <button className="btn btn--sm" aria-label="Previous month" onClick={() => setHistMonth((m) => stepHistoryMonth(m, -1))}>←</button>
+              <strong>{historyMonthLabel(histMonth)}</strong>
+              <button className="btn btn--sm" aria-label="Next month" disabled={histMonth >= thisMonth}
+                      onClick={() => setHistMonth((m) => stepHistoryMonth(m, 1))}>→</button>
+            </div>
+          )}
+          {agency.installed.work && !history && (
             <button className="btn btn--sm btn--primary" aria-label="New task" onClick={() => setOpen('new')}>
               +<span className="on-desktop">&nbsp;Task</span>
             </button>
@@ -145,7 +179,11 @@ export function TasksSection({
       )}
       {work.error && <div className="auth-err">{work.error}</div>}
 
-      {agency.installed.work && !work.loading && (
+      {agency.installed.work && !work.loading && history && (
+        <WorkHistory work={work} flows={flows} clients={clients} who={histWho} whoName={histName} month={histMonth} />
+      )}
+
+      {agency.installed.work && !work.loading && !history && (
         <div className="section">
           <DataGrid cols={cols} rows={rows} storageKey="tasks" phoneView={phoneView}
                     rowClass={(r) => (done.has(r.statusId) ? 'row-retired' : undefined)}

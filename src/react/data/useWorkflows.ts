@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { demoContentFormats, demoTaskStatuses, demoWorkflowStages, demoWorkflows, isDemo } from '@/data/demo'
-import { loadTable, newId, numOrNull, str, type Row } from '@/data/agencySchema'
+import { agencySchema, loadTable, newId, numOrNull, str, type Row } from '@/data/agencySchema'
 import type { ListItem, PageKind, StageDraft, TaskStatus, Tone, Workflow, WorkflowStage } from '@/lib/agency'
 
 const toWorkflow = (r: Row): Workflow => ({
@@ -21,6 +21,7 @@ const toStage = (r: Row): WorkflowStage => ({
   isReview: r.is_review === true,
   clientVisible: r.client_visible === true,
   isDone: r.is_done === true,
+  isShoot: r.is_shoot === true,
   tone: (r.tone as Tone) ?? 'mute',
   slaHours: numOrNull(r.sla_hours),
   isActive: r.is_active !== false,
@@ -74,6 +75,8 @@ export function useWorkflows(enabled = true) {
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
   const fetched = useRef(false)
+  // 0046's is_shoot column: written only once the database has it.
+  const shootCol = useRef(isDemo())
 
   const load = useCallback(async (force = false) => {
     if (!enabled) { setLoading(false); return }
@@ -85,12 +88,14 @@ export function useWorkflows(enabled = true) {
       setLoading(false)
       return
     }
-    const [w, s, t, f] = await Promise.all([
+    const [w, s, t, f, schema] = await Promise.all([
       loadTable('workflows', toWorkflow),
       loadTable('workflow_stages', toStage),
       loadTable('task_statuses', toStatus),
       loadTable('content_formats', toFormat),
+      agencySchema(),
     ])
+    shootCol.current = schema.shoots
     setInstalled(!w.missing)
     setError(w.error ?? s.error ?? t.error ?? f.error)
     setWorkflows(w.rows.sort(byOrder)); setStages(s.rows.sort(byOrder))
@@ -138,7 +143,7 @@ export function useWorkflows(enabled = true) {
       const { data, error: err } = await supabase.from('workflow_stages').insert(copied.map((s) => ({
         workflow_id: wf.id, name: s.name, sort_order: s.sortOrder, owner_role_id: s.ownerRoleId,
         is_review: s.isReview, client_visible: s.clientVisible, is_done: s.isDone, tone: s.tone,
-        sla_hours: s.slaHours, is_active: s.isActive,
+        sla_hours: s.slaHours, is_active: s.isActive, ...(shootCol.current ? { is_shoot: s.isShoot } : {}),
       }))).select('*')
       if (err) return { error: `The workflow was added, but its stages were not copied: ${err.message}`, id: wf.id }
       setStages((p) => [...p, ...((data ?? []) as Row[]).map(toStage)].sort(byOrder))
@@ -155,6 +160,8 @@ export function useWorkflows(enabled = true) {
       name, owner_role_id: d.ownerRoleId, is_review: d.isReview, client_visible: d.clientVisible,
       is_done: d.isDone, tone: d.tone, sla_hours: d.slaHours, is_active: d.isActive,
     }
+    // is_shoot arrives with 0046; before it, writing it would fail the save.
+    if (shootCol.current) row.is_shoot = d.isShoot && !d.isDone
     const flow = stages.filter((s) => s.workflowId === workflowId).sort(byOrder)
     if (!id) { row.workflow_id = workflowId; row.sort_order = nextOrder(flow) }
     // A new stage goes in just above the finish, not under it: a reel stops at

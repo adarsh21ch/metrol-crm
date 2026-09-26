@@ -94,12 +94,28 @@ export interface WorkflowStage {
   clientVisible: boolean
   /** An item here is finished — no task is made for it. */
   isDone: boolean
+  /** A shoot covers it (0046): planning a shoot gives the reel's task here to
+   *  the shoot's DOP; marking the shoot done moves the reel past it. */
+  isShoot: boolean
   tone: Tone
   slaHours: number | null
   isActive: boolean
 }
 
 export type StageDraft = Omit<WorkflowStage, 'id' | 'workflowId' | 'sortOrder'>
+
+/** v_page_week_views (0047): what a page's reels gained in a Monday week,
+ *  worked out from the reel view readings kept every time they are fetched.
+ *  Public reel views only — Instagram's "account views" (Insights) are
+ *  private to the page, so the typed figure stays the one that counts. */
+export interface PageWeekViews {
+  pageId: string
+  weekStart: string
+  viewsGained: number
+  /** Reels with no reading before the week — their gain is not counted. */
+  reelsUnmeasured: number
+  reels: number
+}
 
 /** The first active one is where a new task starts; a done one finishes it. */
 export interface TaskStatus {

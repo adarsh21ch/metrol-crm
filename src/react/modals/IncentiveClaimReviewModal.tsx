@@ -16,10 +16,12 @@ import type { IncentiveClaim } from '@/lib/hr'
  *  handle now lives on the Page record the claim points at, not on the claim
  *  itself — fix a wrong handle from Clients & Pages, not from here. */
 export function IncentiveClaimReviewModal({
-  claim, employeeName, pageLabel, ruleLabel, owed, onClose, onSaveViews, onApprove, onReject,
+  claim, employeeName, pageLabel, ruleLabel, owed, duplicateOf, onClose, onSaveViews, onApprove, onReject,
 }: {
   claim: IncentiveClaim
   employeeName: string
+  /** Q16: somebody claimed this reel first — "Ritika, 22 Sep". */
+  duplicateOf?: string | null
   pageLabel: string
   ruleLabel: string
   owed: number
@@ -65,6 +67,11 @@ export function IncentiveClaimReviewModal({
       foot={<button className="btn btn--sm" onClick={onClose}>Close</button>}
     >
       {err && <div className="auth-err" style={{ marginBottom: 12 }}>{err}</div>}
+      {duplicateOf && (
+        <div className="auth-err" style={{ marginBottom: 12 }}>
+          This reel was claimed first by {duplicateOf}. One reel, one claim — the first claim wins; reject this one unless HR decides otherwise.
+        </div>
+      )}
       <p style={{ margin: '0 0 14px' }}>
         <a href={claim.reelUrl} target="_blank" rel="noreferrer">{claim.reelUrl}</a>
       </p>

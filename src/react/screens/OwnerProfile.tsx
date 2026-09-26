@@ -35,7 +35,7 @@ export function OwnerProfile({
   const oldClients = schema?.clients === false
   const rows = ownerProfileRows(go, {
     hide: ['dashboard', 'projects', 'team', ...(oldClients ? ['reels' as const] : []),
-      ...(schema?.work ? [] : ['content' as const, 'tasks' as const])],
+      ...(schema?.work ? [] : ['content' as const, 'tasks' as const]), ...(schema?.shoots ? [] : ['shoots' as const])],
     label: oldClients ? { clientsPages: 'Clients & Pages' } : {},
   })
 

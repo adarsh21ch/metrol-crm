@@ -56,6 +56,7 @@ import { useWork } from '@/data/useWork'
 import { flushPushes } from '@/data/useNotifications'
 import { ContentSection } from '@/screens/sections/ContentSection'
 import { TasksSection } from '@/screens/sections/TasksSection'
+import { ShootsSection } from '@/screens/sections/ShootsSection'
 import { DEST, isHrSection, ownerProfileRows, ownerRail, type HrSection, type OwnerDest } from '@/lib/ownerNav'
 import { useAgency } from '@/data/useAgency'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
@@ -66,7 +67,7 @@ import { useExitTasks } from '@/data/useExitTasks'
 import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { officeToday } from '@/lib/attendance'
-import { APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, isClaimOpen, joinedThisMonth, tenure, todayISO, type DocType, type Employee, type IncentiveClaim, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest, isOwnerLevel } from '@/lib/hr'
+import { APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, duplicateClaims, fmtDate, fmtPeriod, isClaimOpen, joinedThisMonth, tenure, todayISO, type DocType, type Employee, type IncentiveClaim, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest, isOwnerLevel } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 /** The tabs inside one person's profile. Everything here already existed as a
@@ -439,7 +440,8 @@ export function HrPage({
     ...(oldClients ? { clientsPages: 'Clients & Pages' } : {}),
   }
   // Content and Tasks arrive with 0044 — not on the list until it is run.
-  const notYet: OwnerDest[] = [...(oldClients ? ['reels' as const] : []), ...(agency.installed.work ? [] : ['content' as const, 'tasks' as const])]
+  const notYet: OwnerDest[] = [...(oldClients ? ['reels' as const] : []), ...(agency.installed.work ? [] : ['content' as const, 'tasks' as const]),
+    ...(agency.installed.shoots ? [] : ['shoots' as const])]
   const railItems = ownerRail(go, { hide: notYet, label: navLabels })
 
   /* The tab bar is NOT the rail, and that is the fix.
@@ -455,7 +457,7 @@ export function HrPage({
   /** Sections reached through Profile on a phone. Opening one lights Profile
    *  on the bar and puts a ← Profile on its page head, so "where am I" still
    *  has an answer and the way back is one tap. */
-  const IN_PROFILE: HrSection[] = ['salary', 'departments', 'clientsPages', 'content', 'tasks', 'reels', 'access', 'workflows', 'terms']
+  const IN_PROFILE: HrSection[] = ['salary', 'departments', 'clientsPages', 'content', 'tasks', 'shoots', 'reels', 'access', 'workflows', 'terms']
   const inProfileTab = IN_PROFILE.includes(section as HrSection)
   /** Phone only — see `.on-phone`. Sits ON the title's row, not above it. */
   const backToProfile = (
@@ -476,8 +478,8 @@ export function HrPage({
     label: oldClients ? { clientsPages: 'Clients & Pages' } : {},
   })
   // Loaded on the first visit to a screen that reads them, then kept.
-  const flows = useWorkflows(agency.installed.workflows && ['workflows', 'content', 'tasks', 'clientsPages'].includes(section))
-  const work = useWork(agency.installed.work && ['content', 'tasks', 'clientsPages'].includes(section))
+  const flows = useWorkflows(agency.installed.workflows && ['workflows', 'content', 'tasks', 'shoots', 'clientsPages', 'reels'].includes(section))
+  const work = useWork(agency.installed.work && ['content', 'tasks', 'shoots', 'clientsPages', 'reels'].includes(section))
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
   const exitRecordFor = (employeeId: string) => exitRecords.rows.find((r) => r.employeeId === employeeId) ?? null
@@ -718,6 +720,8 @@ export function HrPage({
   /* Every claim still inside its 30-day window, company-wide, looked up on
    *  Instagram by its own link — the one-click way to unstick anything left
    *  on "not checked" (fetch-page-reels, claimIds mode). */
+  // Q16 (0047): a second claim on the same reel is flagged, the first wins.
+  const claimDupes = useMemo(() => duplicateClaims(incentiveClaims.rows), [incentiveClaims.rows])
   const openClaimIds = incentiveClaims.rows.filter((c) => isClaimOpen(c)).map((c) => c.id)
   const checkingClaims = openClaimIds.some((id) => incentiveClaims.checking.has(id))
   // Opening Salary (where the claims list lives) re-checks any claim whose
@@ -1574,7 +1578,7 @@ export function HrPage({
             {!open && section === 'reels' && agency.installed.clients && (
               <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
                               pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} asPage lead={backToProfile}
-                              only="reels" />
+                              only="reels" work={agency.installed.work ? { work, flows, staff: hr.rows } : undefined} />
             )}
 
             {!open && section === 'access' && (canSettings ? (
@@ -1594,6 +1598,11 @@ export function HrPage({
             {!open && section === 'tasks' && agency.installed.work && (
               <TasksSection ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={hr.rows}
                             toast={toast} lead={backToProfile} />
+            )}
+
+            {!open && section === 'shoots' && agency.installed.work && (
+              <ShootsSection ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={hr.rows}
+                             toast={toast} lead={backToProfile} />
             )}
 
             {!open && section === 'workflows' && (
@@ -1992,6 +2001,7 @@ export function HrPage({
                     <div className="ov-actions">
                       {[...incentiveClaims.rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((c) => {
                         const owed = owedOnClaim(c)
+                        const dupOf = claimDupes.get(c.id)
                         const ruleLabel = incentiveRules.rows.find((r) => r.id === c.tierRuleId)?.label ?? 'Below any threshold'
                         return (
                           <button className="ov-row" key={c.id} onClick={() => setReviewingClaimId(c.id)}>
@@ -1999,6 +2009,7 @@ export function HrPage({
                               {employeeName(c.employeeId)} — {pageLabel(c.pageId)} — {ruleLabel}
                             </span>
                             <span className="ov-cta">
+                              {dupOf && <Chip cls="chip--bad">Duplicate — {employeeName(dupOf.employeeId).split(' ')[0]} claimed it first</Chip>}
                               {c.rejected ? (
                                 <Chip cls="chip--bad">Rejected</Chip>
                               ) : owed > 0 ? (
@@ -2157,6 +2168,7 @@ export function HrPage({
           pageLabel={pageLabel(incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!.pageId)}
           ruleLabel={incentiveRules.rows.find((r) => r.id === incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!.tierRuleId)?.label ?? 'Below any threshold'}
           owed={owedOnClaim(incentiveClaims.rows.find((c) => c.id === reviewingClaimId)!)}
+          duplicateOf={(() => { const f = claimDupes.get(reviewingClaimId); return f ? `${employeeName(f.employeeId)} on ${fmtDate(f.createdAt)}` : null })()}
           onClose={() => setReviewingClaimId(null)}
           onSaveViews={(views) => saveClaimViews(reviewingClaimId, views)}
           onApprove={(period) => approveClaim(reviewingClaimId, period)}

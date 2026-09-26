@@ -84,6 +84,7 @@ export function WorkflowSettings({
   const live = stages.filter((s) => s.isActive)
   const stageFlags = (st: WorkflowStage) => [
     st.isReview && 'review',
+    st.isShoot && 'shoot',
     st.clientVisible && 'client sees it',
     st.slaHours && `due in ${st.slaHours} h`,
     !st.isActive && 'retired',
@@ -269,7 +270,7 @@ export function WorkflowSettings({
                        }} />
       )}
       {stageEdit && wf && (
-        <StageModal stage={stageEdit === 'new' ? null : stageEdit} roles={accessData.roles}
+        <StageModal stage={stageEdit === 'new' ? null : stageEdit} roles={accessData.roles} shoots={installed.shoots}
                     onClose={() => setStageEdit(null)}
                     onSave={async (d) => {
                       const m = await flows.saveStage(stageEdit === 'new' ? null : stageEdit.id, wf.id, d)

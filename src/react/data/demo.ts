@@ -1,11 +1,11 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import type { Client, Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, Page, PageAssignment, PageReel, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
-import type { ClientAssignment, ClientFinancials, ClientLink, EmployeeRole, ListItem, PageChannel, ViewAdjustment, ViewTarget, ViewTargetPeriod, WeeklyView, TaskStatus, Tone, Workflow, WorkflowStage } from '@/lib/agency'
+import type { ClientAssignment, ClientFinancials, ClientLink, EmployeeRole, ListItem, PageChannel, PageWeekViews, ViewAdjustment, ViewTarget, ViewTargetPeriod, WeeklyView, TaskStatus, Tone, Workflow, WorkflowStage } from '@/lib/agency'
 import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
 import { seedAccess } from '@/lib/access'
-import type { ContentItem, ContentReview, ContentVersion, ItemPerson, ReviewNote, Task, ThreadEntry } from '@/lib/work'
+import type { ContentItem, ContentReview, ContentVersion, ItemPerson, ReviewNote, Shoot, ShootItem, Task, ThreadEntry } from '@/lib/work'
 import { addDays, lastCompletedWeek, weeksOf } from '@/lib/targets'
 
 /**
@@ -269,6 +269,8 @@ export const demoEmployees: Employee[] = [
     ['e9', '6174', null, 'Lokesh Yadav', 'Video Editor', 'd4'],
     ['e10', '7702', null, 'Vishal Gupta', 'Video Editor', 'd4'],
     ['e11', '8819', null, 'Anjali Mehra', 'Video Editor', 'd4'],
+    // Round 4: the DOP who films Subhash Goyal and Lavbhushan.
+    ['e12', '9043', null, 'Rahul Tiwari', 'DOP', 'd2'],
   ] as const).map(([id, employeeCode, profileId, fullName, designation, departmentId], i): Employee => ({
     id, employeeCode, profileId, fullName, designation, departmentId, employmentType: 'full_time',
     dateOfJoining: '2025-0' + (i + 3) + '-01', reportingTo: null,
@@ -472,6 +474,13 @@ export const demoPageReels: PageReel[] = [
     views: null, likes: null, comments: null, shares: null,
     thumbnailUrl: null, postedAt: iso(1), fetchedAt: iso(1),
   },
+  // C-00005, posted on Jyotidrishti — the reel its post link points at.
+  {
+    id: 'pr4', pageId: 'pg13', shortCode: 'demo5',
+    reelUrl: 'https://www.instagram.com/reel/demo5/', caption: 'Navratri special: nine colours, nine days.',
+    views: 284_000, likes: 19_400, comments: 610, shares: 2_300,
+    thumbnailUrl: null, postedAt: iso(1), fetchedAt: iso(0),
+  },
 ]
 
 /** ?demo's incentive claims — three states HR's review list needs to show:
@@ -502,6 +511,15 @@ export const demoIncentiveClaims: IncentiveClaim[] = [
     views: 1_200_000, viewsCheckedAt: iso(10), watchUntil: iso(-15).slice(0, 10),
     tierRuleId: 'ir1', currentAmount: 1000, rejected: false,
     decidedBy: HR_PERSON.id, decidedAt: iso(9), decisionNote: null, createdAt: iso(15),
+  },
+  // Q16: a second claim on ic2's reel — the first claim wins, this one is
+  // flagged for HR (0047 writes the same flag on the live database).
+  {
+    id: 'ic4', employeeId: 'e7', departmentId: 'd9', pageId: 'pg2',
+    reelUrl: 'https://www.instagram.com/urbanbites.fanclub/reel/demo2/',
+    views: 1_800_000, viewsCheckedAt: iso(1), watchUntil: iso(-27).slice(0, 10),
+    tierRuleId: 'ir3', currentAmount: 500, rejected: false,
+    decidedBy: null, decidedAt: null, decisionNote: null, createdAt: iso(3),
   },
 ]
 
@@ -865,11 +883,11 @@ export const demoWorkflows: Workflow[] = [
   { id: 'wf-fan', name: 'Fan page reel', pageType: 'fan', sortOrder: 2, isActive: true },
 ]
 
-const STAGE_SEED: { name: string; role: string | null; tone: Tone; review?: boolean; client?: boolean; done?: boolean }[] = [
+const STAGE_SEED: { name: string; role: string | null; tone: Tone; review?: boolean; client?: boolean; done?: boolean; shoot?: boolean }[] = [
   { name: 'Idea', role: 'role-smm', tone: 'mute' },
   { name: 'Scripting', role: 'role-smm', tone: 'mute' },
   { name: 'Script ready', role: 'role-smm', tone: 'accent' },
-  { name: 'Shoot required', role: 'role-dop', tone: 'accent' },
+  { name: 'Shoot required', role: 'role-dop', tone: 'accent', shoot: true },
   { name: 'Shoot done', role: 'role-smm', tone: 'accent' },
   { name: 'Editing', role: 'role-editor', tone: 'accent' },
   { name: 'SMM review', role: 'role-smm', tone: 'warn', review: true },
@@ -882,7 +900,7 @@ const STAGE_SEED: { name: string; role: string | null; tone: Tone; review?: bool
 const stagesFor = (workflowId: string, skip: string[] = []): WorkflowStage[] =>
   STAGE_SEED.filter((s) => !skip.includes(s.name)).map((s, i) => ({
     id: `${workflowId}-s${i + 1}`, workflowId, name: s.name, sortOrder: i + 1, ownerRoleId: s.role,
-    isReview: !!s.review, clientVisible: !!s.client, isDone: !!s.done, tone: s.tone, slaHours: null, isActive: true,
+    isReview: !!s.review, clientVisible: !!s.client, isDone: !!s.done, isShoot: !!s.shoot, tone: s.tone, slaHours: null, isActive: true,
   }))
 
 export const demoWorkflowStages: WorkflowStage[] = [...stagesFor('wf-main'), ...stagesFor('wf-fan', ['Client review'])]
@@ -914,6 +932,7 @@ const item = (n: number, clientId: string, pageId: string, workflowId: string, s
   plannedPostOn: post, stageEnteredAt: iso(Math.max(0, daysAgo - 1)),
   completedAt: workflowId === 'wf-fan' ? (stage === 10 ? iso(1) : null) : (stage === 11 ? iso(1) : null),
   createdBy: 'cm1', createdAt: iso(daysAgo),
+  postedUrl: '', postShortCode: null, postedAt: null,
 })
 
 export const demoContentItems: ContentItem[] = [
@@ -921,7 +940,8 @@ export const demoContentItems: ContentItem[] = [
   item(2, 'cl3', 'pg5', 'wf-main', 3, 'Morning routine for digestion', 4, addDays(ROUND2_TODAY, 6)),
   item(3, 'cl3', 'pg8', 'wf-fan', 4, 'Ashwagandha — three myths', 3),
   item(4, 'cl4', 'pg12', 'wf-main', 8, 'Rahu in the 7th house', 8, addDays(ROUND2_TODAY, 2)),
-  item(5, 'cl4', 'pg13', 'wf-fan', 10, 'Navratri special: nine colours', 12),
+  { ...item(5, 'cl4', 'pg13', 'wf-fan', 10, 'Navratri special: nine colours', 12),
+    postedUrl: 'https://www.instagram.com/reel/demo5/', postShortCode: 'demo5', postedAt: iso(1) },
   item(6, 'cl1', 'pg1', 'wf-main', 1, 'Weekend brunch menu reveal', 1),
   item(7, 'cl3', 'pg7', 'wf-fan', 7, 'Neem for skin — 3 ways', 5, addDays(ROUND2_TODAY, 1)),
   item(8, 'cl3', 'pg10', 'wf-fan', 9, 'Triphala explained in 60 seconds', 9, addDays(ROUND2_TODAY, 1)),
@@ -931,6 +951,9 @@ export const demoContentItems: ContentItem[] = [
 export const demoItemPeople: ItemPerson[] = [
   { id: 'cip1', itemId: 'ci1', roleId: 'role-editor', employeeId: 'e9' },
   { id: 'cip2', itemId: 'ci7', roleId: 'role-editor', employeeId: 'e10' },
+  // S-0002 names Rahul as the DOP on the reels it will film.
+  { id: 'cip3', itemId: 'ci3', roleId: 'role-dop', employeeId: 'e12' },
+  { id: 'cip4', itemId: 'ci2', roleId: 'role-dop', employeeId: 'e12' },
 ]
 
 const task = (n: number, t: Partial<Task> & Pick<Task, 'title' | 'statusId'>): Task => ({
@@ -959,7 +982,8 @@ export const demoTasks: Task[] = [
     roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', dueAt: at(20),
     statusId: 'ts1', createdAt: iso(1) }),
   task(7, { title: 'Shoot required — Ashwagandha — three myths', clientId: 'cl3', contentItemId: 'ci3', stageId: 'wf-fan-s4',
-    roleId: 'role-dop', statusId: 'ts1', createdBy: 'cm3', creatorName: 'Samiksha Jain', createdAt: iso(2) }),
+    roleId: 'role-dop', assigneeId: 'e12', assigneeName: 'Rahul Tiwari', statusId: 'ts1',
+    createdBy: 'cm3', creatorName: 'Samiksha Jain', createdAt: iso(2) }),
   task(8, { title: 'Client review — Rahu in the 7th house', clientId: 'cl4', contentItemId: 'ci4', stageId: 'wf-main-s8',
     roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', statusId: 'ts3', createdAt: iso(2) }),
   task(9, { title: 'Idea — Weekend brunch menu reveal', clientId: 'cl1', contentItemId: 'ci6', stageId: 'wf-main-s1',
@@ -1086,6 +1110,38 @@ export const demoClientAssignments: ClientAssignment[] = [
   { id: 'ca9', clientId: 'cl4', employeeId: 'e6', roleId: 'role-smm', assignedAt: iso(250), endedAt: null },
   { id: 'ca10', clientId: 'cl4', employeeId: 'e9', roleId: 'role-editor', assignedAt: iso(250), endedAt: null },
   { id: 'ca11', clientId: 'cl1', employeeId: 'e8', roleId: 'role-smm', assignedAt: iso(240), endedAt: iso(180) },
+  { id: 'ca12', clientId: 'cl3', employeeId: 'e12', roleId: 'role-dop', assignedAt: iso(140), endedAt: null },
+  { id: 'ca13', clientId: 'cl4', employeeId: 'e12', roleId: 'role-dop', assignedAt: iso(140), endedAt: null },
+]
+
+/* ------------------------------------------------ Phase 2, Round 4 (0046) */
+
+const shoot = (s: Partial<Shoot> & Pick<Shoot, 'id' | 'code' | 'clientId' | 'clientName' | 'shootOn' | 'status'>): Shoot => ({
+  startsAt: null, location: '', dopId: 'e12', dopName: 'Rahul Tiwari', smmId: null, smmName: '', brief: '', equipment: '',
+  footageUrl: '', completedAt: null, createdBy: 'cm2', creatorName: 'Deepanshu Rawat', createdAt: iso(6), itemCount: 0, ...s,
+})
+
+/** One shoot done (its reels moved on to editing), one coming up with Rahul
+ *  holding its reels' shoot tasks, and one on Lavbhushan still without a DOP. */
+export const demoShoots: Shoot[] = [
+  shoot({ id: 'sh1', code: 'S-0001', clientId: 'cl3', clientName: 'Subhash Goyal', shootOn: addDays(ROUND2_TODAY, -5),
+    startsAt: '10:00', location: 'Subhash ji\'s clinic, Indore', smmId: 'e7', smmName: 'Deepanshu Rawat',
+    brief: 'Two talking-head reels, herbs on the table. Kurta, not the suit.', equipment: 'FX3, 2 lights, lapel mic',
+    footageUrl: 'https://drive.google.com/drive/folders/demo-raw-s0001', status: 'done', completedAt: iso(5), itemCount: 2 }),
+  shoot({ id: 'sh2', code: 'S-0002', clientId: 'cl3', clientName: 'Subhash Goyal', shootOn: addDays(ROUND2_TODAY, 2),
+    startsAt: '11:30', location: 'Studio, Metrol HQ', smmId: 'e8', smmName: 'Samiksha Jain',
+    brief: 'Myth-buster format — three quick cuts per myth.', equipment: 'FX3, teleprompter',
+    status: 'planned', createdBy: 'cm3', creatorName: 'Samiksha Jain', createdAt: iso(2), itemCount: 2 }),
+  shoot({ id: 'sh3', code: 'S-0003', clientId: 'cl4', clientName: 'Lavbhushan', shootOn: addDays(ROUND2_TODAY, 6),
+    location: 'Lavbhushan ji\'s office', dopId: null, dopName: '', smmId: 'e6', smmName: 'Ritika Chandra',
+    status: 'planned', createdBy: 'cm1', creatorName: 'Ritika Chandra', createdAt: iso(1) }),
+]
+
+export const demoShootItems: ShootItem[] = [
+  { shootId: 'sh1', itemId: 'ci1', itemCode: 'C-00001', itemTitle: '5 herbs for better sleep', stageName: 'Editing', stageDone: false },
+  { shootId: 'sh1', itemId: 'ci7', itemCode: 'C-00007', itemTitle: 'Neem for skin — 3 ways', stageName: 'SMM review', stageDone: false },
+  { shootId: 'sh2', itemId: 'ci3', itemCode: 'C-00003', itemTitle: 'Ashwagandha — three myths', stageName: 'Shoot required', stageDone: false },
+  { shootId: 'sh2', itemId: 'ci2', itemCode: 'C-00002', itemTitle: 'Morning routine for digestion', stageName: 'Script ready', stageDone: false },
 ]
 
 export const demoTargets: ViewTarget[] = [
@@ -1168,6 +1224,24 @@ export const demoWeeklyViews: WeeklyView[] = [
       }))
   })(),
 ]
+
+/** v_page_week_views (0047), restated for the demo: what each Instagram
+ *  page's reels gained per week — a little under the Insights figure, as
+ *  public reel views are, and there for the week nobody has typed in yet. */
+export const demoPageWeekViews: PageWeekViews[] = (() => {
+  const rand = seeded(20260926)
+  const pagesWithIg = demoPageChannels.filter((c) => c.platform === 'instagram' && c.isActive
+    && ['pg5', 'pg6', 'pg7', 'pg8', 'pg9', 'pg10', 'pg11', 'pg12', 'pg13'].includes(c.pageId))
+  const weeks = [0, 1, 2, 3, 4, 5, 6, 7].map((n) => addDays(DEMO_LAST_WEEK, -7 * n))
+  return pagesWithIg.flatMap((c) => weeks.map((w): PageWeekViews => {
+    const typed = demoWeeklyViews.find((v) => v.channelId === c.id && v.weekStart === w)?.views
+    const reels = 3 + Math.floor(rand() * 5)
+    return {
+      pageId: c.pageId, weekStart: w, reels, reelsUnmeasured: rand() > 0.8 ? 1 : 0,
+      viewsGained: Math.round((typed ?? 300_000) * (0.72 + rand() * 0.2)),
+    }
+  }))
+})()
 
 export const demoAdjustments: ViewAdjustment[] = [
   { id: 'va1', targetId: 'vt2', periodId: null, weekStart: '2026-05-18', typeId: 'at1', views: -13_301_000, note: '', createdAt: iso(120) },

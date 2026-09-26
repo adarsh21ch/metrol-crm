@@ -12,6 +12,7 @@ import { count, fmtCompact } from '@/lib/format'
 import { byCode } from '@/lib/agency'
 import { CONTENT_MARKETING_DEPARTMENT, type Client } from '@/lib/hr'
 import { currentPeriod, lastCompletedWeek, paceOf, weekLabel } from '@/lib/targets'
+import { doneStatusIds, isOverdue, shootDayLabel, type Shoot } from '@/lib/work'
 import type { Agency } from '@/data/useAgency'
 import type { Clients } from '@/data/useClients'
 import type { Pages } from '@/data/usePages'
@@ -31,6 +32,13 @@ interface ClientRow extends Client {
   period: { label: string; p: ProgressLite } | null
   channels: number
   entered: number
+  /** The master sheet (2026-09-26): the client's whole line in one row. */
+  wip: number
+  late: number
+  waiting: number
+  nextShoot: Shoot | null
+  posted30: number
+  views30: number | null
 }
 
 /**
@@ -91,8 +99,12 @@ export function ClientsSection({
     [pageAssignments.rows, myEmployee],
   )
   const pageHolderRole = agency.accessData.roles.find((r) => r.pageHolder)?.id ?? null
+  const workOn = !!work && agency.installed.work && !work.work.loading
+  const since30 = useMemo(() => new Date(Date.now() - 30 * 86400000).toISOString(), [])
 
   const rows: ClientRow[] = useMemo(() => {
+    const done = doneStatusIds(work?.flows.statuses ?? [])
+    const doneStage = new Set((work?.flows.stages ?? []).filter((s) => s.isDone).map((s) => s.id))
     return clients.rows
       .filter((c) => access.canSeeClient({ id: c.id, departmentId: c.departmentId },
         pages.rows.some((p) => p.clientId === c.id && myPageIds.has(p.id))))
@@ -118,10 +130,27 @@ export function ClientsSection({
           period,
           channels: liveChannels.length,
           entered: liveChannels.filter((ch) => summary.entered.has(ch.id)).length,
+          ...(() => {
+            const items = (work?.work.items ?? []).filter((i) => i.clientId === c.id)
+            const open = (work?.work.tasks ?? []).filter((t) => t.clientId === c.id && !done.has(t.statusId))
+            const current = open.filter((t) => t.contentItemId && items.some((i) => i.id === t.contentItemId && i.stageId === t.stageId))
+            const next = (work?.work.shoots ?? []).filter((s) => s.clientId === c.id && s.status === 'planned')
+              .sort((a, b) => a.shootOn.localeCompare(b.shootOn) || (a.startsAt ?? '').localeCompare(b.startsAt ?? ''))[0] ?? null
+            const reels = pageReels.rows.filter((r) => clientPages.some((p) => p.id === r.pageId) && !!r.postedAt && r.postedAt >= since30)
+            return {
+              wip: items.filter((i) => !doneStage.has(i.stageId)).length,
+              late: open.filter((t) => isOverdue(t, done)).length,
+              waiting: current.filter((t) => !t.assigneeId).length,
+              nextShoot: next,
+              posted30: items.filter((i) => !!i.postedAt && i.postedAt >= since30).length,
+              views30: reels.length ? reels.reduce((t, r) => t + (r.views ?? 0), 0) : null,
+            }
+          })(),
         }
       })
       .sort((a, b) => Number(b.isActive) - Number(a.isActive) || byCode(a, b))
-  }, [clients.rows, access, pages.rows, myPageIds, lists.client_statuses, team.rows, pageHolderRole, targets.targets, targets.periods, summary, channels.rows, today])
+  }, [clients.rows, access, pages.rows, myPageIds, lists.client_statuses, team.rows, pageHolderRole, targets.targets, targets.periods, summary, channels.rows, today,
+    work?.work.items, work?.work.tasks, work?.work.shoots, work?.flows.statuses, work?.flows.stages, pageReels.rows, since30])
 
   const cols: GridCol<ClientRow>[] = [
     { key: 'code', label: 'ID', width: 86, render: (r) => <span className="cell-mono">{r.code || '—'}</span> },
@@ -162,6 +191,30 @@ export function ClientsSection({
       render: (r) => (r.channels
         ? <Chip cls={r.entered === r.channels ? 'chip--good' : r.entered ? 'chip--warn' : 'chip--mute'}>{r.entered} / {r.channels}</Chip>
         : <span className="cell-dash">—</span>),
+    },
+    // The master sheet: what is being made, what is stuck, the next shoot,
+    // and what went out — every client on one screen.
+    ...(workOn ? [
+      {
+        key: 'wip', label: 'In making', width: 150,
+        render: (r: ClientRow) => (r.wip
+          ? <span>{r.wip}{r.late ? <span className="cell-late"> · {r.late} late</span> : null}{r.waiting ? <span className="cell-warn"> · {r.waiting} waiting</span> : null}</span>
+          : <span className="cell-dash">—</span>),
+      },
+      ...(work!.work.shootsOn ? [{
+        key: 'shoot', label: 'Next shoot', width: 130,
+        render: (r: ClientRow) => (r.nextShoot
+          ? <span className={r.nextShoot.shootOn < today ? 'cell-late' : undefined}>{shootDayLabel(r.nextShoot.shootOn, null)}</span>
+          : <span className="cell-dash">—</span>),
+      }] : []),
+      ...(work!.work.postingOn ? [{
+        key: 'posted', label: 'Posted 30 d', width: 100,
+        render: (r: ClientRow) => (r.posted30 ? r.posted30 : <span className="cell-dash">—</span>),
+      }] : []),
+    ] : []),
+    {
+      key: 'views30', label: 'Reel views 30 d', width: 120,
+      render: (r) => (r.views30 != null ? <span className="cell-strong">{fmtCompact(r.views30)}</span> : <span className="cell-dash">—</span>),
     },
   ]
 
@@ -215,7 +268,7 @@ export function ClientsSection({
       {shownView === 'reels' ? (
         <ReelsMaster agency={agency} clients={clients.rows} pages={pages.rows} pageAssignments={pageAssignments.rows}
                      pageReels={pageReels.rows} claims={incentiveClaims.rows}
-                     clientId={reelClient} tier={reelTier} phoneView={phoneView} />
+                     clientId={reelClient} tier={reelTier} phoneView={phoneView} work={work} />
       ) : (
         <div className="section">
           <DataGrid cols={cols} rows={rows} storageKey="agency-clients" phoneView={phoneView}
@@ -223,7 +276,11 @@ export function ClientsSection({
                     onRowClick={(r) => setOpenId(r.id)}
                     empty={canAdd ? 'No clients yet — add the first one.' : 'You are not on any client\'s team yet.'}
                     foot={<div className="grid-foot">
-                      <span>{count(rows.filter((r) => r.isActive).length, 'client')} · {count(rows.reduce((t, r) => t + r.livePages, 0), 'page')}</span>
+                      <span>
+                        {count(rows.filter((r) => r.isActive).length, 'client')} · {count(rows.reduce((t, r) => t + r.livePages, 0), 'page')}
+                        {workOn ? ` · ${rows.reduce((t, r) => t + r.wip, 0)} reels in making` : ''}
+                        {workOn && rows.some((r) => r.late) ? <> · <span className="cell-late">{rows.reduce((t, r) => t + r.late, 0)} late</span></> : null}
+                      </span>
                       <span className="grid-hint">Last week = {weekLabel(lastWeek)}: channels with a number in</span>
                     </div>} />
         </div>

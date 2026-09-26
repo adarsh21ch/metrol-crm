@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chip } from '@/components/bits'
 import { useWeeklyViews } from '@/data/useWeeklyViews'
 import { useTargetSummary } from '@/data/useTargetSummary'
+import { usePageWeekViews } from '@/data/usePageWeekViews'
 import { officeToday } from '@/lib/attendance'
 import { fmtCompact } from '@/lib/format'
 import { INCENTIVE_PAGE_TYPE, type Client, type Page, type PageAssignment } from '@/lib/hr'
 import { PLATFORM, PLATFORMS, type PageChannel } from '@/lib/agency'
 import { addDays, currentPeriod, lastCompletedWeek, paceOf, parseViews, weekLabel } from '@/lib/targets'
 import type { Agency } from '@/data/useAgency'
+import type { PageReels } from '@/data/usePageReels'
 
 type RowState = 'saving' | 'saved' | 'error' | null
 
@@ -18,7 +20,7 @@ type RowState = 'saving' | 'saved' | 'error' | null
  * reminder (remind_weekly_views, 0037) asks for exactly this.
  */
 export function WeeklyViewsSection({
-  agency, clients, pages, pageAssignments, toast, onOpenClient,
+  agency, clients, pages, pageAssignments, toast, onOpenClient, pageReels,
 }: {
   agency: Agency
   clients: Client[]
@@ -27,6 +29,9 @@ export function WeeklyViewsSection({
   toast: (m: string) => void
   /** the client's own page — its team, its target, the whole grid */
   onOpenClient?: (clientId: string) => void
+  /** Reads the person's pages' reel views when they are a day old, so the
+   *  automatic weekly figure (0047) has readings to work from. */
+  pageReels?: PageReels
 }) {
   const { channels, targets, myEmployee, access } = agency
   const today = officeToday()
@@ -47,6 +52,31 @@ export function WeeklyViewsSection({
   // Twelve weeks at a time, so stepping back a little does not refetch.
   const from = week < addDays(lastWeek, -77) ? addDays(week, -77) : addDays(lastWeek, -77)
   const weekly = useWeeklyViews(ids, from)
+  // 0047: what each page's reels gained, read automatically — a figure to
+  // check the typed one against, or to take when Insights is out of reach.
+  const pageIds = useMemo(() => mine.map((p) => p.id), [mine])
+  const [readTick, setReadTick] = useState(0)
+  const auto = usePageWeekViews(pageIds, from, agency.installed.posting, readTick)
+  // Readings are what the figure is made of: a page whose reels were last
+  // read over 20 hours ago is read again when this screen opens — about one
+  // Apify run per page per day at most, and only for the pages you hold.
+  const reelRows = pageReels?.rows
+  const refreshPage = pageReels?.refresh
+  const readOnce = useRef(new Set<string>())
+  useEffect(() => {
+    if (!agency.installed.posting || !reelRows || !refreshPage || pageReels?.loading) return
+    const stale = mine.filter((p) => p.instagramHandle && !readOnce.current.has(p.id) && (() => {
+      const last = reelRows.filter((r) => r.pageId === p.id).reduce((m, r) => (r.fetchedAt > m ? r.fetchedAt : m), '')
+      return !last || Date.now() - new Date(last).getTime() > 20 * 3600000
+    })())
+    if (stale.length === 0) return
+    for (const p of stale) readOnce.current.add(p.id)
+    void (async () => {
+      for (const p of stale) await refreshPage(p.id)
+      setReadTick((n) => n + 1)
+    })()
+  }, [agency.installed.posting, reelRows, refreshPage, pageReels?.loading, mine])
+  const autoOf = (pageId: string) => auto.find((a) => a.pageId === pageId && a.weekStart === week) ?? null
   const summary = useTargetSummary(lastWeek)
   const reloadSummary = summary.reload
 
@@ -59,8 +89,8 @@ export function WeeklyViewsSection({
   const valueOf = (c: PageChannel) => weekly.rows.find((w) => w.channelId === c.id && w.weekStart === week) ?? null
   const entered = myChannels.filter((c) => valueOf(c)).length
 
-  const save = async (c: PageChannel) => {
-    const text = drafts[c.id]
+  const save = async (c: PageChannel, typed?: string) => {
+    const text = typed ?? drafts[c.id]
     if (text === undefined) return
     const n = parseViews(text)
     const current = valueOf(c)
@@ -145,6 +175,19 @@ export function WeeklyViewsSection({
                       <span className={'tg-plat tg-plat--' + channel.platform}>{PLATFORM[channel.platform].short}</span>
                       <span className="cell-mute wv-handle">{channel.handle}</span>
                     </span>
+                    {channel.platform === 'instagram' && (() => {
+                      const a = autoOf(page.id)
+                      if (!a || (!a.viewsGained && !a.reels)) return null
+                      const n = String(a.viewsGained)
+                      const same = (drafts[channel.id] ?? (v ? String(v.views) : '')) === n
+                      return (
+                        <button type="button" className="wv-auto" disabled={!can || same || st === 'saving'}
+                                title={`Public views ${a.reels === 1 ? 'its reel' : `its ${a.reels} reels`} gained ${weekLabel(week)}, read automatically${a.reelsUnmeasured ? ` (${a.reelsUnmeasured} had no earlier reading, so not counted)` : ''}. Insights' account views are usually higher — type that when you have it; tap to use this one.`}
+                                onClick={() => { setDrafts((p) => ({ ...p, [channel.id]: n })); void save(channel, n) }}>
+                          <span className="on-desktop">Reels&nbsp;</span>{fmtCompact(a.viewsGained)}{same ? ' ✓' : ''}
+                        </button>
+                      )
+                    })()}
                     <input className="input wv-input" inputMode="numeric" aria-label={`${page.label} ${PLATFORM[channel.platform].label} views`}
                            placeholder="Views" disabled={!can}
                            value={drafts[channel.id] ?? (v ? String(v.views) : '')}

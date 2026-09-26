@@ -50,6 +50,7 @@ import { ClientsSection } from '@/screens/sections/ClientsSection'
 import { ClientPage } from '@/screens/sections/ClientPage'
 import { WeeklyViewsSection } from '@/screens/sections/WeeklyViewsSection'
 import { MyTasksCard, TasksSection } from '@/screens/sections/TasksSection'
+import { ShootsSection } from '@/screens/sections/ShootsSection'
 import { useAgency } from '@/data/useAgency'
 import { useWorkflows } from '@/data/useWorkflows'
 import { useWork } from '@/data/useWork'
@@ -76,7 +77,7 @@ const TIER_10M = 10_000_000
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'tasks' | 'attendance' | 'leads' | 'sales' | 'team' | 'profile'
+type MemberSec = 'overview' | 'tasks' | 'shoots' | 'attendance' | 'leads' | 'sales' | 'team' | 'profile'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   // Subtitles that only describe the title are read once and then skipped
   // forever — "why would we be explaining it". Where the sub carries a real
@@ -84,6 +85,8 @@ const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: '' },
   // Tasks draws its own head (the Mine/Given/All switch rides on it).
   tasks: { title: 'Tasks', sub: '' },
+  // Shoots draws its own head too (Calendar · List rides on it).
+  shoots: { title: 'Shoots', sub: '' },
   // The line that used to live here is a one-time <Tip> inside the section
   // now — see the Attendance block below. Empty, so the page head drops the
   // whole row rather than printing a blank one.
@@ -313,6 +316,13 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (sec === 'tasks' && agency.schema && !workOn) setSec('overview') }, [sec, agency.schema, workOn])
   const tasksOpen = sec === 'tasks' && workOn
+  // Round 4 (0046): a DOP's day is shoots. The tab shows for anybody on a
+  // client's team or on a shoot, once the database has them.
+  const onATeam = !!myEmployee && agency.team.rows.some((a) => a.employeeId === myEmployee.id && !a.endedAt)
+  const shootsTab = workOn && work.shootsOn && (onATeam || work.shoots.length > 0)
+  const shootsOpen = sec === 'shoots' && shootsTab
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (sec === 'shoots' && agency.schema && !work.loading && !shootsTab) setSec('overview') }, [sec, agency.schema, work.loading, shootsTab])
   // Overdue tasks tell the assignee's manager — the screen-load tick again.
   useEffect(() => {
     if (!isDemo() && workOn) void supabase.rpc('remind_overdue_tasks').then(({ data }) => { if (Number(data) > 0) flushPushes() })
@@ -758,6 +768,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           Tasks <span className="count">{myOpenTasks}</span>
         </button>
       )}
+      {shootsTab && (
+        <button className={sec === 'shoots' ? 'is-on' : ''} onClick={() => setSec('shoots')}>Shoots</button>
+      )}
       <button className={sec === 'attendance' ? 'is-on' : ''} onClick={() => setSec('attendance')}>
         Attendance
       </button>
@@ -804,7 +817,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       <div className="shell">
         <div className="workspace">
           <div className="wrap">
-            {!clientPageOpen && !tasksOpen && (
+            {!clientPageOpen && !tasksOpen && !shootsOpen && (
             <div className="page-head">
               <h1>{headTitle}</h1>
               {headSub && <div className="sub">{headSub}</div>}
@@ -890,7 +903,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             </div>
             )}
 
-            {tasksOpen ? (
+            {shootsOpen ? (
+              <ShootsSection ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={staff.rows}
+                             toast={toast} nav={navTabs}
+                             lead={<button className="btn btn--sm on-phone" onClick={() => setSec('profile')}>← Profile</button>} />
+            ) : tasksOpen ? (
               <TasksSection ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={staff.rows}
                             toast={toast} nav={navTabs}
                             lead={<button className="btn btn--sm on-phone" onClick={() => setSec(tasksFrom)}>
@@ -930,6 +947,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   // The phone's way in (the bar's five slots are full); a
                   // desktop has the tab as well, as a lead's Overview does.
                   ...(workOn ? [{ key: 'tasks', label: 'Tasks', badge: myOpenTasks, onClick: () => openTasks('profile') }] : []),
+                  ...(shootsTab ? [{ key: 'shoots', label: 'Shoots', onClick: () => setSec('shoots') }] : []),
                   ...ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => ({
                     key: t.key,
                     label: t.label,
@@ -1736,7 +1754,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                           onBack={() => setSmmClientId(null)} work={workKit} />
             ) : (
               <WeeklyViewsSection agency={agency} clients={clients.rows} pages={pages.rows} pageAssignments={pageAssignments.rows}
-                                  toast={toast} onOpenClient={setSmmClientId} />
+                                  toast={toast} onOpenClient={setSmmClientId} pageReels={pageReels} />
             ))}
 
             {sec === 'leads' && isContentMarketing && shownPagesView === 'pages' && openPageId && pages.rows.find((p) => p.id === openPageId) && (
@@ -1843,7 +1861,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           lead could not find. Manage team takes Overview's slot instead, and
           Overview is a row inside Profile for them. */}
       <BottomNav
-        active={sec === 'tasks' ? tasksFrom : sec}
+        active={sec === 'tasks' ? tasksFrom : sec === 'shoots' ? 'profile' : sec}
         items={[
           isLead
             ? { key: 'team', label: 'Manage team', short: 'Team', badge: teamRows.length, icon: NAV_ICONS.team, onClick: () => setSec('team') }

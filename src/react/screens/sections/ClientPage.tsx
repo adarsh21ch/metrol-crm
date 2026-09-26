@@ -1,4 +1,5 @@
 import { ContentSection, type WorkKit } from '@/screens/sections/ContentSection'
+import { ShootsSection } from '@/screens/sections/ShootsSection'
 import { useEffect, useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Chip } from '@/components/bits'
@@ -21,7 +22,7 @@ import type { PageReels } from '@/data/usePageReels'
 import type { StaffPick, TeamRow } from '@/data/useClientTeam'
 import type { Workspace } from '@/data/useWorkspace'
 
-type Tab = 'dashboard' | 'content' | 'pages' | 'team' | 'details'
+type Tab = 'dashboard' | 'content' | 'shoots' | 'pages' | 'team' | 'details'
 
 /** One page row on the Pages tab: the sheet's numbering (fan pages 1, 2, 3…)
  *  and its live channels, looked up once. */
@@ -66,7 +67,8 @@ export function ClientPage({
   // who may see it is only known once access has loaded, a moment after this
   // mounts, and shownTab covers the people who never may.
   const [tab, setTab] = usePersistedState<Tab>('agency-client-tab:' + client.id, 'dashboard')
-  const shownTab: Tab = tab === 'dashboard' && !canDashboard ? 'details' : tab === 'content' && !work ? 'pages' : tab
+  const shownTab: Tab = tab === 'dashboard' && !canDashboard ? 'details'
+    : (tab === 'content' && !work) || (tab === 'shoots' && !work?.work.shootsOn) ? 'pages' : tab
   const [editing, setEditing] = useState(false)
   const [openPageId, setOpenPageId] = useState<string | null>(null)
 
@@ -105,6 +107,11 @@ export function ClientPage({
             Content <span className="count">{work.work.items.filter((i) => i.clientId === client.id && !i.completedAt).length}</span>
           </button>
         )}
+        {work?.work.shootsOn && (
+          <button className={shownTab === 'shoots' ? 'is-on' : ''} onClick={() => setTab('shoots')}>
+            Shoots <span className="count">{work.work.shoots.filter((s) => s.clientId === client.id && s.status === 'planned').length}</span>
+          </button>
+        )}
         <button className={shownTab === 'pages' ? 'is-on' : ''} onClick={() => setTab('pages')}>
           Pages <span className="count">{clientPages.filter((p) => p.isActive).length}</span>
         </button>
@@ -121,6 +128,10 @@ export function ClientPage({
       {shownTab === 'content' && work && (
         <ContentSection ws={ws} agency={agency} flows={work.flows} work={work.work} clients={clients.rows} pages={pages.rows}
                         pageAssignments={pageAssignments.rows} staff={work.staff} toast={toast} clientId={client.id} />
+      )}
+      {shownTab === 'shoots' && work && (
+        <ShootsSection ws={ws} agency={agency} flows={work.flows} work={work.work} clients={clients.rows} staff={work.staff}
+                       toast={toast} clientId={client.id} />
       )}
       {shownTab === 'pages' && (
         <PagesTab agency={agency} client={client} pages={pages} pageAssignments={pageAssignments}

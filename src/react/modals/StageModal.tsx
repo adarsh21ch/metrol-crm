@@ -33,10 +33,12 @@ export function RoleOptions({ roles }: { roles: Role[] }) {
  * refuses, and it is retired instead so their history keeps its name.
  */
 export function StageModal({
-  stage, roles, onClose, onSave, onRemove,
+  stage, roles, shoots = false, onClose, onSave, onRemove,
 }: {
   stage: WorkflowStage | null
   roles: Role[]
+  /** 0046 is on the database — offer "A shoot covers it". */
+  shoots?: boolean
   onClose: () => void
   onSave: (d: StageDraft) => Promise<string | null>
   onRemove?: () => Promise<string | null>
@@ -47,6 +49,7 @@ export function StageModal({
   const [isReview, setIsReview] = useState(stage?.isReview ?? false)
   const [clientVisible, setClientVisible] = useState(stage?.clientVisible ?? false)
   const [isDone, setIsDone] = useState(stage?.isDone ?? false)
+  const [isShoot, setIsShoot] = useState(stage?.isShoot ?? false)
   const [sla, setSla] = useState(stage?.slaHours != null ? String(stage.slaHours) : '')
   const [isActive, setIsActive] = useState(stage?.isActive ?? true)
   const [busy, setBusy] = useState<'save' | 'remove' | null>(null)
@@ -60,7 +63,7 @@ export function StageModal({
     setBusy('save'); setErr(null)
     const message = await onSave({
       name, ownerRoleId: isDone ? null : ownerRoleId || null, tone, isReview, clientVisible, isDone,
-      slaHours: isDone ? null : slaNum, isActive,
+      isShoot: isShoot && !isDone, slaHours: isDone ? null : slaNum, isActive,
     })
     setBusy(null)
     if (message) { setErr(message); return }
@@ -128,6 +131,12 @@ export function StageModal({
           <input type="checkbox" checked={clientVisible} onChange={(e) => setClientVisible(e.target.checked)} />
           The client sees it — on a review, the answer is the client's, recorded by whoever acts here
         </label>
+        {shoots && !isDone && (
+          <label className="check">
+            <input type="checkbox" checked={isShoot} onChange={(e) => setIsShoot(e.target.checked)} />
+            A shoot covers it — planning a shoot gives its reels here to the shoot's DOP; marking it done moves them on
+          </label>
+        )}
         <label className="check">
           <input type="checkbox" checked={isDone} onChange={(e) => setIsDone(e.target.checked)} />
           The finish — a reel here is done, nobody gets a task

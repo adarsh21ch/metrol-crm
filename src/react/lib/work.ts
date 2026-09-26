@@ -5,7 +5,7 @@
    each one names the SQL it mirrors, and the two are kept in step. */
 import type { PageKind, Role, TaskStatus, Tone, Workflow, WorkflowStage } from './agency'
 import type { Access } from './access'
-import { isOwnerLevel, type Client } from './hr'
+import { isOwnerLevel, reelShortCode, type Client } from './hr'
 
 export type Priority = 'low' | 'normal' | 'high' | 'urgent'
 
@@ -36,6 +36,11 @@ export interface ContentItem {
   completedAt: string | null
   createdBy: string | null
   createdAt: string
+  /** The live post (0047) — its short code ties the reel to page_reels'
+   *  views and to any incentive claim on the same reel. */
+  postedUrl: string
+  postShortCode: string | null
+  postedAt: string | null
 }
 
 /** Who does a role on THIS item, when the client's team has more than one. */
@@ -339,6 +344,115 @@ export function versionMark(versions: ContentVersion[], reviews: ContentReview[]
   const changes = !!last && last.decision === 'changes' && (!latest || latest.createdAt <= last.createdAt)
   return { label: latest ? `V${latest.number}` : '', changes }
 }
+
+/* ------------------------------------------------ Round 4 (0046): shoots */
+
+export type ShootStatus = 'planned' | 'done' | 'cancelled'
+
+export const SHOOT_STATUS: Record<ShootStatus, { label: string; tone: Tone }> = {
+  planned: { label: 'Planned', tone: 'accent' },
+  done: { label: 'Done', tone: 'good' },
+  cancelled: { label: 'Cancelled', tone: 'mute' },
+}
+
+/** S-0001 — one day's filming for one client, covering some of its reels. */
+export interface Shoot {
+  id: string
+  code: string
+  clientId: string
+  clientName: string
+  /** YYYY-MM-DD — a calendar day, no time zone. */
+  shootOn: string
+  /** "10:00", or null for "some time that day". */
+  startsAt: string | null
+  location: string
+  dopId: string | null
+  dopName: string
+  smmId: string | null
+  smmName: string
+  brief: string
+  equipment: string
+  /** The raw footage folder (Drive) — a link, never a file (Q14). */
+  footageUrl: string
+  status: ShootStatus
+  completedAt: string | null
+  createdBy: string | null
+  creatorName: string
+  createdAt: string
+  itemCount: number
+}
+
+/** A reel on a shoot, with enough of the reel to show it even when the reel
+ *  itself is not on screen (finished long ago). */
+export interface ShootItem {
+  shootId: string
+  itemId: string
+  itemCode: string
+  itemTitle: string
+  stageName: string
+  stageDone: boolean
+}
+
+export interface ShootDraft {
+  clientId: string
+  shootOn: string
+  startsAt: string | null
+  location: string
+  dopId: string | null
+  smmId: string | null
+  brief: string
+  equipment: string
+  footageUrl: string
+  itemIds: string[]
+}
+
+/** shoot_day_label(): "Sat 28 Sep, 10:00 AM", or "Sat 28 Sep". */
+export function shootDayLabel(day: string, time: string | null): string {
+  const d = new Date(day + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return day
+  const date = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')
+  return time ? `${date}, ${fmtClock(time)}` : date
+}
+
+/** "14:30" → "2:30 PM". */
+export function fmtClock(time: string): string {
+  const [h = 0, m = 0] = time.split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+/** Today in the office, as YYYY-MM-DD. */
+export const officeDay = (at = new Date()) => at.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+/** shoot_stage_for(): the stage a shoot covers for this reel — the first
+ *  active shoot stage at or after where it is; null once past it or finished. */
+export function shootStageFor(stages: WorkflowStage[], item: Pick<ContentItem, 'workflowId' | 'stageId'>): WorkflowStage | null {
+  const cur = stages.find((s) => s.id === item.stageId)
+  if (!cur || cur.isDone) return null
+  return stages
+    .filter((s) => s.workflowId === item.workflowId && s.isShoot && s.isActive
+      && (s.sortOrder > cur.sortOrder || (s.sortOrder === cur.sortOrder && s.name >= cur.name)))
+    .sort((a, b) => a.sortOrder - b.sortOrder || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))[0] ?? null
+}
+
+/** The planned shoot a reel is on, if any — a reel is on one at a time. */
+export function plannedShootOf(itemId: string, shoots: Shoot[], shootItems: ShootItem[]): Shoot | null {
+  const ids = new Set(shootItems.filter((x) => x.itemId === itemId).map((x) => x.shootId))
+  return shoots.find((s) => ids.has(s.id) && s.status === 'planned') ?? null
+}
+
+/** The stages a reel still has to pass before its finish — the "to go" count. */
+export function stagesToGo(stages: WorkflowStage[], item: Pick<ContentItem, 'workflowId' | 'stageId'>): number {
+  const cur = stages.find((s) => s.id === item.stageId)
+  if (!cur || cur.isDone) return 0
+  return stages.filter((s) => s.workflowId === item.workflowId && s.isActive && !s.isDone
+    && (s.sortOrder > cur.sortOrder || (s.sortOrder === cur.sortOrder && s.name > cur.name))).length + 1
+}
+
+/* ------------------------------------------------ Round 5 (0047): posting */
+
+/** ig_short_code() (0047) is reelShortCode() — the code in
+ *  instagram.com/reel/<code>; null for a share link, which hides it. */
+export const postCode = (url: string | null | undefined): string | null => reelShortCode((url ?? '').trim())
 
 /* ------------------------------------------------------------------ words */
 

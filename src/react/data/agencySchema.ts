@@ -24,6 +24,10 @@ export interface AgencySchema {
   workflows: boolean
   /** 0044 — content items, tasks, the hand-off */
   work: boolean
+  /** 0046 — shoots */
+  shoots: boolean
+  /** 0047 — posting, one claim per reel, reel view snapshots */
+  posting: boolean
 }
 
 /** PostgREST's "no such table" (PGRST205 today, 42P01 from older versions). */
@@ -36,23 +40,26 @@ export function isMissingTable(err: { code?: string; message?: string } | null |
 let probe: Promise<AgencySchema> | null = null
 
 export function agencySchema(): Promise<AgencySchema> {
-  if (isDemo()) return Promise.resolve({ access: true, clients: true, targets: true, workflows: true, work: true })
+  if (isDemo()) {
+    return Promise.resolve({ access: true, clients: true, targets: true, workflows: true, work: true, shoots: true, posting: true })
+  }
   probe ??= (async () => {
-    const has = async (table: string) => {
+    const has = async (table: string, column = 'id') => {
       // A plain one-row read, NOT a HEAD request: PostgREST answers HEAD on a
       // missing table with a bodiless 404, which supabase-js turns into
       // "204 No Content, no error" — every table looked installed, and the
       // new screens switched on before the SQL had run. A GET carries the
       // PGRST205 body that says the table is not there.
-      const { error } = await supabase.from(table).select('id').limit(1)
+      const { error } = await supabase.from(table).select(column).limit(1)
       // Anything but "missing" means the table is there — a refused read is
       // still a table that exists.
       return !isMissingTable(error)
     }
-    const [access, clients, targets, workflows, work] = await Promise.all([
+    const [access, clients, targets, workflows, work, shoots, posting] = await Promise.all([
       has('roles'), has('client_statuses'), has('view_targets'), has('workflows'), has('content_items'),
+      has('shoots'), has('page_reel_snapshots', 'page_reel_id'),
     ])
-    return { access, clients, targets, workflows, work }
+    return { access, clients, targets, workflows, work, shoots, posting }
   })()
   return probe
 }

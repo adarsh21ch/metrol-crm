@@ -3,10 +3,12 @@ import { Modal } from '@/components/Modal'
 import { Chip } from '@/components/bits'
 import { VersionsPanel } from '@/components/VersionsPanel'
 import { taskRights, versionRights } from '@/modals/TaskModal'
+import { ShootLine, ShootModal } from '@/modals/ShootModal'
 import { isOwnerLevel, type Client, type Employee, type Page, type PageAssignment } from '@/lib/hr'
 import {
-  NO_VERSION_DRAFT, actingRoles, doneStatusIds, fmtDue, fmtStamp, isOverdue, nextStage, personFor, workflowFor,
-  type ContentItem, type Task, type VersionDraft,
+  NO_VERSION_DRAFT, actingRoles, doneStatusIds, fmtDue, fmtStamp, isOverdue, nextStage, normalizeUrl, personFor, postCode,
+  safeUrl, workflowFor,
+  type ContentItem, type Shoot, type Task, type VersionDraft,
 } from '@/lib/work'
 import type { Role } from '@/lib/agency'
 import type { Agency } from '@/data/useAgency'
@@ -63,6 +65,8 @@ export function ContentItemModal({
   const [picks, setPicks] = useState<Record<string, string>>({})
   const pickOf = (roleId: string) => picks[roleId] ?? named(roleId)
   const [verDraft, setVerDraft] = useState<VersionDraft>(NO_VERSION_DRAFT)
+  const [postUrl, setPostUrl] = useState(item?.postedUrl ?? '')
+  const [shootOpen, setShootOpen] = useState<Shoot | 'new' | null>(null)
   const [busy, setBusy] = useState<'save' | 'delete' | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
@@ -79,6 +83,12 @@ export function ContentItemModal({
   const openTask = item ? itemTasks.find((t) => t.stageId === item.stageId && !done.has(t.statusId)) ?? null : null
   const verRights = item ? versionRights(ws, agency, work, client, item) : null
   const canReview = !!stage?.isReview && (editable || (!!openTask && taskRights(ws, agency, staff, clients, openTask).status))
+  // Posting (0047): the client's team, or anyone working on the reel — the
+  // same people who may add a version.
+  const canPost = !!item && work.postingOn && !!verRights?.add
+  const postChanged = !!item && canPost && normalizeUrl(postUrl) !== item.postedUrl
+  const liveLink = safeUrl(item?.postedUrl)
+  const finishName = stages.find((s) => s.isActive && s.isDone)?.name ?? 'the finish'
 
   const nameOf = (employeeId: string) =>
     team.rows.find((t) => t.employeeId === employeeId)?.fullName
@@ -91,7 +101,9 @@ export function ContentItemModal({
       .sort((a, b) => a.assignedAt.localeCompare(b.assignedAt)).map((a) => a.employeeId)
     const auto = personFor({ named: null, isPageHolderRole: r.pageHolder, pageHolders, teamHolders: holders })
     const why = auto && r.pageHolder && pageHolders.length ? 'holds the page' : auto ? `the team's only ${r.name}` : ''
-    const people = [...new Set([...holders, ...(r.pageHolder ? pageHolders : [])])]
+    // Whoever is named stays in the list even off the team (a shoot's DOP,
+    // somebody who has since left it) — so the picker shows the truth.
+    const people = [...new Set([...holders, ...(r.pageHolder ? pageHolders : []), ...(named(r.id) ? [named(r.id)] : [])])]
     return { holders, auto, why, people }
   }
 
@@ -131,10 +143,12 @@ export function ContentItemModal({
       if (message) break
       if (r.id in picks && picks[r.id] !== named(r.id)) message = await work.setPerson(item.id, r.id, picks[r.id] || null)
     }
-    if (!message && stageId && stageId !== item.stageId) message = await work.moveItem(item.id, stageId)
+    // Posting finishes the reel by itself; a stage picked as well is moot.
+    if (!message && postChanged) message = await work.postItem(item.id, postUrl)
+    else if (!message && stageId && stageId !== item.stageId) message = await work.moveItem(item.id, stageId)
     setBusy(null)
     if (message) { setErr(message); return }
-    toast('Saved.')
+    toast(postChanged && postUrl.trim() ? `${item.code} posted.` : 'Saved.')
     onClose()
   }
 
@@ -151,6 +165,15 @@ export function ContentItemModal({
   const moveTo = stageId && item && stageId !== item.stageId ? stages.find((s) => s.id === stageId) : null
   const next = stage ? nextStage(flows.stages, stage) : null
 
+  if (shootOpen && item) {
+    return (
+      <ShootModal ws={ws} agency={agency} flows={flows} work={work}
+                  shoot={shootOpen === 'new' ? null : work.shoots.find((s) => s.id === shootOpen.id) ?? shootOpen}
+                  clients={clients} staff={staff} presetClientId={item.clientId} presetItemIds={[item.id]}
+                  toast={toast} onClose={() => setShootOpen(null)} />
+    )
+  }
+
   return (
     <Modal
       wide
@@ -165,8 +188,8 @@ export function ContentItemModal({
               {busy === 'delete' ? 'Deleting…' : 'Delete'}
             </button>
           )}
-          <button className="btn btn--sm" onClick={onClose}>{editable ? 'Cancel' : 'Close'}</button>
-          {editable && (
+          <button className="btn btn--sm" onClick={onClose}>{editable || postChanged ? 'Cancel' : 'Close'}</button>
+          {(editable || postChanged) && (
             <button className="btn btn--sm btn--primary" disabled={!title.trim() || !!busy} onClick={() => void save()}>
               {busy === 'save' ? 'Saving…' : isNew ? 'Add' : 'Save'}
             </button>
@@ -234,7 +257,24 @@ export function ContentItemModal({
             <input className="input" id="ciUrl" inputMode="url" placeholder="Google Doc link" value={scriptUrl} disabled={!editable}
                    onChange={(e) => setScriptUrl(e.target.value)} />
           </div>
+          {item && work.postingOn && (
+            <div className="field">
+              <label htmlFor="ciLive">
+                Post link{liveLink && <> · <a href={liveLink} target="_blank" rel="noreferrer">open ↗</a></>}
+              </label>
+              <input className="input" id="ciLive" inputMode="url" placeholder="instagram.com/reel/…" value={postUrl}
+                     disabled={!canPost} onChange={(e) => setPostUrl(e.target.value)} />
+            </div>
+          )}
         </div>
+        {postChanged && postUrl.trim() && !stage?.isDone && (
+          <p className="cell-mute" style={{ margin: 0 }}>
+            Saving with the post link finishes it — it moves to <b>{finishName}</b> and its open task closes.
+          </p>
+        )}
+        {postChanged && postUrl.trim() && /instagram\.com/i.test(postUrl) && !postCode(normalizeUrl(postUrl)) && (
+          <p className="cell-warn" style={{ margin: 0 }}>That looks like a share link — open the reel and copy its own link (instagram.com/reel/…).</p>
+        )}
         {moveTo && (
           <p className="cell-mute" style={{ margin: 0 }}>
             Saving moves it to <b>{moveTo.name}</b>: the {stage?.name ?? 'current'} task closes
@@ -248,6 +288,7 @@ export function ContentItemModal({
               : <>Finishing the {stage?.name} task moves it on to {next.name}.</>}
           </p>
         )}
+        {item && <ShootLine item={item} work={work} flows={flows} canPlan={editable} onOpen={setShootOpen} />}
         {item && work.versionsOn && verRights && (
           <VersionsPanel
             item={item} flows={flows} work={work}
