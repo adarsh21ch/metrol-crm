@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
-  demoAccess, demoClientAssignments, demoContentItems, demoEmployees, demoItemPeople, demoMe, demoPageAssignments,
-  demoTaskStatuses, demoTasks, demoThreads, demoWorkflowStages, isDemo,
+  demoAccess, demoClientAssignments, demoClients, demoContentItems, demoDepartments, demoEmployees, demoItemPeople, demoMe,
+  demoPageAssignments, demoTaskStatuses, demoTasks, demoThreads, demoWorkflowStages, isDemo,
 } from '@/data/demo'
+import { HR_DEPARTMENT } from '@/lib/hr'
 import { loadTable, newId, str, type Row } from '@/data/agencySchema'
 import { flushPushes } from '@/data/useNotifications'
 import type { StaffPick } from '@/data/useClientTeam'
@@ -109,6 +110,27 @@ function demoPersonFor(it: ContentItem, roleId: string, people: ItemPerson[]): s
   })
 }
 
+/** What the demo's login would see on the live site: task_visible() and the
+ *  content_items read rule (0044), restated. The demo has no database to
+ *  hide anything, so without this a salesperson's "All" listed the content
+ *  team's reels — which the live site never shows them. */
+function demoVisible(): { items: ContentItem[]; tasks: Task[] } {
+  const dept = demoDepartments.find((d) => d.id === demoMe.departmentId)?.name
+  if (demoMe.role === 'owner' || dept === HR_DEPARTMENT) return { items: demoContentItems, tasks: demoTasks }
+  const me = demoEmployees.find((e) => e.profileId === demoMe.id)?.id ?? null
+  // can_see_client(): the client's team; a department head sees all of theirs.
+  const clients = new Set(demoClients.filter((c) =>
+    demoClientAssignments.some((a) => a.clientId === c.id && !!me && a.employeeId === me && !a.endedAt)
+    || (demoMe.isTeamLead && c.departmentId === demoMe.departmentId)).map((c) => c.id))
+  const reports = new Set(demoEmployees.filter((e) => !!me && e.reportingTo === me).map((e) => e.id))
+  const tasks = demoTasks.filter((t) => (!!me && t.assigneeId === me) || t.createdBy === demoMe.id
+    || (!!t.clientId && clients.has(t.clientId)) || (!!t.assigneeId && reports.has(t.assigneeId)))
+  const items = demoContentItems.filter((i) => clients.has(i.clientId)
+    || demoItemPeople.some((p) => p.itemId === i.id && !!me && p.employeeId === me)
+    || demoTasks.some((t) => t.contentItemId === i.id && !!me && t.assigneeId === me))
+  return { items, tasks }
+}
+
 /** content_item_enter_stage(): close what the move left behind, then make
  *  the new stage's task unless one is open already. */
 function demoEnterStage(it: ContentItem, tasks: Task[], people: ItemPerson[]): Task[] {
@@ -165,7 +187,9 @@ export function useWork(enabled = true) {
     if (fetched.current && !force) { setLoading(false); return }
     fetched.current = true
     if (isDemo()) {
-      setItems(demoContentItems); setPeople(demoItemPeople); setTasks(demoTasks)
+      const v = demoVisible()
+      setItems(v.items); setTasks(v.tasks)
+      setPeople(demoItemPeople.filter((p) => v.items.some((i) => i.id === p.itemId)))
       setLoading(false)
       return
     }

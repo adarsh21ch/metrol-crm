@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Board } from '@/components/Board'
-import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
+import { DataGrid, useIsPhone, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Chip, EditChip } from '@/components/bits'
 import { Menu } from '@/components/Menu'
 import { ContentItemModal } from '@/modals/ContentItemModal'
@@ -46,7 +46,10 @@ export function ContentSection({
 }) {
   const { access } = agency
   const scoped = !!clientId
-  const [view, setView] = usePersistedState<'board' | 'list'>('content-view', 'board')
+  // A phone opens on the cards: eleven stages side by side show one column
+  // at a time there, and the reel you want is usually off to the right.
+  const isPhone = useIsPhone()
+  const [view, setView] = usePersistedState<'board' | 'list'>('content-view', isPhone ? 'list' : 'board')
   const [clientPick, setClientPick] = usePersistedState<string>('content-client', '')
   const [wfPick, setWfPick] = usePersistedState<string>('content-wf', '')
   const [phoneView, setPhoneView] = usePhoneView('content')
@@ -84,7 +87,10 @@ export function ContentSection({
   const wfs = flows.workflows
     .filter((w) => w.isActive || items.some((i) => i.workflowId === w.id))
     .sort((a, b) => a.sortOrder - b.sortOrder)
-  const wf = wfs.find((w) => w.id === wfPick) ?? wfs.find((w) => items.some((i) => i.workflowId === w.id)) ?? wfs[0] ?? null
+  // Unpicked, it opens on the workflow with the most on it (a fan-page heavy
+  // client's fan board); ties keep the settings' order.
+  const onWf = (id: string) => items.filter((i) => i.workflowId === id).length
+  const wf = wfs.find((w) => w.id === wfPick) ?? [...wfs].sort((a, b) => onWf(b.id) - onWf(a.id))[0] ?? null
   const onBoard = wf ? items.filter((i) => i.workflowId === wf.id) : []
   const cols = wf ? boardStages(flows.stages, wf.id, onBoard) : []
 
@@ -149,15 +155,27 @@ export function ContentSection({
     { key: 'post', label: 'Post on', width: 110, render: (r) => (r.plannedPostOn ? fmtDate(r.plannedPostOn) : <span className="cell-dash">—</span>) },
   ]
 
+  // Counted over what each view shows: the board is one workflow, the list
+  // is all of them — a fan-page reel's late task is not the main board's.
   const finished = items.filter((i) => stageById.get(i.stageId)?.isDone).length
-  const waiting = items.filter((i) => { const t = current.get(i.id); return t && !t.assigneeId }).length
-  const late = items.filter((i) => { const t = current.get(i.id); return t && isOverdue(t, done) }).length
+  const waitingIn = (list: ContentItem[]) => list.filter((i) => { const t = current.get(i.id); return t && !t.assigneeId }).length
+  const lateIn = (list: ContentItem[]) => list.filter((i) => { const t = current.get(i.id); return t && isOverdue(t, done) }).length
+  const waiting = waitingIn(items)
+  const late = lateIn(items)
+  const boardWaiting = waitingIn(onBoard)
+  const boardLate = lateIn(onBoard)
 
   const Title = scoped ? 'h3' : 'h1'
+  // One switch, as My leads has it: Board · Cards · List. Cards is the
+  // phone's (above the breakpoint the list is always the table), so a
+  // phone never shows a second Cards/List switch beside this one.
   const seg = (
-    <div className={'seg' + (scoped ? '' : ' head-cta')} role="group" aria-label="Board or list">
+    <div className={'seg seg--leads' + (scoped ? '' : ' head-cta')} role="group" aria-label="Board, cards or list">
       <button className={view === 'board' ? 'is-on' : ''} onClick={() => setView('board')}>Board</button>
-      <button className={view === 'list' ? 'is-on' : ''} onClick={() => setView('list')}>List</button>
+      <button className={'seg-cards' + (view === 'list' && phoneView === 'cards' ? ' is-on' : '')}
+              onClick={() => { setView('list'); setPhoneView('cards') }}>Cards</button>
+      <button className={view === 'list' && (phoneView === 'list' || !isPhone) ? 'is-on' : ''}
+              onClick={() => { setView('list'); if (isPhone) setPhoneView('list') }}>List</button>
     </div>
   )
 
@@ -181,7 +199,6 @@ export function ContentSection({
               {wfs.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           )}
-          {view === 'list' && <PhoneViewPick view={phoneView} onPick={setPhoneView} />}
           {canAdd && (
             <button className="btn btn--sm btn--primary" aria-label="Add content" onClick={() => setEditing('new')}>
               +<span className="on-desktop">&nbsp;Content</span>
@@ -234,7 +251,7 @@ export function ContentSection({
 
       {view === 'board' && agency.installed.work && !work.loading && onBoard.length > 0 && (
         <div className="grid-foot grid-foot--plain">
-          <span>{count(onBoard.length, 'item')} on {wf?.name}{waiting ? ` · ${waiting} waiting for a person` : ''}{late ? ` · ${late} late` : ''}</span>
+          <span>{count(onBoard.length, 'item')} on {wf?.name}{boardWaiting ? ` · ${boardWaiting} waiting for a person` : ''}{boardLate ? ` · ${boardLate} late` : ''}</span>
           <span className="grid-hint">Drag a card to move it — its task goes to whoever holds the next stage</span>
         </div>
       )}

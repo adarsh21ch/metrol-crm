@@ -6,7 +6,7 @@ import { TaskModal, taskRights } from '@/modals/TaskModal'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { count } from '@/lib/format'
 import { byUrgency, doneStatusIds, fmtDue, isOverdue, priorityOf, type Task } from '@/lib/work'
-import type { Client, Employee } from '@/lib/hr'
+import { isOwnerLevel, type Client, type Employee } from '@/lib/hr'
 import type { Agency } from '@/data/useAgency'
 import type { Work } from '@/data/useWork'
 import type { Workflows } from '@/data/useWorkflows'
@@ -44,8 +44,11 @@ export function TasksSection({
   const meEmployee = agency.myEmployee?.id ?? null
   const meProfile = ws.me?.id ?? null
   const [whosePicked, setWhose] = usePersistedState<Whose | null>('tasks-whose', null)
-  // Somebody with no employee record (the owner, HR's login) has no "mine".
-  const whose: Whose = whosePicked === 'mine' && !meEmployee ? 'all' : whosePicked ?? (meEmployee ? 'mine' : 'all')
+  // The owner and HR oversee, so they open on everything; everybody else on
+  // their own list. A pick is remembered. Somebody with no employee record
+  // (the owner, HR's login) has no "mine" at all.
+  const firstView: Whose = meEmployee && !isOwnerLevel(ws) ? 'mine' : 'all'
+  const whose: Whose = whosePicked === 'mine' && !meEmployee ? 'all' : whosePicked ?? firstView
   const [showDone, setShowDone] = useState(false)
   const [phoneView, setPhoneView] = usePhoneView('tasks')
   const [open, setOpen] = useState<Task | 'new' | null>(null)
@@ -200,15 +203,18 @@ export function MyTasksCard({
   const me = agency.myEmployee?.id ?? null
   const done = useMemo(() => doneStatusIds(flows.statuses), [flows.statuses])
   const mine = work.tasks.filter((t) => me && t.assigneeId === me && !done.has(t.statusId)).sort(byUrgency(done))
-  const late = mine.filter((t) => isOverdue(t, done)).length
   if (!agency.installed.work || work.loading || !me) return null
   return (
     <>
       {mine.length > 0 && (
         <div className="ov-card">
+          {/* The way in rides on the title line (layout law, rule 1); the
+              count is in it, and late ones are red in the list below. */}
           <div className="ov-head">
             <h4>My tasks</h4>
-            <span className="sub">{count(mine.length, 'open')}{late ? ` · ${late} overdue` : ''}</span>
+            <button className="link-btn" onClick={onSeeAll}>
+              {mine.length > 4 ? `See all ${mine.length} →` : 'Open Tasks →'}
+            </button>
           </div>
           <div className="ov-feed">
             {mine.slice(0, 4).map((t) => (
@@ -218,9 +224,6 @@ export function MyTasksCard({
               </button>
             ))}
           </div>
-          <button className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={onSeeAll}>
-            {mine.length > 4 ? `See all ${mine.length} →` : 'Open Tasks →'}
-          </button>
         </div>
       )}
       {/* Outside the card: finishing the last task empties the card, and the

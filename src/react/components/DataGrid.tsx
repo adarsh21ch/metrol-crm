@@ -15,7 +15,7 @@ const MAX_W = 720
  *  markup rather than smaller markup — see the card branch below. */
 const PHONE = '(max-width: 860px)'
 
-function useIsPhone() {
+export function useIsPhone() {
   const [is, setIs] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(PHONE).matches)
   useEffect(() => {
     if (typeof matchMedia === 'undefined') return
