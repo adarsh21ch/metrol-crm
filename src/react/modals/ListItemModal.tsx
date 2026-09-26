@@ -4,25 +4,30 @@ import { Chip } from '@/components/bits'
 import { TONES, type ListItem, type Tone } from '@/lib/agency'
 
 /** One entry on one of the small lists — a client status, a page colour, an
- *  adjustment type. Retire rather than delete: rows already using it keep it. */
+ *  adjustment type, a task status, a content format. Retire rather than
+ *  delete: rows already using it keep it. */
 export function ListItemModal({
-  title, item, withTone, onClose, onSave,
+  title, item, withTone, doneLabel, done, onClose, onSave,
 }: {
   title: string
   item: ListItem | null
   withTone: boolean
+  /** A "finished" tick — task statuses: a task here is done. */
+  doneLabel?: string
+  done?: boolean
   onClose: () => void
-  onSave: (patch: { name: string; tone: Tone; isActive: boolean }) => Promise<string | null>
+  onSave: (patch: { name: string; tone: Tone; isActive: boolean; isDone: boolean }) => Promise<string | null>
 }) {
   const [name, setName] = useState(item?.name ?? '')
   const [tone, setTone] = useState<Tone>(item?.tone ?? 'mute')
   const [isActive, setIsActive] = useState(item?.isActive ?? true)
+  const [isDone, setIsDone] = useState(done ?? false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const save = async () => {
     setBusy(true); setErr(null)
-    const message = await onSave({ name, tone, isActive })
+    const message = await onSave({ name, tone, isActive, isDone })
     setBusy(false)
     if (message) { setErr(message); return }
     onClose()
@@ -60,6 +65,12 @@ export function ListItemModal({
               ))}
             </div>
           </div>
+        )}
+        {doneLabel && (
+          <label className="check">
+            <input type="checkbox" checked={isDone} onChange={(e) => setIsDone(e.target.checked)} />
+            {doneLabel}
+          </label>
         )}
         {item && (
           <label className="check">

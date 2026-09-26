@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { isDemo } from '@/data/demo'
 import { supabase } from '@/lib/supabase'
 import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
-import { Rail, type RailItem } from '@/components/Rail'
+import { Rail } from '@/components/Rail'
 import { BottomNav, NAV_ICONS, type BottomNavItems } from '@/components/BottomNav'
 import { Modal } from '@/components/Modal'
 import { Tip } from '@/components/Tip'
@@ -16,7 +16,7 @@ import { EmployeeModal } from '@/modals/EmployeeModal'
 import { HrAttendance } from '@/screens/sections/HrAttendance'
 import { EmployeeAttendanceBoard } from '@/components/EmployeeAttendanceBoard'
 import { TermsAndConditions } from '@/screens/sections/TermsAndConditions'
-import { usePersistedState } from '@/lib/usePersistedState'
+import { setPersisted, usePersistedState } from '@/lib/usePersistedState'
 import { LeaveRequestModal } from '@/modals/LeaveRequestModal'
 import { LeaveDecisionModal } from '@/modals/LeaveDecisionModal'
 import { VisitEntryRequestModal } from '@/modals/VisitEntryRequestModal'
@@ -50,6 +50,9 @@ import { IncentiveRulesModal } from '@/modals/IncentiveRulesModal'
 import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
 import { ClientsSection } from '@/screens/sections/ClientsSection'
 import { AccessSettings } from '@/screens/sections/AccessSettings'
+import { WorkflowSettings } from '@/screens/sections/WorkflowSettings'
+import { useWorkflows } from '@/data/useWorkflows'
+import { DEST, isHrSection, ownerProfileRows, ownerRail, type HrSection, type OwnerDest } from '@/lib/ownerNav'
 import { useAgency } from '@/data/useAgency'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
@@ -61,60 +64,6 @@ import { useAttendance } from '@/data/useAttendance'
 import { officeToday } from '@/lib/attendance'
 import { APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, isClaimOpen, joinedThisMonth, tenure, todayISO, type DocType, type Employee, type IncentiveClaim, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest, isOwnerLevel } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
-
-const PEOPLE_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-  </svg>
-)
-const DEPT_ICON = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01" />
-  </svg>
-)
-const SALARY_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5a2.5 2.5 0 0 1 2.5-1h.3a2.2 2.2 0 0 1 0 4.4h-.6a2.2 2.2 0 0 0 0 4.4h.3a2.5 2.5 0 0 0 2.5-1" />
-  </svg>
-)
-const CLIENTS_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
-    <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
-  </svg>
-)
-const ACCESS_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="16" r="1.3" />
-  </svg>
-)
-const DASH_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
-    <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
-  </svg>
-)
-const ATT_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-  </svg>
-)
-
-
-const APPLY_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
-    <path d="M9 15l2 2 4-4" />
-  </svg>
-)
-
-const TERMS_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
-    <path d="M8 13h8M8 17h5" />
-  </svg>
-)
 
 /** The tabs inside one person's profile. Everything here already existed as a
  *  section stacked on one very long page; this is the container, not new
@@ -147,8 +96,15 @@ const Fld = ({ l, v }: { l: string; v: React.ReactNode }) => (
  * the owner both work the directory — `onBackToProjects` is only given then.
  */
 export function HrPage({
-  ws, toast, onBackToProjects,
-}: { ws: Workspace; toast: (m: string) => void; onBackToProjects?: () => void }) {
+  ws, toast, onBackToProjects, onNav,
+}: {
+  ws: Workspace
+  toast: (m: string) => void
+  onBackToProjects?: () => void
+  /** Where a rail link or Profile row that is not one of this screen's
+   *  sections goes — Projects, Sales team, Company (App.tsx's go()). */
+  onNav: (d: OwnerDest) => void
+}) {
   const panes = usePanes()
   const tip = useHoverTip()
   /* Four hooks here, five further down. These four are what the page needs
@@ -209,7 +165,14 @@ export function HrPage({
   const att = useAttendance(true, true)
   const applications = useJobApplications()
 
-  const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'clientsPages' | 'access' | 'salary' | 'joining' | 'exit' | 'terms' | 'profile'>('hr-section', 'dashboard')
+  // HrSection comes from lib/ownerNav.tsx — the rail's model and this screen
+  // share one list of section names. 'exit' is a remembered value from before
+  // Exit moved inside Joining; the effect further down redirects it.
+  const [section, setSection] = usePersistedState<HrSection | 'exit'>('hr-section', 'dashboard')
+  /* Bumped by every rail link and Profile row: a click on the section you are
+     already in lands on its root again (a client's page closes back to the
+     Clients list), not on nothing. */
+  const [navSeq, setNavSeq] = useState(0)
   /* Applications (the public joining form's inbox) and Onboarding (the
      checklist for somebody an application just turned into) used to be two
      separate sidebar tabs, even though the moment one is approved the SAME
@@ -444,63 +407,58 @@ export function HrPage({
     </div>
   )
   const pendingAllAttendance = pendingLeave.length + pendingVisit.length + pendingWfh.length
-  const railItems: RailItem[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: DASH_ICON, onClick: () => { setSection('dashboard'); setOpenId(null) } },
-    {
-      key: 'attendance', label: pendingAllAttendance ? `Attendance (${pendingAllAttendance})` : 'Attendance',
-      icon: ATT_ICON, onClick: () => { setSection('attendance'); setOpenId(null) },
-    },
-    { key: 'departments', label: 'Departments', icon: DEPT_ICON, onClick: () => { setSection('departments'); setOpenId(null) } },
-    { key: 'directory', label: 'Employees', icon: PEOPLE_ICON, onClick: () => { setSection('directory'); setOpenId(null) } },
-    { key: 'clientsPages', label: agency.installed.clients ? 'Clients' : 'Clients & Pages', icon: CLIENTS_ICON, onClick: () => { setSection('clientsPages'); setOpenId(null) } },
-    ...(canSettings ? [{ key: 'access', label: 'Roles & access', icon: ACCESS_ICON, onClick: () => { setSection('access'); setOpenId(null) } }] : []),
-    { key: 'salary', label: 'Salary', icon: SALARY_ICON, onClick: () => { setSection('salary'); setOpenId(null) } },
-    {
-      key: 'joining', label: pendingApps.length ? `Joining & Exit (${pendingApps.length})` : 'Joining & Exit',
-      icon: APPLY_ICON, onClick: () => { setSection('joining'); setOpenId(null) },
-    },
-    { key: 'terms', label: 'Terms & Conditions', icon: TERMS_ICON, onClick: () => { setSection('terms'); setOpenId(null) } },
-  ]
+  /* Every rail link and Profile row goes through here. A section of this
+     screen opens in place; anything else (Projects, Sales team, Company) is
+     App's to open. The rail itself is lib/ownerNav.tsx's grouped model — the
+     same list Projects, a project, Team and Profile draw. */
+  const go = (d: OwnerDest) => {
+    if (!isHrSection(d)) { onNav(d); return }
+    if (d === 'clientsPages') setPersisted('agency-open-client', null)
+    setSection(d); setOpenId(null); setNavSeq((n) => n + 1)
+  }
+  // Only once the database has answered — no flicker to the old names meanwhile.
+  const oldClients = agency.schema?.clients === false
+  const navLabels: Partial<Record<OwnerDest, string>> = {
+    ...(pendingAllAttendance ? { attendance: `Attendance (${pendingAllAttendance})` } : {}),
+    ...(pendingApps.length ? { joining: `Joining & Exit (${pendingApps.length})` } : {}),
+    ...(oldClients ? { clientsPages: 'Clients & Pages' } : {}),
+  }
+  const railItems = ownerRail(go, { hide: oldClients ? ['reels'] : [], label: navLabels })
 
-  /* The tab bar is NOT the rail any more, and that is the fix.
+  /* The tab bar is NOT the rail, and that is the fix.
      It used to be `railItems.map(...)` — all seven sections, four of them
      tabs and three behind a "More" sheet, which is how HR ended up with a
      bar that was a different height and a different shape from everybody
-     else's and had no Profile on it at all. The rail above still lists all
-     seven; a sidebar can afford them. The phone gets the four HR opens
-     daily, then Profile.
-     Salary is monthly, Departments is one-time setup and Terms is read once
-     at joining — all three are rows inside Profile now. Joining keeps a tab
-     because its badge is an actionable queue: somebody has applied, and a
-     count nobody sees is a count that does not work. */
-  const HR_TABS = ['dashboard', 'attendance', 'directory', 'joining'] as const
-  /** The three that moved into Profile. Opening one lights Profile on the bar
-   *  and puts a ← Profile on its page head, so "where am I" still has an
-   *  answer and the way back is one tap. */
-  const IN_PROFILE = ['salary', 'departments', 'clientsPages', 'access', 'terms'] as const
-  const inProfileTab = (IN_PROFILE as readonly string[]).includes(section)
-  const railItem = (key: string) => railItems.find((it) => it.key === key)!
+     else's and had no Profile on it at all. The rail lists everything; a
+     sidebar can afford it. The phone gets the four HR opens daily, then
+     Profile — which holds everything else, in the rail's own groups.
+     Joining keeps a tab because its badge is an actionable queue: somebody
+     has applied, and a count nobody sees is a count that does not work. */
+  const HR_TABS: OwnerDest[] = ['dashboard', 'attendance', 'directory', 'joining']
+  /** Sections reached through Profile on a phone. Opening one lights Profile
+   *  on the bar and puts a ← Profile on its page head, so "where am I" still
+   *  has an answer and the way back is one tap. */
+  const IN_PROFILE: HrSection[] = ['salary', 'departments', 'clientsPages', 'reels', 'access', 'workflows', 'terms']
+  const inProfileTab = IN_PROFILE.includes(section as HrSection)
   /** Phone only — see `.on-phone`. Sits ON the title's row, not above it. */
   const backToProfile = (
     <button className="btn btn--sm on-phone" onClick={() => setSection('profile')}>← Profile</button>
   )
   const navItems: BottomNavItems = [
-    { key: 'dashboard', label: 'Dashboard', icon: railItem('dashboard').icon, onClick: railItem('dashboard').onClick },
-    {
-      key: 'attendance', label: 'Attendance', icon: railItem('attendance').icon,
-      badge: pendingLeave.length, onClick: railItem('attendance').onClick,
-    },
-    { key: 'directory', label: 'Employees', icon: railItem('directory').icon, onClick: railItem('directory').onClick },
-    {
-      key: 'joining', label: 'Joining', icon: railItem('joining').icon,
-      badge: pendingApps.length, onClick: railItem('joining').onClick,
-    },
+    { key: 'dashboard', label: 'Dashboard', icon: DEST.dashboard.icon, onClick: () => go('dashboard') },
+    { key: 'attendance', label: 'Attendance', icon: DEST.attendance.icon, badge: pendingLeave.length, onClick: () => go('attendance') },
+    { key: 'directory', label: 'Employees', icon: DEST.directory.icon, onClick: () => go('directory') },
+    { key: 'joining', label: 'Joining', icon: DEST.joining.icon, badge: pendingApps.length, onClick: () => go('joining') },
     {
       key: 'profile', label: 'Profile', icon: NAV_ICONS.profile,
       onClick: () => { setSection('profile'); setOpenId(null) },
     },
   ]
-  void HR_TABS
+  const profileRows = ownerProfileRows(go, {
+    hide: [...HR_TABS, ...(oldClients ? ['reels' as const] : [])],
+    label: oldClients ? { clientsPages: 'Clients & Pages' } : {},
+  })
+  const flows = useWorkflows(section === 'workflows' && agency.installed.workflows)
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
   const exitRecordFor = (employeeId: string) => exitRecords.rows.find((r) => r.employeeId === employeeId) ?? null
@@ -858,7 +816,7 @@ export function HrPage({
           <div className="brand-name">Metrol Media</div>
         </div>
         <div className="topbar-right">
-          {onBackToProjects && <button className="btn btn--sm" onClick={onBackToProjects}>← Projects</button>}
+          {onBackToProjects && <button className="btn btn--sm on-phone" onClick={onBackToProjects}>← Projects</button>}
           <AccountControls ws={ws} variant="topbar" hasRail roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'}
                            onOpenProfile={() => { setSection('profile'); setOpenId(null) }} />
         </div>
@@ -872,7 +830,7 @@ export function HrPage({
           {/* key + .view-in is the whole tab animation: a section swap remounts
               this wrapper, which replays the keyframe. Keyed on the profile too,
               so opening somebody's record arrives the same way a tab does. */}
-          <div className="wrap view-in" key={`${section}:${attView}:${joiningView}:${openId ?? ''}`}>
+          <div className="wrap view-in" key={`${section}:${attView}:${joiningView}:${openId ?? ''}:${navSeq}`}>
             {hr.error && <div className="auth-err" style={{ marginBottom: 14 }}>{hr.error}</div>}
 
             {/* ------------------------------------------------ one person */}
@@ -1580,7 +1538,8 @@ export function HrPage({
 
             {!open && section === 'clientsPages' && (agency.installed.clients ? (
               <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
-                              pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} asPage lead={backToProfile} />
+                              pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} asPage lead={backToProfile}
+                              only="clients" />
             ) : (
               <>
                 <div className="page-head">
@@ -1591,8 +1550,25 @@ export function HrPage({
               </>
             ))}
 
-            {!open && section === 'access' && canSettings && (
+            {/* Reels: every reel on every page, one list — it was a switch on
+                the Clients screen; it is a place of its own in the menu now. */}
+            {!open && section === 'reels' && agency.installed.clients && (
+              <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
+                              pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} asPage lead={backToProfile}
+                              only="reels" />
+            )}
+
+            {!open && section === 'access' && (canSettings ? (
               <AccessSettings ws={ws} agency={agency} staff={hr.rows} toast={toast} lead={backToProfile} />
+            ) : (
+              <>
+                <div className="page-head">{backToProfile}<h1>Roles &amp; access</h1></div>
+                <p className="cell-mute" style={{ margin: 0 }}>Your role does not have "Roles &amp; access" ticked — the owner can give it.</p>
+              </>
+            ))}
+
+            {!open && section === 'workflows' && (
+              <WorkflowSettings ws={ws} agency={agency} flows={flows} toast={toast} lead={backToProfile} />
             )}
 
             {/* ------------------------------------------ attendance + leave */}
@@ -2070,13 +2046,7 @@ export function HrPage({
                   ws={ws}
                   subtitle={ws.me?.role === 'owner' ? 'Owner' : 'Human Resources'}
                   photoUrl={ws.me?.avatarUrl}
-                  rows={[
-                    { key: 'salary', label: 'Salary', onClick: () => setSection('salary') },
-                    { key: 'departments', label: 'Departments', onClick: () => setSection('departments') },
-                    { key: 'clientsPages', label: agency.installed.clients ? 'Clients' : 'Clients & Pages', onClick: () => setSection('clientsPages') },
-                    ...(canSettings ? [{ key: 'access', label: 'Roles & access', onClick: () => setSection('access') }] : []),
-                    { key: 'terms', label: 'Terms & Conditions', atFoot: true, onClick: () => setSection('terms') },
-                  ]}
+                  rows={profileRows}
                 />
               </>
             )}

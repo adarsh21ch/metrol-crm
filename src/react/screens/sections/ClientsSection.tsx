@@ -44,7 +44,7 @@ interface ClientRow extends Client {
  * Marketing head's Manage team tab). Either way the controls ride on it.
  */
 export function ClientsSection({
-  ws, agency, clients, pages, pageAssignments, pageReels, incentiveClaims, toast, asPage, lead, onOpenChange,
+  ws, agency, clients, pages, pageAssignments, pageReels, incentiveClaims, toast, asPage, lead, onOpenChange, only,
 }: {
   ws: Workspace
   agency: Agency
@@ -59,6 +59,10 @@ export function ClientsSection({
   lead?: React.ReactNode
   /** told when a client opens or closes, so a host can give up its own heading */
   onOpenChange?: (open: boolean) => void
+  /** One view only, no Clients/Reels switch — the owner's and HR's menu has
+   *  both as places of their own. Without it (the C&M head's Manage team
+   *  tab) the switch stays. */
+  only?: 'clients' | 'reels'
 }) {
   const { access, team, lists, channels, targets, myEmployee } = agency
   const [openId, setOpenId] = usePersistedState<string | null>('agency-open-client', null)
@@ -158,7 +162,7 @@ export function ClientsSection({
     },
   ]
 
-  if (open) {
+  if (open && only !== 'reels') {
     return (
       <ClientPage ws={ws} agency={agency} client={open} clients={clients} pages={pages} pageAssignments={pageAssignments}
                   pageReels={pageReels} toast={toast} onBack={() => { setOpenId(null); void summary.reload() }} />
@@ -166,15 +170,16 @@ export function ClientsSection({
   }
 
   const Title = asPage ? 'h1' : 'h3'
+  const shownView = only ?? (canSeeReels ? view : 'clients')
   const tools = (
     <>
-      {canSeeReels && (
+      {canSeeReels && !only && (
         <div className="seg">
           <button className={view === 'clients' ? 'is-on' : ''} onClick={() => setView('clients')}>Clients</button>
           <button className={view === 'reels' ? 'is-on' : ''} onClick={() => setView('reels')}>Reels</button>
         </div>
       )}
-      {view === 'reels' && canSeeReels && (
+      {shownView === 'reels' && canSeeReels && (
         <>
           <select className="input" aria-label="Which client" value={reelClient} onChange={(e) => setReelClient(e.target.value)}>
             <option value="">Every client</option>
@@ -188,10 +193,9 @@ export function ClientsSection({
         </>
       )}
       <PhoneViewPick view={phoneView} onPick={setPhoneView} />
-      {view === 'clients' && canAdd && <button className="btn btn--sm btn--primary" onClick={() => setAdding(true)}>+ Client</button>}
+      {shownView === 'clients' && canAdd && <button className="btn btn--sm btn--primary" onClick={() => setAdding(true)}>+ Client</button>}
     </>
   )
-  const shownView = canSeeReels ? view : 'clients'
 
   return (
     <>

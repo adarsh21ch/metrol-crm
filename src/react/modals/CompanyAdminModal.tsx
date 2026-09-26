@@ -45,7 +45,7 @@ export function CompanyAdminModal({ ws, onClose }: { ws: Workspace; onClose: () 
 
   return (
     <Modal
-      title="Company settings" sub="Owner only" wide onClose={onClose}
+      title="Company settings" sub="Owner and HR" wide onClose={onClose}
       foot={<button className="btn btn--sm" onClick={onClose}>Close</button>}
     >
       <div className="auth-form">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
-import { Rail } from '@/components/Rail'
+import { Rail, type RailItem } from '@/components/Rail'
 import { BottomNav, NAV_ICONS } from '@/components/BottomNav'
 import { DensitySlider } from '@/components/DensitySlider'
 import { Chip, IconBtn } from '@/components/bits'
@@ -14,7 +14,6 @@ import { ImportModal } from '@/modals/ImportModal'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
 import { AddLeadModal } from '@/modals/AddLeadModal'
-import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
 import { Overview } from './sections/Overview'
 import { Leads } from './sections/Leads'
 import { Sales } from './sections/Sales'
@@ -44,14 +43,15 @@ const SHORT: Record<SecId, string> = {
 }
 
 export function ProjectShell({
-  ws, projectId, onBack, onOpenProject, onOpenTeam, onOpenHr, onOpenProfile, toast,
+  ws, projectId, onBack, onOpenProject, onOpenTeam, onOpenProfile, rail, toast,
 }: {
   ws: Workspace
   projectId: string
   onBack: () => void
   onOpenProject: (id: string) => void
   onOpenTeam: () => void
-  onOpenHr: () => void
+  /** The owner's and HR's grouped menu (lib/ownerNav.tsx), built once in App. */
+  rail: RailItem[]
   onOpenProfile: () => void
   toast: (m: string) => void
 }) {
@@ -60,7 +60,6 @@ export function ProjectShell({
   const [addOpen, setAddOpen] = useState(false)
   const [saleFor, setSaleFor] = useState<Lead | null>(null)
   const [historyFor, setHistoryFor] = useState<Lead | null>(null)
-  const [adminOpen, setAdminOpen] = useState(false)
   const [storedSec, setSec] = usePersistedState<SecId | 'dash'>('project-sec:' + projectId, 'overview')
   /* sessionStorage can still be holding 'dash' from before this round — a
      value no branch below renders, which would paint an empty page. It means
@@ -125,8 +124,7 @@ export function ProjectShell({
 
       <div className="shell">
         <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={onOpenProfile} active={projectId} panes={panes} tip={tip}
-              onOpenProjects={onBack} onOpenProject={onOpenProject}
-              onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
+              items={rail} />
 
         <nav className={'sidebar' + (panes.sideMini ? ' is-mini' : '')}>
           <div className="side-head">
@@ -233,7 +231,6 @@ export function ProjectShell({
         />
       )}
 
-      {adminOpen && <CompanyAdminModal ws={ws} onClose={() => setAdminOpen(false)} />}
     </div>
   )
 }

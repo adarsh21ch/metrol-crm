@@ -2,14 +2,13 @@ import { useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
-import { Rail } from '@/components/Rail'
+import { Rail, type RailItem } from '@/components/Rail'
 import { BottomNav, type BottomNavItems } from '@/components/BottomNav'
 import { usePanes } from '@/lib/usePanes'
 import { Avatar, Chip } from '@/components/bits'
 import { agoWords, count, initials, money, num } from '@/lib/format'
 import { isConverted, type Project } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
-import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
 
 type View = 'cards' | 'list'
 const VIEW_KEY = 'metrol-crm-projview'
@@ -33,16 +32,15 @@ function Media({ p, small }: { p: Row; small?: boolean }) {
   )
 }
 
-export function Projects({ ws, onOpen, onOpenTeam, onOpenHr, onOpenProfile, nav }: {
+export function Projects({ ws, onOpen, onOpenProfile, nav, rail }: {
   ws: Workspace
   onOpen: (id: string) => void
-  onOpenTeam: () => void
-  onOpenHr: () => void
   onOpenProfile: () => void
   /** The owner's five, built once in App. This screen only says which is lit. */
   nav: BottomNavItems
+  /** The owner's and HR's grouped menu (lib/ownerNav.tsx), built once in App. */
+  rail: RailItem[]
 }) {
-  const [adminOpen, setAdminOpen] = useState(false)
   const panes = usePanes()
   const tip = useHoverTip()
   const [view, setView] = useState<View>(() => {
@@ -99,8 +97,7 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr, onOpenProfile, nav 
 
       <div className="shell">
         <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={onOpenProfile} active="projects" panes={panes} tip={tip}
-              onOpenProjects={() => {}} onOpenProject={onOpen}
-              onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
+              items={rail} />
 
         <div className="workspace">
           <div className="wrap">
@@ -189,7 +186,6 @@ export function Projects({ ws, onOpen, onOpenTeam, onOpenHr, onOpenProfile, nav 
       <BottomNav items={nav} active="projects" />
 
       {tip.node}
-      {adminOpen && <CompanyAdminModal ws={ws} onClose={() => setAdminOpen(false)} />}
     </div>
   )
 }

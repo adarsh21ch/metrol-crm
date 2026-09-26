@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
-import { Rail } from '@/components/Rail'
+import { Rail, type RailItem } from '@/components/Rail'
 import { BottomNav, type BottomNavItems } from '@/components/BottomNav'
 import { AccountControls } from '@/components/AccountControls'
 import { useHoverTip } from '@/components/HoverTip'
@@ -9,7 +9,6 @@ import { Avatar, Kpi } from '@/components/bits'
 import { count, daysSince, money, pct } from '@/lib/format'
 import { isConnected, isConverted, type Lead, type Member } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
-import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
 
 interface ProjectRow {
   id: string; name: string; assigned: number; connected: number; followups: number; converted: number; sale: number
@@ -181,21 +180,18 @@ function MemberDashboard({ ws, member, onBack }: { ws: Workspace; member: Member
 }
 
 export function TeamPage({
-  ws, memberId, onOpenMember, onBackToTeam, onOpenProjects, onOpenProject, onOpenHr,
-  onOpenProfile, nav,
+  ws, memberId, onOpenMember, onBackToTeam, onOpenProfile, nav, rail,
 }: {
   ws: Workspace
   memberId: string | null
   onOpenMember: (id: string) => void
   onBackToTeam: () => void
-  onOpenProjects: () => void
-  onOpenProject: (id: string) => void
-  onOpenHr: () => void
   onOpenProfile: () => void
   /** The owner's five, built once in App. This screen only says which is lit. */
   nav: BottomNavItems
+  /** The owner's and HR's grouped menu (lib/ownerNav.tsx), built once in App. */
+  rail: RailItem[]
 }) {
-  const [adminOpen, setAdminOpen] = useState(false)
   const panes = usePanes()
   const tip = useHoverTip()
 
@@ -216,8 +212,7 @@ export function TeamPage({
 
       <div className="shell">
         <Rail ws={ws} roleLabel={ws.me?.email ?? 'Owner'} onOpenProfile={onOpenProfile} active="team" panes={panes} tip={tip}
-              onOpenProjects={onOpenProjects} onOpenProject={onOpenProject}
-              onOpenTeam={onBackToTeam} onOpenHr={onOpenHr} onOpenSettings={() => setAdminOpen(true)} />
+              items={rail} />
 
         <div className="workspace">
           <div className="wrap">
@@ -231,7 +226,6 @@ export function TeamPage({
       <BottomNav items={nav} active="team" />
 
       {tip.node}
-      {adminOpen && <CompanyAdminModal ws={ws} onClose={() => setAdminOpen(false)} />}
     </div>
   )
 }

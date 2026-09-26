@@ -3,24 +3,17 @@ import { Chip } from '@/components/bits'
 import { Tip } from '@/components/Tip'
 import { RoleModal } from '@/modals/RoleModal'
 import { GrantRoleModal } from '@/modals/GrantRoleModal'
-import { ListItemModal } from '@/modals/ListItemModal'
-import { CAPABILITIES, type Capability, type ListItem, type Role } from '@/lib/agency'
-import type { ListKind } from '@/data/useAgencyLists'
+import { CAPABILITIES, type Capability, type Role } from '@/lib/agency'
 import type { Agency } from '@/data/useAgency'
 import type { Employee } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
-const LISTS: { kind: ListKind; title: string; one: string; tone: boolean; hint: string }[] = [
-  { kind: 'client_statuses', title: 'Client statuses', one: 'Client status', tone: true, hint: 'On every client' },
-  { kind: 'page_statuses', title: 'Page colours', one: 'Page colour', tone: true, hint: 'The sheet\'s red and orange rows — rename them to what they mean' },
-  { kind: 'view_adjustment_types', title: 'Adjustment types', one: 'Adjustment type', tone: false, hint: 'The in-between rows of a target sheet' },
-]
-
 /**
  * Roles & access (AGENCY-OS-PLAN.md §4) — who may do what, as rows the owner
- * edits instead of code: the roles, what each may do, who holds one by hand,
- * and the small lists the rest of Agency OS picks from. Needs manage_settings;
- * the owner always has it and nothing here can take that away.
+ * edits instead of code: the roles, what each may do, and who holds one by
+ * hand. Needs manage_settings; the owner always has it and nothing here can
+ * take that away. The small lists (client statuses, page colours, adjustment
+ * types) moved to Settings → Workflows & lists in Phase 2, Round 1.
  */
 export function AccessSettings({
   ws, agency, staff, toast, lead,
@@ -31,10 +24,9 @@ export function AccessSettings({
   toast: (m: string) => void
   lead?: React.ReactNode
 }) {
-  const { accessData, lists, installed, team } = agency
+  const { accessData, installed, team } = agency
   const [editing, setEditing] = useState<Role | 'new' | null>(null)
   const [granting, setGranting] = useState(false)
-  const [listEdit, setListEdit] = useState<{ kind: ListKind; item: ListItem | null } | null>(null)
   const live = CAPABILITIES.filter((c) => c.live)
   const roles = [...accessData.roles].sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.sortOrder - b.sortOrder)
   const capsOf = (roleId: string) => accessData.caps.filter((c) => c.roleId === roleId).map((c) => c.capability)
@@ -136,25 +128,6 @@ export function AccessSettings({
         )}
       </div>
 
-      {installed.clients && LISTS.map((l) => (
-        <div className="section" key={l.kind}>
-          <div className="section-head">
-            <h3>{l.title}</h3>
-            <span className="sub">{l.hint}</span>
-            <div className="section-tools section-tools--tight">
-              <button className="btn btn--sm" onClick={() => setListEdit({ kind: l.kind, item: null })}>+ Add</button>
-            </div>
-          </div>
-          <div className="li-row">
-            {lists[l.kind].map((item) => (
-              <button key={item.id} className={'li-item' + (item.isActive ? '' : ' is-retired')} onClick={() => setListEdit({ kind: l.kind, item })}>
-                {l.tone ? <Chip cls={'chip--' + item.tone}>{item.name}</Chip> : <Chip cls="chip--mute">{item.name}</Chip>}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-
       {editing && (
         <RoleModal role={editing === 'new' ? null : editing} roles={accessData.roles}
                    caps={editing === 'new' ? [] : capsOf(editing.id)} departments={ws.departments}
@@ -169,16 +142,6 @@ export function AccessSettings({
                           if (!m) toast('Role given.')
                           return m
                         }} />
-      )}
-      {listEdit && (
-        <ListItemModal title={LISTS.find((l) => l.kind === listEdit.kind)!.one} item={listEdit.item}
-                       withTone={LISTS.find((l) => l.kind === listEdit.kind)!.tone}
-                       onClose={() => setListEdit(null)}
-                       onSave={async (patch) => {
-                         const m = await lists.save(listEdit.kind, listEdit.item?.id ?? null, patch)
-                         if (!m) toast('Saved.')
-                         return m
-                       }} />
       )}
     </>
   )

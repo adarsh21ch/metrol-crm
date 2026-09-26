@@ -27,7 +27,7 @@ export const CAPABILITIES: { key: Capability; label: string; hint: string; live:
   { key: 'manage_targets', label: 'Set targets', hint: 'Targets, periods, adjustments, any week\'s number', live: true },
   { key: 'enter_views', label: 'Enter weekly views', hint: 'Per client role: only on pages they hold', live: true },
   { key: 'manage_settings', label: 'Roles & access', hint: 'This screen, and the colour lists', live: true },
-  { key: 'manage_workflows', label: 'Workflows', hint: 'Phase 2', live: false },
+  { key: 'manage_workflows', label: 'Workflows & lists', hint: 'Workflow stages, task statuses, content formats', live: true },
   { key: 'view_all_work', label: 'See all work', hint: 'Phase 2', live: false },
   { key: 'approve_incentives', label: 'Approve incentives', hint: 'Still HR today', live: false },
   { key: 'manage_hr', label: 'HR', hint: 'Still the HR department today', live: false },
@@ -62,6 +62,53 @@ export interface EmployeeRole {
   roleId: string
   departmentId: string | null
   grantedAt: string
+}
+
+/* ------------------------------------------------------ workflows (0043) */
+
+/** Phase 2's spine: an ordered list of stages, each naming the role that acts
+ *  on it. Round 2 hangs content items on these rows — nothing about "Editing
+ *  comes after Shoot done" lives in code. */
+export type PageKind = 'main' | 'fan'
+
+export interface Workflow {
+  id: string
+  name: string
+  /** Which pages it is for — a new item on a fan page starts on the first
+   *  active fan workflow. null = any page. */
+  pageType: PageKind | null
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface WorkflowStage {
+  id: string
+  workflowId: string
+  name: string
+  sortOrder: number
+  /** Whoever holds this role on the item's client team acts on it. */
+  ownerRoleId: string | null
+  /** Somebody approves it here or sends it back. */
+  isReview: boolean
+  /** What a client would see in a portal (Phase 3). */
+  clientVisible: boolean
+  /** An item here is finished — no task is made for it. */
+  isDone: boolean
+  tone: Tone
+  slaHours: number | null
+  isActive: boolean
+}
+
+export type StageDraft = Omit<WorkflowStage, 'id' | 'workflowId' | 'sortOrder'>
+
+/** The first active one is where a new task starts; a done one finishes it. */
+export interface TaskStatus {
+  id: string
+  name: string
+  tone: Tone
+  sortOrder: number
+  isDone: boolean
+  isActive: boolean
 }
 
 /* ---------------------------------------------------------- the client master */

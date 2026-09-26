@@ -42,3 +42,9 @@ export function usePersistedState<T>(key: string, initial: T): [T, (v: T | ((pre
 
   return [state, set]
 }
+
+/** Set another screen's remembered value before it opens — how a rail link on
+ *  Projects lands on HR's Salary section: HrPage reads this on mount. */
+export function setPersisted<T>(key: string, value: T) {
+  try { window.sessionStorage.setItem('metrol:' + key, JSON.stringify(value)) } catch { /* private mode — the screen opens on its default */ }
+}

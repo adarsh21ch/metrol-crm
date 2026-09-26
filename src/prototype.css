@@ -541,6 +541,18 @@ textarea.input{
 .rail.is-wide .rail-list{align-items:stretch}
 .rail-sep{width:100%;max-width:28px;height:1px;background:var(--line);flex:none;margin:3px 0}
 .rail.is-wide .rail-sep{max-width:none}
+/* A group's label (lib/ownerNav.tsx — People, Clients & content, Sales,
+   Settings). Collapsed to icons it is a thin rule like .rail-sep, so the
+   groups still read; widened, it names the group. */
+.rail-group{width:100%;max-width:28px;height:1px;background:var(--line);flex:none;margin:5px 0 1px}
+.rail-group span{display:none}
+.rail.is-wide .rail-group{max-width:none;height:auto;background:none;margin:9px 0 0;padding:0 7px 1px}
+.rail.is-wide .rail-group span{
+  display:block;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* A project under Projects — indented and a little shorter when named. */
+.rail.is-wide .rail-btn--sub{height:32px;padding-left:20px}
 .rail-btn{
   position:relative;width:40px;height:40px;flex:none;border-radius:9px;
   border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);
@@ -2348,6 +2360,33 @@ table.grid.tg-sum .is-on{background:var(--accent-soft)}
 .li-tones{display:flex;flex-wrap:wrap;gap:8px}
 .li-tone{border:1px solid transparent;background:none;padding:3px;border-radius:20px;cursor:pointer}
 .li-tone.is-on{border-color:var(--ink-3)}
+.li-item:disabled{cursor:default}
+.field--inline{flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}
+
+/* Settings → Workflows & lists (Phase 2, Round 1). One bordered list per
+   workflow; a row is the handle, its place, the stage and who acts on it. */
+.wf-pick{width:auto;max-width:190px}
+.wf-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.wf-row{display:flex;align-items:center;gap:8px;min-height:48px;padding:6px 10px 6px 6px;border-top:1px solid var(--line-2);background:var(--surface)}
+.wf-row:first-child{border-top:0}
+.wf-row.is-dragging{position:relative;z-index:1;background:var(--surface-2);box-shadow:var(--shadow-md)}
+.wf-row.is-retired .wf-main,.wf-row.is-retired .wf-n{opacity:.55}
+.wf-grip{
+  flex:none;width:28px;height:34px;display:grid;place-items:center;border:0;border-radius:6px;
+  background:none;color:var(--ink-3);cursor:grab;touch-action:none;
+}
+.wf-grip:hover,.wf-grip:focus-visible{color:var(--ink);background:var(--surface-3)}
+.wf-row.is-dragging .wf-grip{cursor:grabbing}
+.wf-n{flex:none;width:18px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.wf-main{
+  flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:3px 10px;
+  border:0;background:none;padding:4px 2px;text-align:left;color:inherit;font:inherit;cursor:pointer;
+}
+.wf-main:disabled{cursor:default}
+.wf-flags{font-size:11.5px;color:var(--ink-3)}
+.wf-owner{flex:none;width:auto;min-width:0;max-width:46%;height:32px;font-size:12.5px}
+.wf-owner--done{display:inline-flex;align-items:center;padding:0 8px;color:var(--ink-3);font-size:12px}
+.wf-empty{padding:14px;color:var(--ink-3);font-size:12.5px}
 
 /* "Weekly views" — one box and one screenshot button per channel */
 .wv-client{border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit}

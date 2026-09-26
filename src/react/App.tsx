@@ -16,8 +16,12 @@ import { HrPage } from '@/screens/HrPage'
 import { ApplyPage } from '@/screens/ApplyPage'
 import { OwnerProfile } from '@/screens/OwnerProfile'
 import { NAV_ICONS, type BottomNavItems } from '@/components/BottomNav'
+import { CompanyAdminModal } from '@/modals/CompanyAdminModal'
+import { useAgencySchema } from '@/data/agencySchema'
 import { isOwnerLevel } from '@/lib/hr'
-import { usePersistedState } from '@/lib/usePersistedState'
+import { initials } from '@/lib/format'
+import { ownerRail, type OwnerDest } from '@/lib/ownerNav'
+import { setPersisted, usePersistedState } from '@/lib/usePersistedState'
 
 /** Screen-based, like the prototype: everyone reaches this from one bookmark,
  *  and a router would put the back button in a fight with the sidebar. It can
@@ -83,6 +87,10 @@ function SignedIn() {
   // null = this login's home: the owner starts on Projects, HR on HR.
   const [chosen, setRoute] = usePersistedState<Route | null>('route', null)
   const [lastProject, setLastProject] = usePersistedState<string | null>('last-project', null)
+  // Settings → Company. One modal for every owner-level screen, opened from
+  // the rail or Profile wherever you are — it used to be five copies.
+  const [companyOpen, setCompanyOpen] = useState(false)
+  const schema = useAgencySchema()
 
   /* A failed write used to roll the row back in silence: the chip flicked back
      to its old value and nothing said why, which is precisely what makes a
@@ -145,6 +153,32 @@ function SignedIn() {
   const onOpenHr = () => setRoute({ name: 'hr' })
   const onOpenProfile = () => setRoute({ name: 'profile' })
 
+  /* Every rail link and Profile row of the owner's and HR's app lands here
+     (lib/ownerNav.tsx). A section of HR's screen is remembered for it before
+     it opens — HrPage reads it on mount — with no employee left open, so a
+     link always lands on the section itself. HrPage handles its own
+     sections while it is open, and only hands the rest up. */
+  const go = (d: OwnerDest) => {
+    if (d === 'company') { setCompanyOpen(true); return }
+    if (d === 'projects') { onOpenProjects(); return }
+    if (d === 'team') { onOpenTeam(); return }
+    setPersisted('hr-section', d)
+    setPersisted('hr-openId', null)
+    if (d === 'clientsPages') setPersisted('agency-open-client', null)
+    onOpenHr()
+  }
+  /* One grouped list for Projects, a project, Team and Profile. While the
+     owner is in Sales, each project sits under Projects — one click between
+     them, as the old rail gave — and folds away everywhere else. */
+  const inSales = route.name === 'projects' || route.name === 'project' || route.name === 'team' || route.name === 'member'
+  const rail = ownerRail(go, {
+    hide: schema?.clients === false ? ['reels'] : [],
+    label: schema?.clients === false ? { clientsPages: 'Clients & Pages' } : {},
+    under: inSales ? {
+      projects: ws.projects.map((p) => ({ key: p.id, label: p.name, icon: initials(p.name), onClick: () => onOpenProject(p.id) })),
+    } : {},
+  })
+
   /* The owner's second tab, "Project" — resume the one you were working in.
      The owner has only three app-level destinations (Projects, Team, HR) and
      the bar wants four, and inventing a fourth screen would have been exactly
@@ -172,8 +206,7 @@ function SignedIn() {
   return withFeed(
     <>
       {route.name === 'projects' && (
-        <Projects ws={ws} onOpen={onOpenProject} onOpenTeam={onOpenTeam} onOpenHr={onOpenHr}
-                  onOpenProfile={onOpenProfile} nav={ownerNav} />
+        <Projects ws={ws} onOpen={onOpenProject} onOpenProfile={onOpenProfile} nav={ownerNav} rail={rail} />
       )}
       {route.name === 'project' && (
         <ProjectShell
@@ -182,8 +215,8 @@ function SignedIn() {
           onBack={onOpenProjects}
           onOpenProject={onOpenProject}
           onOpenTeam={onOpenTeam}
-          onOpenHr={onOpenHr}
           onOpenProfile={onOpenProfile}
+          rail={rail}
           toast={toast}
         />
       )}
@@ -193,19 +226,19 @@ function SignedIn() {
           memberId={route.name === 'member' ? route.id : null}
           onOpenMember={onOpenMember}
           onBackToTeam={onOpenTeam}
-          onOpenProjects={onOpenProjects}
-          onOpenProject={onOpenProject}
-          onOpenHr={onOpenHr}
           onOpenProfile={onOpenProfile}
           nav={ownerNav}
+          rail={rail}
         />
       )}
-      {route.name === 'hr' && <HrPage ws={ws} toast={toast} onBackToProjects={onOpenProjects} />}
-      {route.name === 'profile' && (
-        <OwnerProfile ws={ws} nav={ownerNav}
-                      onOpenProjects={onOpenProjects} onOpenProject={onOpenProject}
-                      onOpenTeam={onOpenTeam} onOpenHr={onOpenHr} />
+      {/* The owner's home is Projects, so a phone gets a way back to it here;
+          HR's home is this screen, and a desktop has Projects in the rail. */}
+      {route.name === 'hr' && (
+        <HrPage ws={ws} toast={toast} onNav={go}
+                onBackToProjects={ws.me?.role === 'owner' ? onOpenProjects : undefined} />
       )}
+      {route.name === 'profile' && <OwnerProfile ws={ws} nav={ownerNav} rail={rail} go={go} schema={schema} />}
+      {companyOpen && <CompanyAdminModal ws={ws} onClose={() => setCompanyOpen(false)} />}
     </>,
   )
 }

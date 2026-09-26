@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Avatar } from '@/components/bits'
 import { initials } from '@/lib/format'
 import { disablePush, enablePush, pushIsEnabled, pushSupported } from '@/lib/push'
@@ -16,6 +16,9 @@ export interface ProfileRow {
   /** Read once and almost never again — Terms & Conditions. It sits with Sign
    *  out rather than taking a slot in the daily list. Member's own words. */
   atFoot?: boolean
+  /** The heading it sits under — the owner's and HR's rows come in the rail's
+   *  groups (People, Clients & content…). Rows without one sit under "More". */
+  group?: string
   onClick: () => void
 }
 
@@ -105,16 +108,16 @@ export function ProfileSection({
       </div>
 
       <div className="prof-menu">
-        {menu.length > 0 && (<>
-          <div className="prof-group">More</div>
-          {menu.map((r) => (
-            <button className="prof-row" key={r.key} onClick={r.onClick}>
+        {menu.map((r, i) => (
+          <Fragment key={r.key}>
+            {(i === 0 || r.group !== menu[i - 1].group) && <div className="prof-group">{r.group ?? 'More'}</div>}
+            <button className="prof-row" onClick={r.onClick}>
               <span className="l">{r.label}</span>
               {!!r.badge && <span className="count">{r.badge}</span>}
               <span className="go" aria-hidden="true">›</span>
             </button>
-          ))}
-        </>)}
+          </Fragment>
+        ))}
 
         {/* Named, and in its own band, so HR's Profile does not read as though
             payroll and a password change were the same kind of thing. */}

@@ -1,7 +1,7 @@
 import type { Department, Lead, LeadEvent, LeadStatus, Member, Project, Quality } from '@/lib/types'
 import type { Client, Employee, EmployeeDocument, ExitTask, IncentiveClaim, IncentivePayout, IncentiveRule, JobApplication, LeaveRequest, OnboardingTask, Page, PageAssignment, PageReel, SalaryRecord, TdsCategory, VisitEntry, VisitPurpose, WfhRequest } from '@/lib/hr'
 import type { AttendanceRow, AttendanceSettings, Holiday, OfficeLocation, Shift } from '@/lib/attendance'
-import type { ClientAssignment, ClientFinancials, ClientLink, EmployeeRole, ListItem, PageChannel, ViewAdjustment, ViewTarget, ViewTargetPeriod, WeeklyView } from '@/lib/agency'
+import type { ClientAssignment, ClientFinancials, ClientLink, EmployeeRole, ListItem, PageChannel, ViewAdjustment, ViewTarget, ViewTargetPeriod, WeeklyView, TaskStatus, Tone, Workflow, WorkflowStage } from '@/lib/agency'
 import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
 import { seedAccess } from '@/lib/access'
@@ -854,6 +854,49 @@ export const demoAdjustmentTypes: ListItem[] = [
   { id: 'at2', name: 'Collaboration views', tone: 'mute', sortOrder: 2, isActive: true },
   { id: 'at3', name: 'Suspended account views', tone: 'mute', sortOrder: 3, isActive: true },
 ]
+
+/* ------------------------------------------------ Phase 2, Round 1 (0043) */
+
+/** 0043's seed, restated — the demo's Workflows & lists IS the live default.
+ *  Fan pages skip Client review (Q15's default). */
+export const demoWorkflows: Workflow[] = [
+  { id: 'wf-main', name: 'Main page reel', pageType: 'main', sortOrder: 1, isActive: true },
+  { id: 'wf-fan', name: 'Fan page reel', pageType: 'fan', sortOrder: 2, isActive: true },
+]
+
+const STAGE_SEED: { name: string; role: string | null; tone: Tone; review?: boolean; client?: boolean; done?: boolean }[] = [
+  { name: 'Idea', role: 'role-smm', tone: 'mute' },
+  { name: 'Scripting', role: 'role-smm', tone: 'mute' },
+  { name: 'Script ready', role: 'role-smm', tone: 'accent' },
+  { name: 'Shoot required', role: 'role-dop', tone: 'accent' },
+  { name: 'Shoot done', role: 'role-smm', tone: 'accent' },
+  { name: 'Editing', role: 'role-editor', tone: 'accent' },
+  { name: 'SMM review', role: 'role-smm', tone: 'warn', review: true },
+  { name: 'Client review', role: 'role-smm', tone: 'warn', review: true, client: true },
+  { name: 'Approved', role: 'role-smm', tone: 'good', client: true },
+  { name: 'Scheduled', role: 'role-smm', tone: 'good', client: true },
+  { name: 'Posted', role: null, tone: 'good', client: true, done: true },
+]
+
+const stagesFor = (workflowId: string, skip: string[] = []): WorkflowStage[] =>
+  STAGE_SEED.filter((s) => !skip.includes(s.name)).map((s, i) => ({
+    id: `${workflowId}-s${i + 1}`, workflowId, name: s.name, sortOrder: i + 1, ownerRoleId: s.role,
+    isReview: !!s.review, clientVisible: !!s.client, isDone: !!s.done, tone: s.tone, slaHours: null, isActive: true,
+  }))
+
+export const demoWorkflowStages: WorkflowStage[] = [...stagesFor('wf-main'), ...stagesFor('wf-fan', ['Client review'])]
+
+export const demoTaskStatuses: TaskStatus[] = [
+  { id: 'ts1', name: 'Not started', tone: 'mute', sortOrder: 1, isDone: false, isActive: true },
+  { id: 'ts2', name: 'In progress', tone: 'accent', sortOrder: 2, isDone: false, isActive: true },
+  { id: 'ts3', name: 'Pending review', tone: 'warn', sortOrder: 3, isDone: false, isActive: true },
+  { id: 'ts4', name: 'Revision', tone: 'bad', sortOrder: 4, isDone: false, isActive: true },
+  { id: 'ts5', name: 'Approved', tone: 'good', sortOrder: 5, isDone: false, isActive: true },
+  { id: 'ts6', name: 'Completed', tone: 'good', sortOrder: 6, isDone: true, isActive: true },
+]
+
+export const demoContentFormats: ListItem[] = ['Reel', 'Carousel', 'Post', 'Story', 'YouTube Short', 'YouTube video']
+  .map((name, i) => ({ id: `cf${i + 1}`, name, tone: 'mute' as Tone, sortOrder: i + 1, isActive: true }))
 
 export const demoClientLinks: ClientLink[] = [
   { id: 'cln1', clientId: 'cl3', label: 'Podcast sheet', url: 'https://docs.google.com/spreadsheets/d/demo-podcast', sortOrder: 1 },
