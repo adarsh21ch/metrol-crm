@@ -6381,3 +6381,22 @@ Adarsh can try each on `?demo=1&as=hr` in a minute; demo mode writes nothing.
 - The repo is PUBLIC.
 - Q1, Q2, Q5, Q7, Q9 and Q12–Q17 are unanswered.
 - is_hr() matches department NAMES.
+
+## 0043 INSTALLED on the live database — 2026-09-26
+
+Adarsh ran it in the Supabase SQL editor (Metrol Media, main / PRODUCTION)
+and pasted the proof. All 8 rows were as expected:
+
+- 0043 tables on the database: 4 of 4
+- workflows and their stages: Main page reel (main): 11 stages · Fan page
+  reel (fan): 10 stages
+- stages nobody acts on, other than a done one: none
+- task statuses, in order: Not started → In progress → Pending review →
+  Revision → Approved → Comp… (the column width cut off the rest)
+- content formats: Reel, Carousel, Post, Story, YouTube Short, YouTube video
+- logins that may change workflows: amanjoshihelp, metrolhr
+- the four new tables are staff-only to read: yes
+- read rules open to anyone: 1 (site_settings, public on purpose)
+
+Settings → Workflows & lists on the real site now reads real rows. Nobody has
+looked at it signed in yet (Claude cannot sign in). Round 2 is next.

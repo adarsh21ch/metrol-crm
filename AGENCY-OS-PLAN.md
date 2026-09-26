@@ -1,4 +1,4 @@
-# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Round 1 BUILT, 0043 not yet run)
+# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Round 1 BUILT, 0043 installed)
 
 Brief, 2026-09-24. There are three inputs:
 - HR's 7-page "Integrated Digital Marketing Agency Software Blueprint"
@@ -416,7 +416,7 @@ THE ACCESS RULE applies throughout: owner AND HR get everything (`is_owner_level
 `isOwnerLevel(ws)`, every new capability ticked on HR).
 
 **Round 1 — navigation that explains the app, and the workflow settings.** BUILT 2026-09-26
-(a1390bc + walk-through fixes; CLAUDE.md "Phase 2, Round 1"). 0043 waits on Adarsh.
+(a1390bc + walk-through fixes; CLAUDE.md "Phase 2, Round 1"). 0043 installed on live 2026-09-26.
 - Regroup the owner/HR rail (and the phone's Profile rows) into labelled groups
   instead of one flat list: *People* (Employees, Attendance, Salary, Joining & Exit,
   Departments) · *Clients & content* (Clients, Content, Tasks, Shoots, Reels) ·
