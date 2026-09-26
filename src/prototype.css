@@ -2263,6 +2263,8 @@ table.grid thead th.is-now{color:var(--accent-ink)}
 .tg-row{display:flex;align-items:center;gap:7px;min-width:0}
 .tg-num{font-family:var(--mono);font-size:11px;color:var(--ink-3);min-width:16px;text-align:right}
 .tg-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+/* the newest follower count beside a channel's name — the sheet's Followers/Subs */
+.tg-fol{flex:none;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .tg-plat{
   flex:none;font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:4px;
   border:1px solid var(--line);color:var(--ink-2);background:var(--surface-2);

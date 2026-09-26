@@ -72,6 +72,24 @@ const toOffice = (r: Row): OfficeLocation => ({
   qrRotatedAt: (r.qr_rotated_at as string | null) ?? null,
 })
 
+/** Every office column the API still hands out. 0039 took `qr_token` off the
+ *  API (column privilege), so a `select('*')` here would now fail for
+ *  everyone — list the columns, and fetch the code on its own. */
+const OFFICE_COLS = 'id, name, address, lat, lng, radius_meters, is_active, sort_order, created_at, updated_at, created_by, qr_rotated_at'
+
+/** The QR codes, for HR and the owner only — the poster is theirs to print.
+ *  office_qr_tokens() (0039) answers nobody else. Before 0039 is installed the
+ *  function does not exist and the column is still readable, so read that. */
+async function officeQrTokens(): Promise<Map<string, string>> {
+  const { data, error: err } = await supabase.rpc('office_qr_tokens')
+  if (!err) return new Map(((data ?? []) as Row[]).map((r) => [str(r.office_id), str(r.qr_token)]))
+  if (err.code === 'PGRST202') {
+    const { data: rows } = await supabase.from('office_locations').select('id, qr_token')
+    return new Map(((rows ?? []) as Row[]).map((r) => [str(r.id), str(r.qr_token)]))
+  }
+  return new Map()
+}
+
 const toHoliday = (r: Row): Holiday => ({
   date: str(r.holiday_date),
   name: str(r.name),
@@ -146,7 +164,7 @@ export interface AttendanceDraft {
  * time from the database. That is the whole point of the module — the UI is
  * not what stops somebody punching in from home.
  */
-export function useAttendance(enabled = true) {
+export function useAttendance(enabled = true, withQrCodes = false) {
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [settings, setSettings] = useState<AttendanceSettings | null>(null)
   // Read by saveSettings without making it a dependency — a callback that
@@ -174,21 +192,22 @@ export function useAttendance(enabled = true) {
       setLoading(false)
       return
     }
-    const [att, set, sh, off, hol] = await Promise.all([
+    const [att, set, sh, off, hol, codes] = await Promise.all([
       supabase.from('attendance').select('*').order('work_date', { ascending: false }).limit(2000),
       supabase.from('attendance_settings').select('*').limit(1).maybeSingle(),
       supabase.from('shifts').select('*').order('sort_order'),
-      supabase.from('office_locations').select('*').order('sort_order'),
+      supabase.from('office_locations').select(OFFICE_COLS).order('sort_order'),
       supabase.from('holidays').select('*').order('holiday_date'),
+      withQrCodes ? officeQrTokens() : Promise.resolve(new Map<string, string>()),
     ])
     if (att.error) { setError(att.error.message); setLoading(false); return }
     setRows((att.data ?? []).map((r) => toRow(r as Row)))
     if (set.data) setSettings(toSettings(set.data as Row))
     setShifts((sh.data ?? []).map((r) => toShift(r as Row)))
-    setOffices((off.data ?? []).map((r) => toOffice(r as Row)))
+    setOffices(((off.data ?? []) as Row[]).map((r) => toOffice({ ...r, qr_token: codes.get(str(r.id)) ?? '' })))
     setHolidays((hol.data ?? []).map((r) => toHoliday(r as Row)))
     setLoading(false)
-  }, [enabled])
+  }, [enabled, withQrCodes])
 
   useEffect(() => { void load() }, [load])
 
@@ -337,9 +356,13 @@ export function useAttendance(enabled = true) {
     const { data, error: err } = await supabase.from('office_locations').insert({
       name: draft.name.trim(), address: draft.address.trim(),
       lat: draft.lat, lng: draft.lng, radius_meters: draft.radiusMeters, is_active: draft.isActive,
-    }).select('*').single()
+    }).select(OFFICE_COLS).single()
     if (err) return err.message
-    if (data) setOffices((p) => [...p, toOffice(data as Row)])
+    if (data) {
+      const codes = await officeQrTokens()
+      const row = data as Row
+      setOffices((p) => [...p, toOffice({ ...row, qr_token: codes.get(str(row.id)) ?? '' })])
+    }
     return null
   }, [])
 
@@ -351,9 +374,10 @@ export function useAttendance(enabled = true) {
     const { data, error: err } = await supabase.from('office_locations').update({
       name: draft.name.trim(), address: draft.address.trim(),
       lat: draft.lat, lng: draft.lng, radius_meters: draft.radiusMeters, is_active: draft.isActive,
-    }).eq('id', id).select('*').single()
+    }).eq('id', id).select(OFFICE_COLS).single()
     if (err) return err.message
-    if (data) setOffices((p) => p.map((o) => (o.id === id ? toOffice(data as Row) : o)))
+    // An edit never changes the code, so the one already on screen stays.
+    if (data) setOffices((p) => p.map((o) => (o.id === id ? { ...toOffice(data as Row), qrToken: o.qrToken } : o)))
     return null
   }, [])
 

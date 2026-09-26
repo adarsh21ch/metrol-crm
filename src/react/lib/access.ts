@@ -170,7 +170,8 @@ export function seedAccess(departments: { id: string; name: string }[]): { roles
     ...give('role-mgmt', ALL_CAPS),
     ...give('role-head', ['view_all_clients', 'manage_clients', 'assign_team', 'view_targets', 'manage_targets', 'enter_views', 'view_all_work']),
     ...give('role-smm', ['view_targets', 'enter_views']),
-    ...give('role-hr', ['view_all_clients', 'manage_clients', 'assign_team', 'manage_hr', 'manage_payroll', 'approve_incentives']),
+    // view_targets + manage_targets: 0038 — HR runs Clients, so HR sees the client's dashboard.
+    ...give('role-hr', ['view_all_clients', 'manage_clients', 'assign_team', 'view_targets', 'manage_targets', 'manage_hr', 'manage_payroll', 'approve_incentives']),
     ...give('role-admin', ['manage_assets']),
   ]
   return { roles, caps }

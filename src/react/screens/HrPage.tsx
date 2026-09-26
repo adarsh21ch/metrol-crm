@@ -209,7 +209,8 @@ export function HrPage({
     const client = clientOf(page.clientId)
     return `${client?.name ?? 'Unknown client'} — ${INCENTIVE_PAGE_TYPE[page.pageType]}${page.instagramHandle ? ` (${page.instagramHandle})` : ''}`
   }
-  const att = useAttendance()
+  // HR and the owner print the QR poster, so this screen alone asks for the codes.
+  const att = useAttendance(true, true)
   const applications = useJobApplications()
 
   const [section, setSection] = usePersistedState<'dashboard' | 'directory' | 'attendance' | 'departments' | 'clientsPages' | 'access' | 'salary' | 'joining' | 'exit' | 'terms' | 'profile'>('hr-section', 'dashboard')

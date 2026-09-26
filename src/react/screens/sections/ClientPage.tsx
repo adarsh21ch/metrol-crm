@@ -20,7 +20,7 @@ import type { PageReels } from '@/data/usePageReels'
 import type { StaffPick, TeamRow } from '@/data/useClientTeam'
 import type { Workspace } from '@/data/useWorkspace'
 
-type Tab = 'overview' | 'pages' | 'team' | 'targets'
+type Tab = 'dashboard' | 'pages' | 'team' | 'details'
 
 /** One page row on the Pages tab: the sheet's numbering (fan pages 1, 2, 3…)
  *  and its live channels, looked up once. */
@@ -30,11 +30,12 @@ interface PageRow extends Page {
 }
 
 /**
- * One client — the Client Master Sheet's tab for them, as a screen: the
- * client's details and links, its pages with their Instagram and YouTube
- * channels, its team (with history), and its view target with the weekly
- * numbers. What each person sees and may change follows their capabilities
- * on THIS client (lib/access.ts, enforced again by the database).
+ * One client — the Client Master Sheet's tab for them, as a screen. It opens
+ * on the Dashboard: the view target and the weekly numbers, i.e. the sheet
+ * itself. Then its pages with their Instagram and YouTube channels, its team
+ * (with history), and the details and links. What each person sees and may
+ * change follows their capabilities on THIS client (lib/access.ts, enforced
+ * again by the database).
  */
 export function ClientPage({
   ws, agency, client, clients, pages, pageAssignments, pageReels, toast, onBack,
@@ -49,23 +50,24 @@ export function ClientPage({
   toast: (m: string) => void
   onBack: () => void
 }) {
-  const { access, team, lists, channels, targets } = agency
+  const { access, team, lists, channels } = agency
   const ref = { id: client.id, departmentId: client.departmentId }
   const canManage = access.canForClient(ref, 'manage_clients')
   const canAssignPages = access.canForClient(ref, 'assign_team')
   const canMoney = access.canForClient(ref, 'see_client_money')
   const canTargets = access.canForClient(ref, 'view_targets')
-  const canReadViews = access.canReadViews(ref)
+  const canDashboard = canTargets || access.canReadViews(ref)
 
-  const [tab, setTab] = usePersistedState<Tab>('agency-client-tab', 'overview')
-  const shownTab: Tab = tab === 'targets' && !canTargets && !canReadViews ? 'overview' : tab
+  // Per client: opening another client starts on its Dashboard again, while a
+  // refresh keeps the tab you were reading.
+  const [tab, setTab] = usePersistedState<Tab>('agency-client-tab:' + client.id, canDashboard ? 'dashboard' : 'details')
+  const shownTab: Tab = tab === 'dashboard' && !canDashboard ? 'details' : tab
   const [editing, setEditing] = useState(false)
   const [openPageId, setOpenPageId] = useState<string | null>(null)
 
   const status = lists.client_statuses.find((s) => s.id === client.statusId) ?? null
   const clientPages = pages.rows.filter((p) => p.clientId === client.id)
   const liveTeam = team.rows.filter((t) => t.clientId === client.id && !t.endedAt)
-  const clientTargets = targets.targets.filter((t) => t.clientId === client.id)
 
   if (openPageId) {
     const page = pages.rows.find((p) => p.id === openPageId)
@@ -90,34 +92,30 @@ export function ClientPage({
       </div>
 
       <div className="tabs prof-tabs">
-        <button className={shownTab === 'overview' ? 'is-on' : ''} onClick={() => setTab('overview')}>Overview</button>
+        {canDashboard && (
+          <button className={shownTab === 'dashboard' ? 'is-on' : ''} onClick={() => setTab('dashboard')}>Dashboard</button>
+        )}
         <button className={shownTab === 'pages' ? 'is-on' : ''} onClick={() => setTab('pages')}>
           Pages <span className="count">{clientPages.filter((p) => p.isActive).length}</span>
         </button>
         <button className={shownTab === 'team' ? 'is-on' : ''} onClick={() => setTab('team')}>
           Team <span className="count">{new Set(liveTeam.map((t) => t.employeeId)).size}</span>
         </button>
-        {(canTargets || canReadViews) && (
-          <button className={shownTab === 'targets' ? 'is-on' : ''} onClick={() => setTab('targets')}>
-            {canTargets ? 'Targets' : 'Weekly views'}
-          </button>
-        )}
+        <button className={shownTab === 'details' ? 'is-on' : ''} onClick={() => setTab('details')}>Details</button>
       </div>
 
-      {shownTab === 'overview' && (
-        <OverviewTab agency={agency} client={client} canManage={canManage} canMoney={canMoney} toast={toast}
-                     onEdit={() => setEditing(true)}
-                     departmentName={ws.departmentName} targetCount={clientTargets.length}
-                     onOpenTargets={canTargets ? () => setTab('targets') : null} />
+      {shownTab === 'dashboard' && (
+        <ClientTargets ws={ws} agency={agency} client={client} pages={clientPages} pagesHook={pages} pageAssignments={pageAssignments}
+                       canViewTargets={canTargets} toast={toast} />
       )}
       {shownTab === 'pages' && (
         <PagesTab agency={agency} client={client} pages={pages} pageAssignments={pageAssignments}
                   canManage={canManage} canAssign={canAssignPages} toast={toast} onOpenPage={setOpenPageId} />
       )}
       {shownTab === 'team' && <TeamTab agency={agency} client={client} toast={toast} departmentName={ws.departmentName} />}
-      {shownTab === 'targets' && (
-        <ClientTargets ws={ws} agency={agency} client={client} pages={clientPages} pagesHook={pages} pageAssignments={pageAssignments}
-                       canViewTargets={canTargets} toast={toast} />
+      {shownTab === 'details' && (
+        <DetailsTab agency={agency} client={client} canManage={canManage} canMoney={canMoney} toast={toast}
+                    onEdit={() => setEditing(true)} departmentName={ws.departmentName} />
       )}
 
       {editing && (
@@ -133,10 +131,10 @@ export function ClientPage({
   )
 }
 
-/* ================================================================ Overview */
+/* ================================================================= Details */
 
-function OverviewTab({
-  agency, client, canManage, canMoney, toast, onEdit, departmentName, targetCount, onOpenTargets,
+function DetailsTab({
+  agency, client, canManage, canMoney, toast, onEdit, departmentName,
 }: {
   agency: Agency
   client: Client
@@ -145,8 +143,6 @@ function OverviewTab({
   canMoney: boolean
   toast: (m: string) => void
   departmentName: (id: string | null) => string | null
-  targetCount: number
-  onOpenTargets: (() => void) | null
 }) {
   const { extras, lists } = agency
   const links = extras.links.filter((l) => l.clientId === client.id).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -262,12 +258,6 @@ function OverviewTab({
         </div>
       )}
 
-      {onOpenTargets && (
-        <button className="ov-row" onClick={onOpenTargets}>
-          <span className="ov-l">{targetCount ? `${count(targetCount, 'view target')} — open the weekly numbers` : 'No view target yet'}</span>
-          <span className="ov-cta">Targets →</span>
-        </button>
-      )}
     </div>
   )
 }

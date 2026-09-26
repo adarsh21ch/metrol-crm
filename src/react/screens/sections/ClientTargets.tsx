@@ -35,13 +35,15 @@ interface GridRow { key: string; page: Page; num: string; channel: PageChannel; 
 const PLAIN_WEEKS = 12
 
 /**
- * The Targets tab — the two sheets on one screen:
+ * The client's Dashboard tab — the two sheets on one screen:
  *   * the Client Master's TARGET block: the total and each period's target,
  *     achieved, left and pace;
  *   * its weekly block: every page's Instagram and YouTube number per week,
  *     with LavBhusan's totals under it — fan pages, main pages, adjustments,
  *     the weekly total and the running LEFT.
  * Numbers come from computeProgress(), the twin of v_target_progress (0037).
+ * With no target yet the weekly block still shows — the last twelve weeks,
+ * open for entry — so a new client is never an empty screen.
  */
 export function ClientTargets({
   ws, agency, client, pages, pagesHook, pageAssignments, canViewTargets, toast,
@@ -118,6 +120,16 @@ export function ClientTargets({
   }, [pages, clientChannels, weekly.rows, weeks, target])
 
   const cell = (channelId: string, week: string) => weekly.rows.find((w) => w.channelId === channelId && w.weekStart === week) ?? null
+  // The sheet's Followers/Subs: each channel's newest count, beside its name.
+  const followers = useMemo(() => {
+    const m = new Map<string, { n: number; week: string }>()
+    for (const w of weekly.rows) {
+      if (w.followers == null) continue
+      const cur = m.get(w.channelId)
+      if (!cur || w.weekStart > cur.week) m.set(w.channelId, { n: w.followers, week: w.weekStart })
+    }
+    return m
+  }, [weekly.rows])
   const holds = (pageId: string) => !!myEmployee && pageAssignments.rows.some((a) => a.pageId === pageId && a.employeeId === myEmployee.id)
   const canEnter = (r: GridRow) => access.canEnterViews(ref, holds(r.page.id))
   const entered = rows.filter((r) => r.channel.isActive && cell(r.channel.id, lastWeek)).length
@@ -146,32 +158,7 @@ export function ClientTargets({
   const shape = split(pp)
   const weekOf = (w: string) => pp?.weeks.find((x) => x.weekStart === w) ?? null
 
-  /* ------------------------------------------------------------- no target */
-  if (canViewTargets && !target) {
-    return (
-      <div className="section">
-        <div className="banner">
-          <div>
-            <div className="t">No view target yet</div>
-            <div className="d">
-              {canManageTargets
-                ? 'Set the total (e.g. 750M), split it into periods, and the weekly numbers start adding up against it.'
-                : 'Whoever manages this client\'s targets sets one here.'}
-            </div>
-          </div>
-          {canManageTargets && <button className="btn btn--sm btn--primary" onClick={() => setEditingTarget('new')}>Set a target</button>}
-        </div>
-        {editingTarget && (
-          <TargetModal clientId={client.id} target={null} periods={[]} onClose={() => setEditingTarget(null)}
-                       onSave={async (d, ps) => {
-                         const r = await targets.saveTarget(null, d, ps)
-                         if (!r.error) { toast('Target set.'); setPickedTarget(r.id) }
-                         return r.error
-                       }} />
-        )}
-      </div>
-    )
-  }
+  const noTarget = canViewTargets && !target
 
   return (
     <div className="section">
@@ -246,8 +233,12 @@ export function ClientTargets({
 
       <div className="section-head">
         <h3>{period ? period.label : target ? 'Weeks' : 'Weekly views'}</h3>
-        {((period && periods.length > 1) || (target && canManageTargets)) && (
+        {noTarget && <Chip cls="chip--mute">No target yet</Chip>}
+        {((period && periods.length > 1) || (target && canManageTargets) || (noTarget && canManageTargets)) && (
           <div className="section-tools section-tools--tight">
+            {noTarget && canManageTargets && (
+              <button className="btn btn--sm btn--primary" onClick={() => setEditingTarget('new')}>Set a target</button>
+            )}
             {period && periods.length > 1 && (
               <>
                 <button className="btn btn--sm" aria-label="Previous period" disabled={periods[0]?.id === period.id}
@@ -266,7 +257,7 @@ export function ClientTargets({
           <table className="grid tg-grid">
             <thead>
               <tr>
-                <th className="tg-sticky">Page</th>
+                <th className="tg-sticky">{followers.size ? 'Page · followers' : 'Page'}</th>
                 {weeks.map((w) => (
                   <th key={w} title={weekLabel(w)} className={w === lastWeek ? 'is-now' : undefined}>{weekShort(w)}</th>
                 ))}
@@ -283,6 +274,10 @@ export function ClientTargets({
                       <span className="tg-num">{r.num}</span>
                       <span className="tg-name">{r.page.label || r.channel.handle || INCENTIVE_PAGE_TYPE[r.page.pageType]}</span>
                       <span className={'tg-plat tg-plat--' + r.channel.platform}>{PLATFORM[r.channel.platform].short}</span>
+                      {followers.has(r.channel.id) && (() => {
+                        const f = followers.get(r.channel.id)!
+                        return <span className="tg-fol" title={`${f.n.toLocaleString('en-IN')} followers — ${weekLabel(f.week)}`}>{fmtCompact(f.n)}</span>
+                      })()}
                     </span>
                   </th>
                   {weeks.map((w) => {
@@ -320,6 +315,12 @@ export function ClientTargets({
                 <FootRow label="Weekly total" weeks={weeks} value={(w) => weekOf(w)?.achieved ?? 0} strong />
                 <FootRow label="Left" weeks={weeks} value={(w) => weekOf(w)?.runningLeft ?? 0} strong
                          upTo={lastWeek} />
+              </tfoot>
+            )}
+            {!pp && rows.length > 1 && (
+              <tfoot>
+                <FootRow label="Weekly total" weeks={weeks} strong upTo={lastWeek}
+                         value={(w) => rows.reduce((s, r) => s + (cell(r.channel.id, w)?.views ?? 0), 0)} />
               </tfoot>
             )}
           </table>

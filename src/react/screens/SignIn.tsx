@@ -5,10 +5,11 @@ import { isConfigured, supabase } from '@/lib/supabase'
  * Phase 9: the field takes an email OR a four-digit employee ID.
  *
  * Supabase Auth is keyed on email, so an ID has to become one before
- * signInWithPassword is called — `email_for_employee_code` (migration 0018)
- * does that, and is the only thing a signed-out visitor can call. Anything
- * with an "@" in it is passed straight through and never touches the RPC, so
- * the ordinary email sign-in is exactly the request it always was.
+ * signInWithPassword is called — `email_for_employee_code` does that. Since
+ * 0039 it takes the password too and answers with the email only when the
+ * password is right. Anything with an "@" in it is passed straight through
+ * and never touches the RPC, so the ordinary email sign-in is exactly the
+ * request it always was.
  */
 export function SignIn({ onDone, onCreateAccount }: { onDone: () => void; onCreateAccount?: () => void }) {
   const [email, setEmail] = useState('')
@@ -24,7 +25,9 @@ export function SignIn({ onDone, onCreateAccount }: { onDone: () => void; onCrea
     const typed = email.trim()
     let address = typed
     if (!typed.includes('@')) {
-      const { data, error } = await supabase.rpc('email_for_employee_code', { p_code: typed })
+      let { data, error } = await supabase.rpc('email_for_employee_code', { p_code: typed, p_password: pass })
+      // Until 0039 is installed only the one-argument version exists.
+      if (error?.code === 'PGRST202') ({ data, error } = await supabase.rpc('email_for_employee_code', { p_code: typed }))
       if (error) {
         setBusy(false)
         // The throttle raises this by name; everything else is a real fault.
@@ -34,7 +37,8 @@ export function SignIn({ onDone, onCreateAccount }: { onDone: () => void; onCrea
       }
       if (!data) {
         setBusy(false)
-        return setErr(`No active employee has the ID ${typed}. Check it, or sign in with your email address.`)
+        // An unknown ID and a wrong password answer the same on purpose.
+        return setErr(`The ID ${typed} and this password do not match. Check both, or sign in with your email address.`)
       }
       address = data as string
     }
