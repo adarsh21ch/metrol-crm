@@ -636,6 +636,8 @@ textarea.input{
 .ov-card h4{font-size:13.5px}
 .ov-head{display:flex;align-items:baseline;gap:10px}
 .ov-head .sub{font-size:11.5px;color:var(--ink-3);margin-left:auto}
+/* A way into the full list (My tasks' "See all →") sits where a sub would. */
+.ov-head > .link-btn{margin-left:auto}
 .ov-actions{display:flex;flex-direction:column;gap:6px}
 /* Overview has no table, so the density control used to do nothing at all on
    this page. These two are its rows; they breathe with the same setting. The
