@@ -334,6 +334,9 @@ export function useWork(enabled = true) {
     if (!enabled) { setLoading(false); return }
     if (fetched.current && !force) { setLoading(false); return }
     fetched.current = true
+    // Switched on after mount (a tab opened later): say so until it lands,
+    // or a screen reads "nothing here" / "not installed" meanwhile.
+    if (!force) setLoading(true)
     if (isDemo()) {
       const v = demoVisible()
       setItems(v.items); setTasks(v.tasks)
@@ -910,6 +913,7 @@ export function useWork(enabled = true) {
     if (isDemo()) {
       const rows = cur.current.tasks.filter((t) => !!t.completedAt && t.completedAt >= from && t.completedAt < to
         && (!employeeId || t.assigneeId === employeeId))
+        .sort((a, b) => b.completedAt!.localeCompare(a.completedAt!))
       return { rows, error: null }
     }
     let q = supabase.from('v_tasks').select('*').gte('completed_at', from).lt('completed_at', to)
@@ -944,7 +948,9 @@ export function useWork(enabled = true) {
   }, [])
 
   return {
-    items, people, tasks, versions, reviews, shoots, shootItems, installed, versionsOn, shootsOn, postingOn, loading, error,
+    items, people, tasks, versions, reviews, shoots, shootItems, installed, versionsOn, shootsOn, postingOn, error,
+    // The render between switching on and the first load starting counts too.
+    loading: loading || (enabled && !fetched.current),
     reload: () => load(true),
     createItem, updateItem, moveItem, deleteItem, setPerson,
     createTask, updateTask, deleteTask, thread, comment, assignable,

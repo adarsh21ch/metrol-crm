@@ -95,19 +95,20 @@ export function ShootsSection({
     return pa === 0 ? a.shootOn.localeCompare(b.shootOn) : b.shootOn.localeCompare(a.shootOn)
   })
   const cols: GridCol<Shoot>[] = [
-    { key: 'code', label: 'ID', width: 80, render: (r) => <span className="cell-mono">{r.code}</span> },
+    { key: 'code', label: 'ID', width: 76, render: (r) => <span className="cell-mono">{r.code}</span> },
     {
-      key: 'day', label: 'When', width: 170,
+      key: 'day', label: 'When', width: 160,
       render: (r) => <span className={r.status === 'planned' && r.shootOn < today ? 'cell-late' : 'cell-strong'}>{shootDayLabel(r.shootOn, r.startsAt)}</span>,
     },
-    ...(!scoped ? [{ key: 'client', label: 'Client', width: 150, render: (r: Shoot) => r.clientName }] : []),
-    { key: 'place', label: 'Place', width: 170, render: (r) => r.location || <span className="cell-dash">—</span> },
-    { key: 'dop', label: 'DOP', width: 120, render: (r) => (r.dopName ? firstName(r.dopName) : r.status === 'planned' ? <Chip cls="chip--warn">Not picked</Chip> : <span className="cell-dash">—</span>) },
-    { key: 'smm', label: 'SMM', width: 120, render: (r) => (r.smmName ? firstName(r.smmName) : <span className="cell-dash">—</span>) },
-    { key: 'reels', label: 'Reels', width: 70, render: (r) => r.itemCount || <span className="cell-dash">—</span> },
-    { key: 'status', label: 'Status', width: 110, render: (r) => <Chip cls={'chip--' + SHOOT_STATUS[r.status].tone}>{SHOOT_STATUS[r.status].label}</Chip> },
+    ...(!scoped ? [{ key: 'client', label: 'Client', width: 140, render: (r: Shoot) => r.clientName }] : []),
+    // What a laptop must show comes first; place and footage can scroll.
+    { key: 'status', label: 'Status', width: 100, render: (r) => <Chip cls={'chip--' + SHOOT_STATUS[r.status].tone}>{SHOOT_STATUS[r.status].label}</Chip> },
+    { key: 'dop', label: 'DOP', width: 104, render: (r) => (r.dopName ? firstName(r.dopName) : r.status === 'planned' ? <Chip cls="chip--warn">Not picked</Chip> : <span className="cell-dash">—</span>) },
+    { key: 'smm', label: 'SMM', width: 100, render: (r) => (r.smmName ? firstName(r.smmName) : <span className="cell-dash">—</span>) },
+    { key: 'reels', label: 'Reels', width: 60, render: (r) => r.itemCount || <span className="cell-dash">—</span> },
+    { key: 'place', label: 'Place', width: 150, render: (r) => r.location || <span className="cell-dash">—</span> },
     {
-      key: 'raw', label: 'Footage', width: 100,
+      key: 'raw', label: 'Footage', width: 84,
       render: (r) => {
         const u = safeUrl(r.footageUrl)
         return u ? <a href={u} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Open ↗</a> : <span className="cell-dash">—</span>

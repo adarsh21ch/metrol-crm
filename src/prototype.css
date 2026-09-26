@@ -2660,6 +2660,7 @@ button.shoot-line:hover{border-color:var(--info)}
   .shoot-reel .chip{grid-column:2/-1;justify-self:start}
   .shoot-agenda-row{grid-template-columns:minmax(0,1fr) auto}
   .shoot-agenda-what{grid-column:1/-1}
+  .shoot-agenda-row .chip{grid-row:1;grid-column:2;justify-self:end}
   .shoot-cal-head{justify-content:space-between}
 }
 
@@ -2681,3 +2682,10 @@ button.shoot-line:hover{border-color:var(--info)}
 }
 .wv-auto:hover:not(:disabled){border-color:var(--accent);color:var(--accent-ink)}
 .wv-auto:disabled{cursor:default;opacity:.75}
+/* A phone has no room for it on the name's line: it drops under the name,
+   so the page stays readable. */
+@media (max-width:600px){
+  .wv-row:has(.wv-auto){flex-wrap:wrap;row-gap:5px}
+  .wv-row:has(.wv-auto)::after{content:'';order:1;flex-basis:100%}
+  .wv-row .wv-auto{order:2}
+}
