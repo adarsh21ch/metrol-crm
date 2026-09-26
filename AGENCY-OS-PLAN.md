@@ -1,4 +1,4 @@
-# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Rounds 1–2 BUILT, 0043 installed, 0044 not yet)
+# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Rounds 1–3 BUILT, 0043 and 0044 installed, 0045 not yet)
 
 Brief, 2026-09-24. There are three inputs:
 - HR's 7-page "Integrated Digital Marketing Agency Software Blueprint"
@@ -428,7 +428,7 @@ THE ACCESS RULE applies throughout: owner AND HR get everything (`is_owner_level
 - Settings → Workflows: stages as rows, drag to reorder, owner role per stage.
 
 **Round 2 — content items, the hand-off, tasks (the heart of it).** BUILT 2026-09-26
-(2f3cef8 + walk-through fixes; CLAUDE.md "Phase 2, Round 2"). 0044 NOT yet installed.
+(2f3cef8 + walk-through fixes; CLAUDE.md "Phase 2, Round 2"). 0044 installed on live 2026-09-26.
 - `content_items` (C-00001, client, page, workflow, stage, title, format, script /
   doc link, planned post date, due), `content_item_assignees`.
 - The golden-rule trigger: entering a stage creates a task for whoever holds the
@@ -439,9 +439,15 @@ THE ACCESS RULE applies throughout: owner AND HR get everything (`is_owner_level
   reporting manager is notified (screen-load tick, like birthdays).
 - Client page gains a **Content** tab: a board by stage + a list.
 
-**Round 3 — versions and reviews.** `content_versions` (V1, V2… as links),
+**Round 3 — versions and reviews.** BUILT 2026-09-26 (9f1330e; CLAUDE.md "Phase 2,
+Round 3"). 0045 NOT yet installed. `content_versions` (V1, V2… as links),
 `content_reviews` (approve / request changes, a note at a timestamp, e.g. "0:14").
 The SMM-review stage gets its screen; "client approved" is recorded internally.
+- As built: a Versions panel in the task and item modals. At Editing the link box
+  is open; at a review stage the holder decides — Approve moves the reel on, Ask for
+  changes sends it back (to Editing unless another earlier stage is picked) and the
+  editor who cut the last version gets the task, the notes leading it. At Client
+  review the same box records the client's answer. Cards show "V2" / "V1 ↺".
 
 **Round 4 — shoots.** `shoots` (S-0001: client, date, place, DOP, SMM, brief,
 raw-footage link), `shoot_items`. Completing a shoot moves every linked item on

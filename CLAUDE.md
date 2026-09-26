@@ -6547,3 +6547,114 @@ If leave-request phone alerts never arrive, that switch on notify-approvers
 is the first suspect — every one of those functions checks its caller too.
 
 Nobody has used Content or Tasks signed in yet (Claude cannot sign in).
+
+# Phase 2, Round 3 — versions and reviews (2026-09-26)
+
+The round is 9f1330e. Plan: AGENCY-OS-PLAN.md §9 (Round 3) and §5.
+
+## What shipped (9f1330e)
+
+- **0045_versions_and_reviews.sql** (NOT installed yet; it stops with a
+  message unless 0044 is in). `content_versions` (V1, V2… per reel: a link,
+  what changed, the stage it was made at, who added it) and `content_reviews`
+  (approved / changes; notes as `[{at, text}]`, `at` = seconds into the video
+  or null; whether it was the client's answer; where changes sent the reel;
+  who recorded it).
+  - `review_content_item(item, version, decision, notes, back_to)` is the
+    only way a review is written. Approve finishes the stage task (closing
+    note "Approved V2") and the golden rule moves the reel on. Changes move
+    it back: the old task closes "Changes asked on V1 — back to Editing"; the
+    new task's history and its notification start "Changes asked on V1: 0:14
+    Cut the pause… (+1 more)".
+  - `content_item_enter_stage()` gains the continuity rule (below);
+    `task_after()` carries the review's words into the hand-off (GUCs
+    `metrol.move_note`, `metrol.handoff_note`).
+  - Views `v_content_versions`, `v_content_reviews` (the v_tasks pattern:
+    owner views with an explicit check, `content_item_visible()` = sees the
+    client's work, or works on the reel).
+  - Rights: add a version = the client's team, whoever manages it, anyone
+    working on the reel. Correct a link = whoever added it, or owner/HR, until
+    it is reviewed. Review = the client's team and managers, or whoever holds
+    the review task. Versions are never deleted; reviews are never written or
+    changed directly. Deleting a reel takes both with it.
+- **The Versions panel** (`src/react/components/VersionsPanel.tsx`) in the
+  task and the item modals. The heading line carries "Script ↗" and "+ V2".
+  At Editing the link box is open (link · what changed · Add V2). At a review
+  stage whoever holds it sees the review box (notes; "Changes go back to
+  [stage]"; Ask for changes / Approve). Below: every version, newest first,
+  with its reviews; a note's moment shows as a "0:14" chip. The modal's own
+  Save also adds a typed link.
+- Cards show "V2", or "V1 ↺" in amber when changes were asked on the latest
+  version; the list gains a Version column. Both appear only once 0045 is in.
+- Settings → Workflows: the stage's "client sees it" tick now says that on a
+  review stage the answer is the client's, recorded by whoever acts there.
+- Demo data: versions and reviews on C-00001 (changes asked, back at
+  Editing), C-00004 (at Client review), C-00005, C-00007 (at SMM review),
+  C-00008 (V1 changes, V2 approved).
+- Local kit: `review_tests.sql` (the round end to end, both workflows, every
+  refusal). Round 2's `work_tests` output is byte-identical before and after
+  0045.
+
+## Judgement calls
+
+- **Continuity rule.** When a reel comes back to a stage, its task goes to
+  whoever held that stage's task last time (if still active), unless someone
+  is named for that role on the reel. Without it, a team with two editors and
+  none named would leave the rework at "Nobody yet". It applies to any
+  return, dragging a card back included.
+- **Where changes go by default:** the stage the reviewed version was made
+  at (normally Editing); else the latest version's earlier stage; else the
+  nearest earlier stage run by a different role; else the stage before. The
+  reviewer can pick any earlier stage in use ("Shoot required" for a
+  reshoot). SQL (`stage_send_back`, `review_back_stage`) and the app
+  (`backStage`) compute it the same way.
+- **The client's answer** (Q13, no client portal): at a stage marked "client
+  sees it" (Client review) the box reads "The client's answer", with "Client
+  wants changes" / "Client approved"; the review is stored as the client's,
+  recorded by whoever pressed it.
+- **Approve is the button, not the status.** Open question 4 (should the
+  task status "Approved" move a reel?) is answered by the review box: at a
+  review stage, Approve moves it on. The status list is unchanged — only
+  "Completed" moves a reel.
+- **No new notification types**, so push-notifications needs no redeploy:
+  "changes asked" reuses task_assigned, the notes leading the body.
+- **Links must start with http(s)://** (database check and app), so a
+  "javascript:" link can never be saved or shown as a link.
+- A version can be corrected only until it is reviewed — then add V2, so
+  what the reviewer saw stays on the record.
+- Notes: each line is a note; a line starting with a time ("0:14",
+  "1:02:03", "at 0:14 —") becomes that moment. At most 50 notes, 1000
+  characters each.
+
+## Verified
+
+- Local kit: every suite passes; `tsc` clean; `npm run build` OK.
+- Live demo (company.metrol.in, bundle main-BRwP7HCZ.js) at 1024×768:
+  C-00007 as HR — the SMM review box, "Changes go back to" defaulting to
+  Editing; C-00001 — the editor's view, the V2 link box open, the SMM's notes
+  with 0:03 / 0:14 chips; C-00004 as `cm` (Ritika's T-00008) — "The client's
+  answer on V1" with Client wants changes / Client approved; the list's
+  Version column (V1 ↺ / V1 / V2 / —) and the card marks.
+- At 375px: the review box (back picker on one line, the two client buttons
+  stacked full width) and the link box (link + button on one line, note
+  under); no sideways scroll.
+
+## NOT verified
+
+- Pressing Approve / Ask for changes / Add V2 / Fix link on the live demo:
+  the auto-mode safety check refused submitting on company.metrol.in, even
+  in demo mode. The same flows ran in the SQL kit against the real rules; the
+  demo's own path (useWork `review()`) is only typechecked.
+- Nothing against the real database: 0045 is not installed. Until it is, the
+  app turns the panel off (the views are missing) — no error, no empty box.
+
+## Still open
+
+- **0045 not installed.** Expected proof rows: 2 of 2 / yes / yes / 2 of 2 /
+  "Main page reel: SMM review → Editing · Main page reel: Client review →
+  Editing · Fan page reel: SMM review → Editing" (workflow names as on live)
+  / yes / the content counts so far / 1.
+- Still Adarsh's, from Round 2: the "Verify JWT with legacy secret" switch
+  on push-notifications (OFF); an Editor (and a DOP where Metrol shoots) on
+  each client's Team tab; the first signed-in use.
+- Round 4 (shoots) next, per AGENCY-OS-PLAN.md §9. The repo is PUBLIC.
