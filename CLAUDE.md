@@ -6658,3 +6658,30 @@ The round is 9f1330e. Plan: AGENCY-OS-PLAN.md §9 (Round 3) and §5.
   on push-notifications (OFF); an Editor (and a DOP where Metrol shoots) on
   each client's Team tab; the first signed-in use.
 - Round 4 (shoots) next, per AGENCY-OS-PLAN.md §9. The repo is PUBLIC.
+
+## 0045 INSTALLED on the live database — 2026-09-26
+
+Adarsh ran 0045 in the Supabase SQL editor (Metrol Media, main / PRODUCTION)
+and pasted the proof. All 8 rows were as expected:
+
+- 0045 tables on the database: 2 of 2
+- a review is recorded only through review_content_item(): yes
+- versions are never deleted: yes
+- the two new tables have row-level security: 2 of 2
+- where "changes asked" sends a reel by default: "Main page reel: SMM
+  review → Editing · Main page reel: Client review → Editin…" (the
+  screenshot's column cut off the rest, fan page included)
+- the hand-off carries a review's notes: yes
+- content on the database so far: 0 items, 0 tasks, 0 versions — nobody has
+  added a reel on the real site yet
+- read rules open to anyone: 1 (site_settings, public on purpose)
+
+Probed from outside the same day with the app's public key:
+v_content_versions and v_content_reviews → 401 "permission denied for view"
+(both are in the API's schema cache, and a signed-out caller is refused); a
+made-up name → 404 "Could not find the table". So the signed-in app finds
+both views and turns the Versions panel on.
+
+Not yet: anyone using it signed in (Claude cannot sign in), and a click
+through Approve / Ask for changes (the auto-mode safety check refused that
+even in the demo).

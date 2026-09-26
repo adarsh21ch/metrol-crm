@@ -1,4 +1,4 @@
-# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Rounds 1–3 BUILT, 0043 and 0044 installed, 0045 not yet)
+# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Rounds 1–3 BUILT, 0043–0045 installed)
 
 Brief, 2026-09-24. There are three inputs:
 - HR's 7-page "Integrated Digital Marketing Agency Software Blueprint"
@@ -440,7 +440,7 @@ THE ACCESS RULE applies throughout: owner AND HR get everything (`is_owner_level
 - Client page gains a **Content** tab: a board by stage + a list.
 
 **Round 3 — versions and reviews.** BUILT 2026-09-26 (9f1330e; CLAUDE.md "Phase 2,
-Round 3"). 0045 NOT yet installed. `content_versions` (V1, V2… as links),
+Round 3"). 0045 installed on live 2026-09-26. `content_versions` (V1, V2… as links),
 `content_reviews` (approve / request changes, a note at a timestamp, e.g. "0:14").
 The SMM-review stage gets its screen; "client approved" is recorded internally.
 - As built: a Versions panel in the task and item modals. At Editing the link box
