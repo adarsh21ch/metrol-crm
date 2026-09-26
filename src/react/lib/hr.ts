@@ -265,6 +265,15 @@ export const EMP_STATUS: Record<EmployeeStatus, { label: string; cls: string }> 
  *  shortened to "HR"; this value is the data and must not be. */
 export const HR_DEPARTMENT = 'Human Resources'
 
+/** Adarsh's standing rule (2026-09-26): HR may do everything the owner may,
+ *  until he names something "not for HR". Every owner-or-HR check in the app
+ *  goes through this one line — the twin of is_owner_level() (0040) — so a
+ *  later exception is one place, not a hunt. */
+export const isOwnerLevel = (ws: {
+  me: { role: string; departmentId: string | null } | null
+  departmentName: (id: string | null) => string | null
+}) => ws.me?.role === 'owner' || ws.departmentName(ws.me?.departmentId ?? null) === HR_DEPARTMENT
+
 /* ------------------------------------------------------------- Phase 2: leave */
 
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'

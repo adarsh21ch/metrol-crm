@@ -9,6 +9,7 @@ import { usePanes } from '@/lib/usePanes'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { isConverted, type Lead } from '@/lib/types'
 import type { Workspace } from '@/data/useWorkspace'
+import { isOwnerLevel } from '@/lib/hr'
 import { ImportModal } from '@/modals/ImportModal'
 import { SaleModal } from '@/modals/SaleModal'
 import { HistoryModal } from '@/modals/HistoryModal'
@@ -79,7 +80,8 @@ export function ProjectShell({
   const project = ws.projects.find((p) => p.id === projectId)
   const leads = useMemo(() => ws.leads.filter((l) => l.projectId === projectId), [ws.leads, projectId])
   const conv = useMemo(() => leads.filter(isConverted), [leads])
-  const isOwner = ws.me?.role === 'owner'
+  // HR = owner (0040): the assign / verify view, not a salesperson's.
+  const isOwner = isOwnerLevel(ws)
 
   // Only the people actually on this project belong in its team figures.
   const members = useMemo(() => {

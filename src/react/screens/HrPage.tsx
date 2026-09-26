@@ -59,11 +59,7 @@ import { useExitTasks } from '@/data/useExitTasks'
 import { useExitRecords } from '@/data/useExitRecords'
 import { useAttendance } from '@/data/useAttendance'
 import { officeToday } from '@/lib/attendance'
-import {
-  APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, isClaimOpen, joinedThisMonth, tenure, todayISO,
-  type DocType, type Employee, type IncentiveClaim, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest,
-  HR_DEPARTMENT,
-} from '@/lib/hr'
+import { APP_STATUS, DOC_TYPE, EMPLOYMENT, EMP_STATUS, INCENTIVE_PAGE_TYPE, LEAVE_STATUS, LEAVE_TYPE, MONTHS, SALARY_STATUS, VISIT_TYPE, currentPeriod, fmtDate, fmtPeriod, isClaimOpen, joinedThisMonth, tenure, todayISO, type DocType, type Employee, type IncentiveClaim, type JobApplication, type LeaveRequest, type SalaryRecord, type VisitEntry, type WfhRequest, isOwnerLevel } from '@/lib/hr'
 import type { Workspace } from '@/data/useWorkspace'
 
 const PEOPLE_ICON = (
@@ -299,7 +295,7 @@ export function HrPage({
   /* Owner or HR — the same pair the delete-employee Edge Function enforces
      server-side. This is a convenience for the UI only: hiding the button
      stops nobody, and the function refuses anyone else regardless. */
-  const canDelete = ws.me?.role === 'owner' || ws.departmentName(ws.me?.departmentId ?? null) === HR_DEPARTMENT
+  const canDelete = isOwnerLevel(ws)
   const open = openId ? hr.rows.find((e) => e.id === openId) ?? null : null
   const openEmployee = (id: string) => { setOpenId(id); setProfTab('overview') }
   const employeeName = (id: string) => hr.rows.find((e) => e.id === id)?.fullName ?? 'Unknown'

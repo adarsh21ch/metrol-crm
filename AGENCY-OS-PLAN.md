@@ -210,7 +210,7 @@ Phase 1 access, in plain terms (defaults, pending Q10):
 | Content & Marketing head | all in the department | edit | edit | Q10 |
 | SMM | clients they're on | read | enter for their own pages | no |
 | Editor | clients they're on | Q10 | read | no |
-| HR | read | — | — | no |
+| HR | read + edit | edit (0038 — HR runs Clients) | edit | no |
 
 ## 5. Phase 2 — the workflow engine (the golden rule)
 

@@ -16,7 +16,7 @@ import { HrPage } from '@/screens/HrPage'
 import { ApplyPage } from '@/screens/ApplyPage'
 import { OwnerProfile } from '@/screens/OwnerProfile'
 import { NAV_ICONS, type BottomNavItems } from '@/components/BottomNav'
-import { HR_DEPARTMENT } from '@/lib/hr'
+import { isOwnerLevel } from '@/lib/hr'
 import { usePersistedState } from '@/lib/usePersistedState'
 
 /** Screen-based, like the prototype: everyone reaches this from one bookmark,
@@ -80,7 +80,8 @@ function Booting() {
 function SignedIn() {
   const ws = useWorkspace()
   const { toast, node: toastNode } = useToast()
-  const [route, setRoute] = usePersistedState<Route>('route', { name: 'projects' })
+  // null = this login's home: the owner starts on Projects, HR on HR.
+  const [chosen, setRoute] = usePersistedState<Route | null>('route', null)
   const [lastProject, setLastProject] = usePersistedState<string | null>('last-project', null)
 
   /* A failed write used to roll the row back in silence: the chip flicked back
@@ -127,16 +128,15 @@ function SignedIn() {
     )
   }
 
-  // Which dashboard a member gets is decided by their DEPARTMENT, never by a
-  // role column — see migration 0006. Sales gets their own leads; Human
-  // Resources gets the HR dashboard. Everything either one may read is
-  // enforced by policy in the database, not by this line.
-  if (ws.me?.role === 'member') {
-    if (ws.departmentName(ws.me.departmentId) === HR_DEPARTMENT) {
-      return withFeed(<HrPage ws={ws} toast={toast} />)
-    }
+  // Which screens a member gets is decided by their DEPARTMENT, never by a
+  // role column — see migration 0006. HR walks every screen the owner does
+  // (Adarsh's rule, 0040: HR = owner until he names an exception), landing
+  // on HR; everyone else gets their own dashboard. Everything anyone may read
+  // is enforced by policy in the database, not by this line.
+  if (ws.me?.role === 'member' && !isOwnerLevel(ws)) {
     return withFeed(<Member ws={ws} toast={toast} />)
   }
+  const route: Route = chosen ?? (ws.me?.role === 'owner' ? { name: 'projects' } : { name: 'hr' })
 
   const onOpenProjects = () => setRoute({ name: 'projects' })
   const onOpenProject = (id: string) => { setLastProject(id); setRoute({ name: 'project', id }) }

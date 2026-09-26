@@ -26,12 +26,14 @@ seeded=0
 for f in "$REPO"/supabase/migrations/00*.sql; do
   n=$(basename "$f")
   if [ $seeded = 0 ] && [[ "$n" > "0035" ]]; then run -f seed_people.sql && seeded=1 && echo "-- seeded people"; fi
-  if ! out=$(run -f "$f" 2>&1 >/dev/null); then echo "FAILED $n"; echo "$out" | grep -v wal_level | head -12; exit 1; fi
+  if ! out=$(run -f "$f" 2>&1); then echo "FAILED $n"; echo "$out" | grep -v wal_level | grep -i -A3 error | head -12; exit 1; fi
   echo "ok $n"
+  # From 0038 on, show the proof rows the SQL editor will show Adarsh.
+  [[ "$n" > "0038" ]] && echo "$out" | grep -v -E "wal_level|^NOTICE|^$"
   [ "$n" = "0032_clients_pages.sql" ] && run -f "$REPO/supabase/scripts/rename_content_marketing_department.sql" >/dev/null
 done
 
-for t in rls_tests team_tests rpc_tests sheet_check; do
+for t in rls_tests team_tests rpc_tests sheet_check security_tests; do
   echo "===== $t"
   psql -h localhost -p $PORT -U postgres -d metrol -q -f $t.sql 2>&1 | grep -v "^SET\|set_config\|^[0-9a-f-]\{36\}$\|^$"
 done

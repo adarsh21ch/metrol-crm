@@ -14,10 +14,19 @@ whether role rules really reproduce `is_hr()`), and runs:
 - `rpc_tests.sql` — `save_view_target()`, incl. periods shifted in one save.
 - `sheet_check.sql` — LavBhusan's May weeks; `running_left` must equal
   `sheet_left` on every row.
+- `security_tests.sql` — 0038 (HR sees and sets targets) and 0039: a signed-out
+  visitor reads no table, a stranger's new account (and a company-code
+  sign-up, which lands in Sales) reads only its own profile, staff lose only
+  `qr_token`, HR/owner still get the QR codes, `punch_by_qr` still resolves,
+  employee-ID sign-in needs the right password, /apply still submits.
 - `parity.mjs` — the app's `computeProgress()` against `v_target_progress`;
   must say "0 mismatches".
+
+From 0038 on, run.sh also prints each migration's proof rows — exactly what
+the SQL editor will show Adarsh.
 
 `perf.sql` (not run by default) loads a year of weekly numbers for 7 clients.
 
 Nothing here touches the live database. Written 2026-09-26 for Agency OS
-Phase 1 (migrations 0035–0037); extend it with the next migration's checks.
+Phase 1 (migrations 0035–0037), extended for 0038–0039; extend it with the
+next migration's checks.

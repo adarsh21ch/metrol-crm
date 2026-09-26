@@ -1,7 +1,7 @@
 -- test people, shaped like the live database
 insert into auth.users (id, email) values
  ('00000000-0000-0000-0000-00000000000a','owner@metrol.in'),
- ('00000000-0000-0000-0000-00000000000b','metrolhr@gmail.com'),
+ ('00000000-0000-0000-0000-00000000000b','hr@metrol.in'),
  ('00000000-0000-0000-0000-00000000000c','cmlead@metrol.in'),
  ('00000000-0000-0000-0000-00000000000d','smm1@metrol.in'),
  ('00000000-0000-0000-0000-00000000000e','smm2@metrol.in'),
@@ -9,7 +9,7 @@ insert into auth.users (id, email) values
  ('00000000-0000-0000-0000-000000000010','saleslead@metrol.in'),
  ('00000000-0000-0000-0000-000000000011','sales@metrol.in');
 update public.profiles set role='owner', name='Adarsh' where email='owner@metrol.in';
-update public.profiles set department_id=(select id from departments where name='Human Resources'), name='HR Person' where email='metrolhr@gmail.com';
+update public.profiles set department_id=(select id from departments where name='Human Resources'), name='HR Person' where email='hr@metrol.in';
 update public.profiles set department_id=(select id from departments where name='Content and Marketing'), is_team_lead=true, name='CM Lead' where email='cmlead@metrol.in';
 update public.profiles set department_id=(select id from departments where name='Content and Marketing'), name='Deepanshu' where email='smm1@metrol.in';
 update public.profiles set department_id=(select id from departments where name='Content and Marketing'), name='Samiksha' where email='smm2@metrol.in';

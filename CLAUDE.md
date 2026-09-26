@@ -53,6 +53,19 @@ Before you call any screen done, look at it at **375px wide** and ask of every
 single row: *could this have been part of the row above it?* If yes, it is not
 done.
 
+## THE ACCESS RULE — HR = owner (Adarsh, 2026-09-26)
+
+> Whatever the owner may do, HR may do. Something becomes owner-only ONLY
+> when Adarsh says "this is not for HR" (he will decide those with the owner).
+
+Do not ask him who should get a new screen or action: it is the owner AND HR,
+by default, always. In SQL use `is_owner_level()` (0040); in the app use
+`isOwnerLevel(ws)` (lib/hr.ts); a new capability is ticked on the HR role
+too. When he names an exception, swap that ONE place to `is_owner()` /
+`ws.me?.role === 'owner'` and log it here as a dated line:
+
+- Owner-only exceptions so far: **none.**
+
 ## The quality bar (stated by the client-facing side)
 
 > "It should not look childish, incomplete, or have bad UI/UX. Give them more than they expect. But maintain a minimalistic approach — do not include unnecessary features which they did not ask for. If they later ask, we can build that."
@@ -6081,3 +6094,121 @@ replays every migration on a throwaway Postgres 16 with Supabase stubbed,
 seeds a live-shaped company and runs the Agency OS permission, sheet and
 parity checks. Extend it with each new migration's checks before handing
 Adarsh the SQL.
+
+# The client's Dashboard, and the security & privacy lockdown (2026-09-26)
+
+Adarsh, on the live site as **HR** (metrolhr), opened Clients → IQSHANT LADHA
+and saw Overview / Pages / Team only: *"where is the dashboard of this client —
+the Excel sheet, followers, everything?"* The sheet had been built (the Targets
+tab), but **HR could not see it**: 0035's seed gave HR every client capability
+except `view_targets` / `manage_targets`, and the tab silently did not render.
+A client with no target also showed only a banner — the weekly grid was hidden
+until a target existed.
+
+## What changed (commits 9820068, 947b3b4)
+
+- **0038** — HR gets "See view targets" + "Set targets" (two role ticks; untick
+  on Roles & access to undo). Money stays owner/Management/Super Admin.
+  `seedAccess()` in lib/access.ts matches, so `?demo=1&as=hr` shows it.
+- **Client page tabs: Dashboard · Pages · Team · Details.** A client OPENS on
+  Dashboard (the old Targets tab: TARGET block + weekly grid). Overview is now
+  Details, at the end; its "Targets →" row is gone (the tab is first now).
+  The remembered tab is per client (`agency-client-tab:<id>`), and always
+  starts as 'dashboard' — access loads a moment after mount, and choosing the
+  first tab from it (the first version) stuck HR on Details.
+- **No target yet:** the grid still shows the last 12 weeks, open for entry,
+  with a Weekly total row; "No target yet" + **Set a target** sit on the grid's
+  heading line (no banner row).
+- **Followers:** each channel's newest follower count (weekly_views.followers)
+  beside its name; the header reads "Page · followers" when any exist.
+- Verified on the live demo as HR, desktop and 375 px (`scrollWidth === 375`):
+  opens on Dashboard, a no-target client shows the grid, entering 250,000 +
+  48,200 followers updates the cell, the total and the follower label.
+
+## Security & privacy — migration 0039 (installed 2026-09-26)
+
+Found by asking the live API with only the public key the site ships, plus the
+local kit:
+1. `office_locations` (incl. **qr_token**), attendance_settings, shifts,
+   holidays, tds_categories, visit_purposes, incentive_rules: readable signed
+   OUT.
+2. **Open sign-up.** Supabase Auth has `disable_signup: false`; the company
+   code is only checked by the app's form (`check_invite_code`), never by the
+   Auth API — and 0004 seeds a default code in a **public GitHub repo**
+   (github.com/adarsh21ch/metrol-crm answers 200 unauthenticated). A stranger
+   could sign up and read every client (with contact phone/email), page,
+   client team, role. **`profiles.department_id` defaults to Sales**
+   (`default_department()`), so a new account even HAS a department — the
+   local kit caught my first `is_staff()`, which trusted that.
+3. Every employee could read qr_token → QR-only mode satisfiable off-poster.
+4. `email_for_employee_code(code)`: any ID → that employee's email, signed
+   out, 30/min → everyone's email in ~5 h.
+
+0039 does: `is_staff()` (owner / team lead / live employee record / HR via
+`holds_capability_as(…,'manage_hr')` — nothing self-grantable) on all 20
+"anyone"/"anyone signed in" read rules; qr_token off the API by column
+privilege + `office_qr_tokens()` for owner/HR (the app lists office columns —
+`select *` now fails — and HrPage alone asks for codes: `useAttendance(true,
+true)`); `email_for_employee_code(code, password)` returns the email only when
+the bcrypt matches (`extensions.crypt`), the one-arg version dropped; avatars
+not listable signed out; job-application uploads must be in a uuid folder,
+25 MB cap. It checks pgcrypto + auth.users FIRST and stops before changing
+anything if either is missing.
+
+**Deliberately not done:** revoking EXECUTE on helper functions from anon —
+a policy's functions are permission-checked at query start even on branches
+that never run, so revoking `is_owner()` from anon would break /apply's
+anonymous upload (storage.objects' other insert rules call it). Clients'
+contact details are still readable by every STAFF member through the API
+(the plan's table says SMMs see only their clients) — tighten
+`clients_select` to `can_see_client(id)` only if Adarsh wants it; old claims
+on a page someone no longer holds would lose their client name.
+
+The app ships ahead of 0039 (both calls fall back on `PGRST202`, confirmed
+against the live API). Run 0039 AFTER the deploy; an open tab still on the old
+bundle loses its branch list until refreshed (`select *`).
+
+**Adarsh's actions:** run 0038 then 0039; make the GitHub repo private
+(Settings → General → Danger Zone → Change visibility; Vercel keeps
+deploying); optionally turn off sign-up in Supabase (Authentication → Sign In
+/ Providers → "Allow new users to sign up") — HR approvals use the admin API
+and keep working, but the company-code form would stop.
+
+**Kit:** `security_tests.sql` (anon reads nothing; a stranger and a code
+sign-up read only their profile; staff lose only qr_token; HR/owner get the
+codes; punch_by_qr still resolves; ID + right/wrong password; /apply still
+submits). The stub gained `extensions.pgcrypto` and
+`auth.users.encrypted_password`; the seed's HR login is `hr@metrol.in` (the
+real one was in the public repo). run.sh prints the proof rows from 0038 on.
+
+## Installed, and the access rule applied — 0038/0039 proofs, 0040 (2026-09-26)
+
+Adarsh ran 0038 and 0039. 0038: HR ticks "manage_targets, view_targets";
+logins that see targets: amanjoshihelp (the owner), metrolhr. 0039: every row
+as expected — 20 staff-only rules, QR secret not readable, HR poster yes, ID
+sign-in needs the password (2 of 2 IDs have one), photos not listable,
+uploads need a folder, NOT-staff logins: none — EXCEPT "read rules still open
+to anyone: **1**" (0 locally). A signed-out probe of all 52 known tables
+afterwards: none returns rows; comp_off_credits, employee_code_lookups,
+employees, leave_months, office_locations refuse outright (revoked grants —
+expected). So the one is an "anyone signed in" read rule made by hand in the
+dashboard, on a table or name no migration knows. (The Supabase connector in
+these sessions sees Adarsh's other org projects, not Metrol's — no catalog
+access from here.)
+
+Then Adarsh set THE ACCESS RULE (top of this file). **0040_hr_equals_owner**:
+`is_owner_level()`; all 14 capabilities ticked on the HR role (untickable on
+Roles & access later — the owner's are fixed); `owns_project()` true for
+owner-level, so HR (and the owner) see and manage every project, its leads
+and members, whoever created it; projects insert/update/delete,
+company_settings, departments_write and profiles_update on owner-level
+(`role` still unchangeable from the app); and a DO block turns every remaining
+"true"/"auth.uid() is not null" SELECT rule staff-only and NAMES it in the
+proof (a write-rule is only reported). App: HR is no longer a Member-shell
+department — it walks the owner's screens (Projects, Team, HR, Settings,
+Profile) and lands on HR (`route` null = home: owner → Projects, HR → HR);
+ProjectShell's owner view, AccountControls and HrPage's delete gate use
+`isOwnerLevel(ws)`; demo HR holds every capability. Kit: 0040 checks in
+security_tests.sql (HR sees the owner's project and lead, creates one, reads
+company settings, renames a department, edits a phone but not a role; a sales
+rep can do none of it).

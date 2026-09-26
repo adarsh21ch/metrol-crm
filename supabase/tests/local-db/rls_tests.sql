@@ -25,12 +25,12 @@ select 'new client code: ' || t_val($$select code from clients where name='Dr Vi
 reset role;
 
 \echo '--- HR (no employee row)'
-select set_config('request.jwt.claim.sub', pid('metrolhr@gmail.com')::text, false); set role authenticated;
+select set_config('request.jwt.claim.sub', pid('hr@metrol.in')::text, false); set role authenticated;
 select 'hr is_hr()=' || is_hr() || ' manage_hr=' || has_capability('manage_hr') || ' manage_settings=' || has_capability('manage_settings');
 select 'hr edit page label: ' || t_try($$update pages set label='HR edit' where id='d0000000-0000-0000-0000-000000000003'$$) || ' rows=' || t_val($$select count(*)::text from pages where label='HR edit'$$);
 select 'hr assign LB page to Samiksha: ' || t_try($$insert into page_assignments (page_id, employee_id) values ('d0000000-0000-0000-0000-000000000004', eid('Samiksha'))$$);
-select 'hr reads money rows (expect 0): ' || t_val($$select count(*)::text from client_financials$$);
-select 'hr create target (expect denied): ' || t_try($$insert into view_targets (client_id, label, total_views, starts_on, ends_on) values ('c0000000-0000-0000-0000-000000000001','X',1,'2026-04-01','2027-03-31')$$);
+select 'hr reads money rows (0040: HR sees money, expect 1): ' || t_val($$select count(*)::text from client_financials$$);
+select 'hr create target (allowed since 0038): ' || t_try($$insert into view_targets (client_id, label, total_views, starts_on, ends_on) values ('c0000000-0000-0000-0000-000000000001','X',1,'2026-04-01','2027-03-31')$$);
 reset role;
 select 'Samiksha auto-joined Lavbhushan as: ' || coalesce((select r.name from client_assignments ca join roles r on r.id=ca.role_id where ca.client_id='c0000000-0000-0000-0000-000000000002' and ca.employee_id=eid('Samiksha') and ca.ended_at is null), 'NOT JOINED');
 

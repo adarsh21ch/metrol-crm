@@ -3,7 +3,7 @@ import { NotificationBell } from '@/components/NotificationBell'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useNotificationFeed } from '@/data/useNotifications'
 import { initials } from '@/lib/format'
-import { HR_DEPARTMENT } from '@/lib/hr'
+import { isOwnerLevel } from '@/lib/hr'
 import { signOut } from '@/lib/supabase'
 import type { Workspace } from '@/data/useWorkspace'
 
@@ -66,7 +66,7 @@ export function AccountControls({
      bell, whose whole job is to show an unread count without being asked.
      The rail keeps all of it; on a desktop it IS the navigation. */
   const full = variant === 'rail'
-  const isPrivileged = ws.me?.role === 'owner' || ws.departmentName(ws.me?.departmentId ?? null) === HR_DEPARTMENT
+  const isPrivileged = isOwnerLevel(ws)
   /* The session's one feed, NOT a new one per copy of this component: this
      renders twice on every screen with a rail (rail + topbar, one hidden by
      CSS), and two subscribers on one realtime topic is what used to throw. */
