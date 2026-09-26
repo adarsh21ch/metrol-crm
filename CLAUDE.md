@@ -6075,3 +6075,9 @@ number entered by a real SMM, a screenshot uploaded from a phone. The first
 app open from now on will also send the one page holder a "Weekly views are
 due — 14 Sep – 20 Sep" reminder (their channel has no number for last week);
 that is the Monday reminder working, not a fault.
+
+**Testing SQL locally:** `supabase/tests/local-db/run.sh` (README beside it)
+replays every migration on a throwaway Postgres 16 with Supabase stubbed,
+seeds a live-shaped company and runs the Agency OS permission, sheet and
+parity checks. Extend it with each new migration's checks before handing
+Adarsh the SQL.
