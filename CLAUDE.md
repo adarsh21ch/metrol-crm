@@ -6244,3 +6244,8 @@ widen to is_staff() then.
 **Phase 2 APPROVED** by Adarsh — the round-by-round build order, the navigation
 regrouping and the defaults for Q12–Q16 are in AGENCY-OS-PLAN.md §9. Start at
 Round 1.
+
+**0042 INSTALLED 2026-09-26** — proof on live: site_settings readable with no
+login: yes; who may change it: "owner and HR can update settings (UPDATE)";
+any other read rule open to anyone: 0. The security round (0038–0042) is
+complete on the live database.
