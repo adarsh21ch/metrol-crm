@@ -6249,3 +6249,135 @@ Round 1.
 login: yes; who may change it: "owner and HR can update settings (UPDATE)";
 any other read rule open to anyone: 0. The security round (0038–0042) is
 complete on the live database.
+
+# Phase 2, Round 1 — grouped navigation and Settings → Workflows & lists (2026-09-26)
+
+The round is a1390bc; the walk-through fixes after it are 5ebb26f, 56a1a4b,
+2aec772 and 102a268. Plan: AGENCY-OS-PLAN.md §9.
+
+## What shipped (a1390bc)
+
+- **One navigation model, `lib/ownerNav.tsx`:** Dashboard · People (Employees,
+  Attendance, Salary, Joining & Exit, Departments) · Clients & content
+  (Clients, Reels) · Sales (Projects, Sales team) · Settings (Roles & access,
+  Workflows & lists, Company, Terms).
+  - HrPage, Projects, ProjectShell, TeamPage and OwnerProfile all draw it. A
+    screen only says which item is lit.
+  - To add a screen: one DEST entry and one key in a group.
+  - The rail shows group labels when names are on, and a thin rule when it
+    is icons only.
+  - The phone's Profile rows use the same groups, minus the tab bar's own
+    screens. Terms sits at the foot with Sign out.
+- **Reels is its own place** (ClientsSection only="reels"). Company is one
+  modal, lifted to App. The "← Projects" topbar button is owner-only and
+  phone-only.
+- **`0043_workflow_settings.sql` (NOT run yet):** workflows, workflow_stages,
+  task_statuses, content_formats, and reorder_workflow_list(). The local kit
+  is clean, and workflow_tests.sql is in run.sh.
+- **Settings → Workflows & lists** (`sections/WorkflowSettings.tsx`):
+  - stages, with drag-to-reorder and the acting role on each stage.
+    `lib/useDragOrder.ts` uses pointer events plus arrow keys.
+  - task statuses (sortable) and content formats;
+  - the three Phase 1 colour lists, moved here from Roles & access.
+  - The `manage_workflows` capability is live.
+
+## Judgement calls
+
+- **Stage names follow blueprint §9 exactly:** Shoot required / Shoot done,
+  not the plan's Shoot / Raw data.
+  - The SMM acts on every stage except Shoot required (DOP / Production) and
+    Editing (Editor). Posted is the finish.
+  - The client sees Client review through Posted.
+- **Seeds find roles by NAME.** If a role was renamed, 0043's third proof row
+  names the stages left with nobody acting on them.
+- **Department Head is held INSIDE its department** (0035's design), so a
+  company-wide tick on it does nothing. This may confuse people on
+  Roles & access.
+- **A new stage lands just above the first finish stage** (walk-through). A
+  reel stops at the finish, so a stage after Posted could never be reached.
+  A new stage that is itself a finish still goes last.
+- **Projects nest under Projects only inside a project** (walk-through; was
+  "anywhere in Sales"). On the Projects page the cards ARE that list.
+
+## The walk-through: live demo at 1024×768 and 375px, found and fixed
+
+1. **Settings sat below the fold.** At 768px tall, HR's rail scrolled by
+   139px, hiding Workflows, Company and Terms. On the owner's Projects page,
+   the six nested projects pushed all of Settings about 440px down.
+   - Projects now nest only inside a project.
+   - The rail's edge fades where more is hidden: Rail.tsx measures, and sets
+     `.rail-list.more-up` / `.more-down`.
+   - The lit item scrolls into view. It does so again when the stored width
+     turns the rail's names on after the first paint (usePanes reads it in an
+     effect), which added about 75px (2aec772).
+2. **"+ Stage" appended after Posted,** where no reel can reach it.
+   saveStage now moves the new stage above the first finish in one
+   reorder_workflow_list call (in demo mode, locally). Checked on the demo:
+   Thumbnail lands at 11 and Posted at 12.
+3. **Reels at 375px ran off the screen.** `.page-head > .section-tools` is
+   nowrap, and [client ▾][All|1M+|10M+][Cards|List] needed 446px of 347px, so
+   List was cut off.
+   - Cards/List now sits on the title's line (PhoneViewPick
+     `className="head-cta"`), and the filters take the next row.
+   - `.head-cta + .section-tools` drops its auto margin.
+   - A global wrap was NOT added: a search box with `flex:1 1 100%` would
+     push other pages' tools onto extra rows.
+4. **Links in phone cards were browser blue** (rgb 0,0,238). `.grid-cards a`
+   now uses the same rule as `table.grid a`.
+5. **"Stages" took a row of its own at 375px:** the heading and its tools
+   needed 355px of 347px. Below 860px, "+ Stage" shows just "+"
+   (aria-label "Add a stage").
+6. **A section opened from far down Profile opened far down itself.** The
+   `.workspace` scroller outlives the keyed view. HrPage now returns it to
+   the top when the view key changes (56a1a4b).
+7. **Rule 5, older than this round:** HR Dashboard's four KPI cards left a
+   hole (five columns, or 3 + 1 at 1080px). Above 860px,
+   `.kpis:has(> .kpi:nth-child(4):last-child)` now gives 4 columns, and three
+   cards get 3 (102a268).
+
+## Verified on the live demo
+
+- Rail groups, HR and owner.
+- The fade toggles correctly at the top and at the bottom.
+- On a fresh load, the lit Workflows item is in view (553–593px inside
+  70–621px).
+- The owner's rail has 14 items and no nested projects.
+- Drag lands exactly with a smooth drag. The tool's coarse drag moves only
+  one place; that is not a bug.
+- Arrow keys move one place and keep focus.
+- "+ Stage" lands above Posted.
+- Phone Profile groups.
+- Reels' phone head: 2 rows, no overflow, quiet-ink links.
+- The Stages head is one row.
+- A section opened from a scrolled Profile opens at 0.
+- HR KPIs sit 4 across at 1024px.
+
+## NOT verified: the auto-mode safety check refused these on the live site
+
+Each was refused even in demo mode:
+
+- changing a stage's acting role (read as a permission grant);
+- removing a stage. The pane auto-cancels the page's `window.confirm`, and
+  overriding it was refused.
+- creating a workflow (with its stages copied).
+
+Adarsh can try each on `?demo=1&as=hr` in a minute; demo mode writes nothing.
+
+## Noted, not touched
+
+- In the New stage modal, a long name wraps the colour preview chips onto
+  extra rows (the chips preview the name).
+- On a phone, "hours of reaching it (optional)" wraps under the Due-within
+  input.
+- Rounds 2–4 add Content, Tasks and Shoots, bringing the rail to 17 items.
+  If it must fit a 768px laptop without scrolling, fold Settings into one
+  entry with its four pages as tabs. That is Adarsh's call.
+
+## Still open
+
+- **0043 is not installed.** Expected proof rows: 4 of 4 / Main page reel
+  (main) 11 · Fan page reel (fan) 10 / none / Not started → … → Completed
+  (done) / six formats / amanjoshihelp, metrolhr / yes / 1.
+- The repo is PUBLIC.
+- Q1, Q2, Q5, Q7, Q9 and Q12–Q17 are unanswered.
+- is_hr() matches department NAMES.
