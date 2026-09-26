@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { isDemo } from '@/data/demo'
 import { supabase } from '@/lib/supabase'
 import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
@@ -173,6 +173,10 @@ export function HrPage({
      already in lands on its root again (a client's page closes back to the
      Clients list), not on nothing. */
   const [navSeq, setNavSeq] = useState(0)
+  /* A new view starts at its own top. .workspace (the scroller) outlives
+     the views swapped inside it, so a section opened from far down Profile
+     on a phone opened far down itself, past its own title. */
+  const workRef = useRef<HTMLDivElement>(null)
   /* Applications (the public joining form's inbox) and Onboarding (the
      checklist for somebody an application just turned into) used to be two
      separate sidebar tabs, even though the moment one is approved the SAME
@@ -197,6 +201,8 @@ export function HrPage({
   // Persisted so a refresh reopens the same employee's profile, same as every
   // other tab on this screen — not just the section list behind it.
   const [openId, setOpenId] = usePersistedState<string | null>('hr-openId', null)
+  const viewKey = `${section}:${attView}:${joiningView}:${openId ?? ''}:${navSeq}`
+  useEffect(() => { workRef.current?.scrollTo({ top: 0 }) }, [viewKey])
   const [adding, setAdding] = useState<Partial<EmployeeDraft> | null>(null)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [resigning, setResigning] = useState<Employee | null>(null)
@@ -825,12 +831,12 @@ export function HrPage({
       <div className="shell">
         <Rail ws={ws} roleLabel={ws.me?.role === 'owner' ? 'Owner' : 'HR'} onOpenProfile={() => { setSection('profile'); setOpenId(null) }} active={open ? 'directory' : section} panes={panes} tip={tip} items={railItems} />
 
-        <div className="workspace">
+        <div className="workspace" ref={workRef}>
 
           {/* key + .view-in is the whole tab animation: a section swap remounts
               this wrapper, which replays the keyframe. Keyed on the profile too,
               so opening somebody's record arrives the same way a tab does. */}
-          <div className="wrap view-in" key={`${section}:${attView}:${joiningView}:${openId ?? ''}:${navSeq}`}>
+          <div className="wrap view-in" key={viewKey}>
             {hr.error && <div className="auth-err" style={{ marginBottom: 14 }}>{hr.error}</div>}
 
             {/* ------------------------------------------------ one person */}
