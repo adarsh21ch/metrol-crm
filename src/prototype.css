@@ -699,6 +699,14 @@ textarea.input{
 
 /* ------------------------------------------------------------ kpi strip */
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+/* THE LAYOUT LAW, rule 5, by count. HR's Dashboard holds four cards: five
+   columns left a card-sized hole at the end, and three (at 1080px) left the
+   fourth alone under them. A grid of exactly four or three fills its row.
+   Above the phone only — there, two columns and the odd-card rule below. */
+@media (min-width:861px){
+  .kpis:has(> .kpi:nth-child(4):last-child){grid-template-columns:repeat(4,1fr)}
+  .kpis:has(> .kpi:nth-child(3):last-child){grid-template-columns:repeat(3,1fr)}
+}
 .kpi{
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   padding:13px 14px 14px;display:flex;flex-direction:column;gap:7px;
