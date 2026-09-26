@@ -69,7 +69,9 @@ export function Rail({
     const r = on.getBoundingClientRect()
     if (r.top < box.top) el.scrollTop -= box.top - r.top + 28
     else if (r.bottom > box.bottom) el.scrollTop += r.bottom - box.bottom + 28
-  }, [active, items.length])
+    // railWide too: named, the group labels make the list ~75px taller, and a
+    // scroll worked out for the icons left the lit item under the fade.
+  }, [active, items.length, panes.railWide])
 
   return (
     <nav className={'rail' + (panes.railWide ? ' is-wide' : '')} aria-label="Navigation">
