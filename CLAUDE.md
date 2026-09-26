@@ -6506,3 +6506,44 @@ a usage limit while wiring the employee screen; the second finished it).
 - Round 3 (versions and reviews) next, per AGENCY-OS-PLAN.md §9.
 - The repo is PUBLIC. Q1, Q2, Q5, Q7, Q9, Q12–Q17 unanswered. is_hr()
   matches department NAMES.
+
+## 0044 INSTALLED on the live database; push-notifications deployed — 2026-09-26
+
+Adarsh ran 0044 in the Supabase SQL editor (Metrol Media, main / PRODUCTION)
+and pasted the proof. All 8 rows were as expected:
+
+- 0044 tables on the database: 5 of 5
+- the hand-off triggers are in place: yes
+- notifications accepts the four task types: yes
+- the next codes: C-00001 and T-00001
+- stage roles nobody holds on any client yet: DOP / Production (Shoot
+  required), Editor (Editing) — until each client's Team tab has an Editor
+  (and a DOP, where Metrol shoots), those two stages' tasks wait "Nobody
+  yet" and the reel's creator is told
+- the five new tables have row-level security: 5 of 5
+- logins who see every task: amanjoshihelp, metrolhr (the owner and HR)
+- read rules open to anyone: 1 (site_settings, public on purpose)
+
+He also deployed `push-notifications` from the dashboard. Probed from
+outside the same day: no Authorization header → the gateway's 401 "Missing
+authorization header"; the app's public anon key → the FUNCTION's own 401
+"Could not verify who is calling this." So it is live and its own sign-in
+check runs.
+
+**The "Verify JWT with legacy secret" switch was ON (the dashboard default)
+— asked him to turn it OFF.** The project's JWKS
+(`/auth/v1/.well-known/jwks.json`) publishes an ES256 key, so staff logins
+may be signed by the new asymmetric key, which that gateway check rejects
+before the function runs (every phone push would fail silently — the bell
+would still work). Off is safe either way: the function checks the caller
+itself (`auth.getUser()` with the caller's token), and with the switch on
+the public anon key already passed the gateway anyway. Not known: whether
+the ES256 key is the CURRENT signing key or a standby one, and what the
+older functions (notify-approvers, send-push, fetch-page-reels,
+approve-job-application, delete-employee) have that switch set to. The
+Supabase MCP connected here cannot see the Metrol Media project (it lists
+only the personal org's projects), so function logs are Adarsh's to read.
+If leave-request phone alerts never arrive, that switch on notify-approvers
+is the first suspect — every one of those functions checks its caller too.
+
+Nobody has used Content or Tasks signed in yet (Claude cannot sign in).
