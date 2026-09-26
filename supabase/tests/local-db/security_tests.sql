@@ -25,7 +25,7 @@ reset role;
 \echo '--- 0039: a signed-out visitor'
 select set_config('request.jwt.claim.sub', '', false) \g /dev/null
 set role anon;
-select 'tables with rows a signed-out visitor can read (expect none): ' || coalesce(string_agg(c.relname, ', ' order by c.relname), 'none')
+select 'tables with rows a signed-out visitor can read (expect site_settings only — public on purpose, 0042): ' || coalesce(string_agg(c.relname, ', ' order by c.relname), 'none')
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
  where n.nspname = 'public' and c.relkind in ('r', 'v') and c.relname not like '\_%'
    and public.t_val(format('select count(*)::text from public.%I', c.relname)) !~ '^(0|ERR.*)$';
@@ -42,7 +42,7 @@ reset role;
 \echo '--- 0039: a stranger who signed up (no department, no employee record)'
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000ff', false) \g /dev/null
 set role authenticated;
-select 'tables with rows a stranger can read (expect profiles only): ' || coalesce(string_agg(c.relname, ', ' order by c.relname), 'none')
+select 'tables with rows a stranger can read (expect profiles, site_settings): ' || coalesce(string_agg(c.relname, ', ' order by c.relname), 'none')
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
  where n.nspname = 'public' and c.relkind in ('r', 'v') and c.relname not like '\_%'
    and public.t_val(format('select count(*)::text from public.%I', c.relname)) !~ '^(0|ERR.*)$';
@@ -117,8 +117,9 @@ reset role;
 select 'did the rep''s change land (expect no): ' || case when (select data->>'by' from site_settings) = 'rep' then 'YES' else 'no' end;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000ff', false) \g /dev/null
 set role authenticated;
-select 'stranger reads / changes site_settings (expect 0 / 0 rows): ' || t_val($$select count(*)::text from site_settings$$) || ' / ' || t_try($$update site_settings set data = '{"by":"stranger"}'$$);
+select 'stranger reads / changes site_settings (expect 1 — public — / change must not land): ' || t_val($$select count(*)::text from site_settings$$) || ' / ' || t_try($$update site_settings set data = '{"by":"stranger"}'$$);
 reset role;
+select 'did the stranger''s change land (expect no): ' || case when (select data->>'by' from site_settings) = 'stranger' then 'YES' else 'no' end;
 select set_config('request.jwt.claim.sub', pid('hr@metrol.in')::text, false) \g /dev/null
 set role authenticated;
 select 'hr changes site_settings: ' || t_try($$update site_settings set data = '{"by":"hr"}'$$);

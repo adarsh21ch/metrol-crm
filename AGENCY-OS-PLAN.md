@@ -1,4 +1,4 @@
-# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phases 2–4 not built)
+# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26, not yet built)
 
 Brief, 2026-09-24. There are three inputs:
 - HR's 7-page "Integrated Digital Marketing Agency Software Blueprint"
@@ -403,4 +403,56 @@ stage changes. Scheduling first matters in Phase 4.
   Its employee-wise rollups get better once content items record who made each
   reel.
 
-**Phase 1 built. Phase 2 waits on Adarsh's go-ahead and Q12–Q17.**
+**Phase 1 built. Phase 2 APPROVED by Adarsh on 2026-09-26** — see §9.
+
+## 9. Phase 2 — approved 2026-09-26: the build, round by round
+
+Adarsh, on the live Dashboard: *"develop the second phase — I want to see the whole
+thing, proper tabs, navigation and options, categorised, easy to maintain and
+understand, the flow built end to end."* He expected the blueprint's daily flow
+and saw only Phase 1 (the sheets). Each round ends deployed, demo-verified at 375 px
+and desktop, SQL tested in the local kit, and handed over as pbcopy commands.
+THE ACCESS RULE applies throughout: owner AND HR get everything (`is_owner_level()`,
+`isOwnerLevel(ws)`, every new capability ticked on HR).
+
+**Round 1 — navigation that explains the app, and the workflow settings.**
+- Regroup the owner/HR rail (and the phone's Profile rows) into labelled groups
+  instead of one flat list: *People* (Employees, Attendance, Salary, Joining & Exit,
+  Departments) · *Clients & content* (Clients, Content, Tasks, Shoots, Reels) ·
+  *Sales* (Projects) · *Settings* (Roles & access, Workflows & lists, Company,
+  Terms). Screens not built yet do not appear — no dead buttons.
+- Migration: `workflows`, `workflow_stages` (name, sort, owner_role_id, is_review,
+  client_visible, is_done, colour, sla_hours), `task_statuses`, `content_formats`
+  — all editable lists; seeded from the blueprint (§5).
+- Settings → Workflows: stages as rows, drag to reorder, owner role per stage.
+
+**Round 2 — content items, the hand-off, tasks (the heart of it).**
+- `content_items` (C-00001, client, page, workflow, stage, title, format, script /
+  doc link, planned post date, due), `content_item_assignees`.
+- The golden-rule trigger: entering a stage creates a task for whoever holds the
+  stage's owner role on the client's team; notification + push; finishing the task
+  moves the item on.
+- `tasks` (T-00001; also usable alone), `task_comments` (internal flag),
+  `task_events`. **My tasks** for everyone (Member screen too). Overdue → the
+  reporting manager is notified (screen-load tick, like birthdays).
+- Client page gains a **Content** tab: a board by stage + a list.
+
+**Round 3 — versions and reviews.** `content_versions` (V1, V2… as links),
+`content_reviews` (approve / request changes, a note at a timestamp, e.g. "0:14").
+The SMM-review stage gets its screen; "client approved" is recorded internally.
+
+**Round 4 — shoots.** `shoots` (S-0001: client, date, place, DOP, SMM, brief,
+raw-footage link), `shoot_items`. Completing a shoot moves every linked item on
+and notifies its SMM. A Shoots list + calendar.
+
+**Round 5 — posting closes the loop.** The SMM pastes the post link → short code →
+matched to page_reels, claims and the by-link views; the Reels master view gains
+the Stage column; one reel cannot be claimed twice (Q16 default below).
+
+**Defaults used unless Adarsh says otherwise** (each one is data, changeable on
+screen):
+- Q15: main pages use every blueprint stage; fan pages skip Client review.
+- Q14: footage and edits stay where they are, stored as links (no video uploads).
+- Q13: no client portal yet; client approval is recorded by the SMM.
+- Q16: the first claim on a reel wins; a second claim is flagged for HR.
+- Q12: the Leads/Projects module is not touched by Phase 2.

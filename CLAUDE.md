@@ -6228,3 +6228,19 @@ lists its columns and row count (no values) so Adarsh can decide whether it
 is still needed. The kit now loads `live_extras.sql` (live's hand-made
 objects, rule names as on live) right after 0039, so the replay shows the
 same 0040 proof as live.
+
+## 0041 installed; site_settings is a landing page's offer — 0042; Phase 2 approved (2026-09-26)
+
+0041 proof on live: write rules open none, read rules open 0; site_settings'
+columns = id, logo_url, discount_percent, coupon_code, offer_end_date,
+redirect_url, head… (1 row) — a public landing page's live offer. 0040 had made
+its read staff-only, which would blank that page. **0042** restores "public can
+read settings" to `true` ON PURPOSE (changing it stays owner/HR, 0041). From now
+on a proof counting "read rules open to anyone" should say 1 = site_settings.
+Kit updated (a signed-out visitor reads site_settings only). If Adarsh's
+landing-page admin saves from a login that is not owner/HR, 0041 blocks it —
+widen to is_staff() then.
+
+**Phase 2 APPROVED** by Adarsh — the round-by-round build order, the navigation
+regrouping and the defaults for Q12–Q16 are in AGENCY-OS-PLAN.md §9. Start at
+Round 1.
