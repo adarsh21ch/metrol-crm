@@ -129,7 +129,13 @@ export function WorkflowSettings({
                 {canFlows && wf && (
                   <button className="icon-btn" title="Edit this workflow" aria-label="Edit this workflow" onClick={() => setWfEdit(wf)}>{PENCIL}</button>
                 )}
-                {canFlows && wf && <button className="btn btn--sm btn--primary" onClick={() => setStageEdit('new')}>+ Stage</button>}
+                {/* "+" alone on a phone: with the word, the heading's row was
+                    8px too wide and "Stages" sat on a row of its own. */}
+                {canFlows && wf && (
+                  <button className="btn btn--sm btn--primary" aria-label="Add a stage" onClick={() => setStageEdit('new')}>
+                    +<span className="on-desktop">&nbsp;Stage</span>
+                  </button>
+                )}
               </div>
             </div>
 

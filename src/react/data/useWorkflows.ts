@@ -155,17 +155,45 @@ export function useWorkflows(enabled = true) {
       name, owner_role_id: d.ownerRoleId, is_review: d.isReview, client_visible: d.clientVisible,
       is_done: d.isDone, tone: d.tone, sla_hours: d.slaHours, is_active: d.isActive,
     }
-    if (!id) { row.workflow_id = workflowId; row.sort_order = nextOrder(stages.filter((s) => s.workflowId === workflowId)) }
+    const flow = stages.filter((s) => s.workflowId === workflowId).sort(byOrder)
+    if (!id) { row.workflow_id = workflowId; row.sort_order = nextOrder(flow) }
+    // A new stage goes in just above the finish, not under it: a reel stops at
+    // the finish, so a stage after "Posted" could never be reached. A new
+    // finish still goes last. The whole order is saved in one call.
+    const finish = !id && !d.isDone ? flow.find((s) => s.isDone) : undefined
+    const orderWith = (newStageId: string) => {
+      const ids = flow.map((s) => s.id)
+      ids.splice(ids.indexOf(finish!.id), 0, newStageId)
+      return ids
+    }
+    const renumber = (ids: string[]) => {
+      const at = new Map(ids.map((x, i) => [x, i + 1]))
+      return (rows: WorkflowStage[]) => rows.map((s) => (at.has(s.id) ? { ...s, sortOrder: at.get(s.id)! } : s)).sort(byOrder)
+    }
     if (isDemo()) {
       const st: WorkflowStage = id
         ? { ...stages.find((s) => s.id === id)!, ...d, name }
         : { ...d, name, id: newId('st'), workflowId, sortOrder: Number(row.sort_order) }
-      setStages((p) => (id ? p.map((s) => (s.id === id ? st : s)) : [...p, st]))
+      setStages((p) => {
+        const next = id ? p.map((s) => (s.id === id ? st : s)) : [...p, st]
+        return finish ? renumber(orderWith(st.id))(next) : next
+      })
       return null
     }
     const r = await write('workflow_stages', id, row, 'This workflow already has a stage by that name.')
     if (r.error || !r.data) return r.error
     const st = toStage(r.data)
+    if (finish) {
+      const ids = orderWith(st.id)
+      const { error: err } = await supabase.rpc('reorder_workflow_list', { p_table: 'workflow_stages', p_ids: ids })
+      if (err) {
+        // Saved, but not in its place — say so rather than let it look right.
+        setStages((p) => [...p, st])
+        return `Saved, but it went to the bottom of the list. Drag it above "${finish.name}".`
+      }
+      setStages((p) => renumber(ids)([...p, st]))
+      return null
+    }
     setStages((p) => (id ? p.map((s) => (s.id === id ? st : s)) : [...p, st]))
     return null
   }, [stages])

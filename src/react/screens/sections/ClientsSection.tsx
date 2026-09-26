@@ -192,7 +192,7 @@ export function ClientsSection({
           </div>
         </>
       )}
-      <PhoneViewPick view={phoneView} onPick={setPhoneView} />
+      {!asPage && <PhoneViewPick view={phoneView} onPick={setPhoneView} />}
       {shownView === 'clients' && canAdd && <button className="btn btn--sm btn--primary" onClick={() => setAdding(true)}>+ Client</button>}
     </>
   )
@@ -202,6 +202,10 @@ export function ClientsSection({
       <div className={asPage ? 'page-head' : 'section-head'}>
         {lead}
         <Title>{shownView === 'reels' ? 'Reels' : 'Clients'}</Title>
+        {/* On a phone, Reels' filters and Cards/List were one unbreakable
+            row 85px wider than the screen — List was cut off. Cards/List
+            rides the title's line; the filters take the row under it. */}
+        {asPage && <PhoneViewPick view={phoneView} onPick={setPhoneView} className="head-cta" />}
         <div className={asPage ? 'section-tools' : 'section-tools section-tools--tight'}>{tools}</div>
       </div>
 

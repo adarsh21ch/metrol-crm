@@ -63,11 +63,11 @@ export function usePhoneView(storageKey: string): [PhoneView, (v: PhoneView) => 
  * One switch can front several grids: the directory's per-department tables
  * are one decision ("cards or rows"), not one decision per department.
  */
-export function PhoneViewPick({ view, onPick }: { view: PhoneView; onPick: (v: PhoneView) => void }) {
+export function PhoneViewPick({ view, onPick, className }: { view: PhoneView; onPick: (v: PhoneView) => void; className?: string }) {
   const isPhone = useIsPhone()
   if (!isPhone) return null
   return (
-    <div className="seg">
+    <div className={'seg' + (className ? ' ' + className : '')}>
       <button className={view === 'cards' ? 'is-on' : ''} onClick={() => onPick('cards')}>Cards</button>
       <button className={view === 'list' ? 'is-on' : ''} onClick={() => onPick('list')}>List</button>
     </div>

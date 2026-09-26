@@ -167,14 +167,16 @@ function SignedIn() {
     if (d === 'clientsPages') setPersisted('agency-open-client', null)
     onOpenHr()
   }
-  /* One grouped list for Projects, a project, Team and Profile. While the
-     owner is in Sales, each project sits under Projects — one click between
-     them, as the old rail gave — and folds away everywhere else. */
-  const inSales = route.name === 'projects' || route.name === 'project' || route.name === 'team' || route.name === 'member'
+  /* One grouped list for Projects, a project, Team and Profile. Inside a
+     project, every project sits under Projects — one click between them, as
+     the old rail gave — and folds away everywhere else. Not on the Projects
+     page itself: its cards ARE that list, and listing six projects a second
+     time pushed all of Settings below a laptop's fold (2026-09-26). */
+  const inProject = route.name === 'project'
   const rail = ownerRail(go, {
     hide: schema?.clients === false ? ['reels'] : [],
     label: schema?.clients === false ? { clientsPages: 'Clients & Pages' } : {},
-    under: inSales ? {
+    under: inProject ? {
       projects: ws.projects.map((p) => ({ key: p.id, label: p.name, icon: initials(p.name), onClick: () => onOpenProject(p.id) })),
     } : {},
   })

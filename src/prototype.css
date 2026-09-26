@@ -538,6 +538,20 @@ textarea.input{
   overflow-y:auto;overflow-x:hidden;scrollbar-width:none;
 }
 .rail-list::-webkit-scrollbar{display:none}
+/* More of the list behind an edge (Rail.tsx measures it): that edge fades,
+   so a hidden Settings reads as "scroll for more", not as missing. */
+.rail-list.more-down{
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 40px),transparent);
+          mask-image:linear-gradient(to bottom,#000 calc(100% - 40px),transparent);
+}
+.rail-list.more-up{
+  -webkit-mask-image:linear-gradient(to top,#000 calc(100% - 40px),transparent);
+          mask-image:linear-gradient(to top,#000 calc(100% - 40px),transparent);
+}
+.rail-list.more-up.more-down{
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 40px,#000 calc(100% - 40px),transparent);
+          mask-image:linear-gradient(to bottom,transparent,#000 40px,#000 calc(100% - 40px),transparent);
+}
 .rail.is-wide .rail-list{align-items:stretch}
 .rail-sep{width:100%;max-width:28px;height:1px;background:var(--line);flex:none;margin:3px 0}
 .rail.is-wide .rail-sep{max-width:none}
@@ -897,6 +911,11 @@ kbd{
    that wrapper is given a full row of its own on a phone, which is exactly
    the row a button this small should not be costing. */
 .head-cta{margin-left:auto;flex:none}
+/* A title-line control with a toolbar after it (Reels: Cards/List, then the
+   filters). The pair shares the one right-hand gap; when the toolbar can't
+   fit on a phone it takes the next row from the left instead of running off
+   the screen, and Cards/List stays on the title's line. */
+.page-head > .head-cta + .section-tools{margin-left:0}
 /* THE LAYOUT LAW, rule 2. .section-tools is given width:100% at 860px so a
    toolbar of a search box and four buttons can wrap. Inside .page-head it
    holds one small control, and that blanket rule was dropping it onto a row
@@ -2427,5 +2446,5 @@ table.grid.tg-grid .tg-sticky,table.grid.tg-sum .tg-sticky,.tg-name{text-align:l
 /* Links inside tables and detail fields: the app never styled a link, so
    every one of them fell back to the browser's blue — unreadable in dark
    mode. Quiet ink with a line under it, the accent on hover. */
-table.grid a,.hr-fld .v a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:2px}
-table.grid a:hover,.hr-fld .v a:hover{color:var(--accent-ink);text-decoration-color:currentColor}
+table.grid a,.hr-fld .v a,.grid-cards a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:2px}
+table.grid a:hover,.hr-fld .v a:hover,.grid-cards a:hover{color:var(--accent-ink);text-decoration-color:currentColor}

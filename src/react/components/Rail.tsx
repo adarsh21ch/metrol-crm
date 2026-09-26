@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { useHoverTip } from '@/components/HoverTip'
 import type { usePanes } from '@/lib/usePanes'
 import type { Workspace } from '@/data/useWorkspace'
@@ -39,9 +39,41 @@ export function Rail({
   roleLabel?: string
   onOpenProfile?: () => void
 }) {
+  /* The list scrolls once the window is shorter than it — on a 768px laptop
+     the last of Settings is already behind the edge. A hidden item must read
+     as "more below", not as missing: the edge with more behind it fades. */
+  const listRef = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState({ up: false, down: false })
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    const measure = () => {
+      const up = el.scrollTop > 2
+      const down = el.scrollTop + el.clientHeight < el.scrollHeight - 2
+      setMore((m) => (m.up === up && m.down === down ? m : { up, down }))
+    }
+    measure()
+    el.addEventListener('scroll', measure, { passive: true })
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', measure); ro.disconnect() }
+  }, [items.length, panes.railWide])
+
+  // The lit item is never the hidden one: open Workflows & lists and the rail
+  // shows it, clear of the fade.
+  useEffect(() => {
+    const el = listRef.current
+    const on = el?.querySelector<HTMLElement>('.rail-btn.is-on')
+    if (!el || !on) return
+    const box = el.getBoundingClientRect()
+    const r = on.getBoundingClientRect()
+    if (r.top < box.top) el.scrollTop -= box.top - r.top + 28
+    else if (r.bottom > box.bottom) el.scrollTop += r.bottom - box.bottom + 28
+  }, [active, items.length])
+
   return (
     <nav className={'rail' + (panes.railWide ? ' is-wide' : '')} aria-label="Navigation">
-      <div className="rail-list">
+      <div ref={listRef} className={'rail-list' + (more.up ? ' more-up' : '') + (more.down ? ' more-down' : '')}>
         {items.map((it, i) => (
           <Fragment key={it.key}>
             {i > 0 && it.group !== items[i - 1].group && (
