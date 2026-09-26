@@ -59,8 +59,10 @@ export function ClientPage({
   const canDashboard = canTargets || access.canReadViews(ref)
 
   // Per client: opening another client starts on its Dashboard again, while a
-  // refresh keeps the tab you were reading.
-  const [tab, setTab] = usePersistedState<Tab>('agency-client-tab:' + client.id, canDashboard ? 'dashboard' : 'details')
+  // refresh keeps the tab you were reading. Always 'dashboard' to begin with —
+  // who may see it is only known once access has loaded, a moment after this
+  // mounts, and shownTab covers the people who never may.
+  const [tab, setTab] = usePersistedState<Tab>('agency-client-tab:' + client.id, 'dashboard')
   const shownTab: Tab = tab === 'dashboard' && !canDashboard ? 'details' : tab
   const [editing, setEditing] = useState(false)
   const [openPageId, setOpenPageId] = useState<string | null>(null)
