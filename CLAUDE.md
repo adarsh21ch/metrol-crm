@@ -6212,3 +6212,19 @@ ProjectShell's owner view, AccountControls and HrPage's delete gate use
 security_tests.sql (HR sees the owner's project and lead, creates one, reads
 company settings, renames a department, edits a phone but not a role; a sales
 rep can do none of it).
+
+## 0040 installed; the hand-made site_settings table — 0041 (2026-09-26)
+
+0040 proof on live, all as expected: HR 14 of 14, owner-only rules none,
+owner-level = amanjoshihelp (owner) + metrolhr, HR sees every project, read
+rules open 0 — and it NAMED the hand-made rule: `site_settings → "public can
+read settings"` (now staff-only), plus a write rule: `site_settings."authenticated
+can update settings" (UPDATE)` — any signed-in account (incl. a stranger's
+new one; sign-up is open) could rewrite it. `site_settings` is in no
+migration; nothing reads it — not this app, not any repo in ~, not metrol.in
+(a parked Hostinger domain). **0041**: that update rule → "owner and HR can
+update settings" (is_owner_level()); table and data untouched; the proof
+lists its columns and row count (no values) so Adarsh can decide whether it
+is still needed. The kit now loads `live_extras.sql` (live's hand-made
+objects, rule names as on live) right after 0039, so the replay shows the
+same 0040 proof as live.

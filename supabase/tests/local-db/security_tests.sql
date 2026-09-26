@@ -108,3 +108,19 @@ select 'sales rep reads company settings (expect 0): ' || t_val($$select count(*
 select 'sales rep creates a project (expect denied): ' || t_try($$insert into projects (name, owner_id) values ('Rep project', auth.uid())$$);
 select 'sales rep sees projects (expect 0): ' || t_val($$select count(*)::text from projects$$);
 reset role;
+
+\echo '--- 0041: the hand-made site_settings table'
+select set_config('request.jwt.claim.sub', pid('sales@metrol.in')::text, false) \g /dev/null
+set role authenticated;
+select 'staff (not owner-level) changes site_settings: ' || t_try($$update site_settings set data = '{"by":"rep"}'$$);
+reset role;
+select 'did the rep''s change land (expect no): ' || case when (select data->>'by' from site_settings) = 'rep' then 'YES' else 'no' end;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000ff', false) \g /dev/null
+set role authenticated;
+select 'stranger reads / changes site_settings (expect 0 / 0 rows): ' || t_val($$select count(*)::text from site_settings$$) || ' / ' || t_try($$update site_settings set data = '{"by":"stranger"}'$$);
+reset role;
+select set_config('request.jwt.claim.sub', pid('hr@metrol.in')::text, false) \g /dev/null
+set role authenticated;
+select 'hr changes site_settings: ' || t_try($$update site_settings set data = '{"by":"hr"}'$$);
+reset role;
+select 'did HR''s change land (expect yes): ' || case when (select data->>'by' from site_settings) = 'hr' then 'yes' else 'NO' end;

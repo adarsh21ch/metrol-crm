@@ -30,6 +30,8 @@ for f in "$REPO"/supabase/migrations/00*.sql; do
   echo "ok $n"
   # From 0038 on, show the proof rows the SQL editor will show Adarsh.
   [[ "$n" > "0038" ]] && echo "$out" | grep -v -E "wal_level|^NOTICE|^$"
+  # Live has hand-made extras no migration knows; load them where they appeared.
+  [ "$n" = "0039_security_lockdown.sql" ] && run -f live_extras.sql >/dev/null
   [ "$n" = "0032_clients_pages.sql" ] && run -f "$REPO/supabase/scripts/rename_content_marketing_department.sql" >/dev/null
 done
 
