@@ -6685,3 +6685,11 @@ both views and turns the Versions panel on.
 Not yet: anyone using it signed in (Claude cannot sign in), and a click
 through Approve / Ask for changes (the auto-mode safety check refused that
 even in the demo).
+
+## push-notifications: "Verify JWT" confirmed OFF — 2026-09-26
+
+Probed from outside after Adarsh said done: a POST with no Authorization
+header now gets the function's own 401 "Sign in required." — earlier the same
+day the gateway stopped that request ("Missing authorization header"). So the
+switch is off, and staff tokens reach the function's own check. Not yet seen:
+a real hand-off's push (Invocations → a 200 with "sent": N).
