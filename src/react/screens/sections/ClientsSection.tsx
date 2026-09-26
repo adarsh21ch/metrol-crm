@@ -1,3 +1,4 @@
+import type { WorkKit } from '@/screens/sections/ContentSection'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DataGrid, PhoneViewPick, usePhoneView, type GridCol } from '@/components/DataGrid'
 import { Chip } from '@/components/bits'
@@ -44,7 +45,7 @@ interface ClientRow extends Client {
  * Marketing head's Manage team tab). Either way the controls ride on it.
  */
 export function ClientsSection({
-  ws, agency, clients, pages, pageAssignments, pageReels, incentiveClaims, toast, asPage, lead, onOpenChange, only,
+  ws, agency, clients, pages, pageAssignments, pageReels, incentiveClaims, toast, asPage, lead, onOpenChange, only, work,
 }: {
   ws: Workspace
   agency: Agency
@@ -63,6 +64,8 @@ export function ClientsSection({
    *  both as places of their own. Without it (the C&M head's Manage team
    *  tab) the switch stays. */
   only?: 'clients' | 'reels'
+  /** Content items and tasks — a client page then has a Content tab. */
+  work?: WorkKit
 }) {
   const { access, team, lists, channels, targets, myEmployee } = agency
   const [openId, setOpenId] = usePersistedState<string | null>('agency-open-client', null)
@@ -165,7 +168,7 @@ export function ClientsSection({
   if (open && only !== 'reels') {
     return (
       <ClientPage ws={ws} agency={agency} client={open} clients={clients} pages={pages} pageAssignments={pageAssignments}
-                  pageReels={pageReels} toast={toast} onBack={() => { setOpenId(null); void summary.reload() }} />
+                  pageReels={pageReels} toast={toast} onBack={() => { setOpenId(null); void summary.reload() }} work={work} />
     )
   }
 

@@ -5,6 +5,7 @@ import type { ClientAssignment, ClientFinancials, ClientLink, EmployeeRole, List
 import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
 import { seedAccess } from '@/lib/access'
+import type { ContentItem, ItemPerson, Task, ThreadEntry } from '@/lib/work'
 import { addDays, lastCompletedWeek, weeksOf } from '@/lib/targets'
 
 /**
@@ -897,6 +898,92 @@ export const demoTaskStatuses: TaskStatus[] = [
 
 export const demoContentFormats: ListItem[] = ['Reel', 'Carousel', 'Post', 'Story', 'YouTube Short', 'YouTube video']
   .map((name, i) => ({ id: `cf${i + 1}`, name, tone: 'mute' as Tone, sortOrder: i + 1, isActive: true }))
+
+/* ------------------------------------------------ Phase 2, Round 2 (0044) */
+
+const ROUND2_TODAY = new Date().toISOString().slice(0, 10)
+const at = (hoursFromNow: number) => new Date(Date.now() + hoursFromNow * 3600000).toISOString()
+
+/** Reels at every point of the line on Subhash Goyal, a few on Lavbhushan and
+ *  the cafe — one in each state a screen has to draw: waiting on a DOP nobody
+ *  holds, an editor running late, one with the client, one posted. */
+const item = (n: number, clientId: string, pageId: string, workflowId: string, stage: number, title: string,
+  daysAgo: number, post: string | null = null): ContentItem => ({
+  id: 'ci' + n, code: 'C-' + String(n).padStart(5, '0'), clientId, pageId, workflowId,
+  stageId: `${workflowId}-s${stage}`, title, formatId: 'cf1', script: '', scriptUrl: '',
+  plannedPostOn: post, stageEnteredAt: iso(Math.max(0, daysAgo - 1)),
+  completedAt: workflowId === 'wf-fan' ? (stage === 10 ? iso(1) : null) : (stage === 11 ? iso(1) : null),
+  createdBy: 'cm1', createdAt: iso(daysAgo),
+})
+
+export const demoContentItems: ContentItem[] = [
+  item(1, 'cl3', 'pg6', 'wf-fan', 6, '5 herbs for better sleep', 6, addDays(ROUND2_TODAY, 3)),
+  item(2, 'cl3', 'pg5', 'wf-main', 3, 'Morning routine for digestion', 4, addDays(ROUND2_TODAY, 6)),
+  item(3, 'cl3', 'pg8', 'wf-fan', 4, 'Ashwagandha — three myths', 3),
+  item(4, 'cl4', 'pg12', 'wf-main', 8, 'Rahu in the 7th house', 8, addDays(ROUND2_TODAY, 2)),
+  item(5, 'cl4', 'pg13', 'wf-fan', 10, 'Navratri special: nine colours', 12),
+  item(6, 'cl1', 'pg1', 'wf-main', 1, 'Weekend brunch menu reveal', 1),
+  item(7, 'cl3', 'pg7', 'wf-fan', 7, 'Neem for skin — 3 ways', 5, addDays(ROUND2_TODAY, 1)),
+  item(8, 'cl3', 'pg10', 'wf-fan', 9, 'Triphala explained in 60 seconds', 9, addDays(ROUND2_TODAY, 1)),
+]
+
+/** Subhash Goyal has three editors, so the reel says which one cuts it. */
+export const demoItemPeople: ItemPerson[] = [
+  { id: 'cip1', itemId: 'ci1', roleId: 'role-editor', employeeId: 'e9' },
+  { id: 'cip2', itemId: 'ci7', roleId: 'role-editor', employeeId: 'e10' },
+]
+
+const task = (n: number, t: Partial<Task> & Pick<Task, 'title' | 'statusId'>): Task => ({
+  id: 't' + n, code: 'T-' + String(n).padStart(5, '0'), description: '', clientId: null, contentItemId: null,
+  stageId: null, roleId: null, assigneeId: null, assigneeName: '', assigneeProfileId: null, priority: 'normal',
+  dueAt: null, completedAt: null, createdBy: 'cm1', creatorName: 'Ritika Chandra', createdAt: iso(3), ...t,
+})
+
+export const demoTasks: Task[] = [
+  // Given by hand — HR to an SMM, HR to a salesperson, an SMM to an editor.
+  task(1, { title: 'Send the October content calendar to Subhash ji', clientId: 'cl3', assigneeId: 'e6',
+    assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', priority: 'high', dueAt: at(40), statusId: 'ts1',
+    createdBy: 'hr1', creatorName: 'Priya Sharma', createdAt: iso(1),
+    description: 'Twelve reels across the main page and the fan pages — dates and topics, one sheet.' }),
+  task(2, { title: 'Fix the bio link on Healing Rahasya', clientId: 'cl3', assigneeId: 'e7',
+    assigneeName: 'Deepanshu Rawat', assigneeProfileId: 'cm2', dueAt: at(5), statusId: 'ts2',
+    createdBy: 'hr1', creatorName: 'Priya Sharma', createdAt: iso(0, 3) }),
+  task(3, { title: 'Update the October follow-up sheet', assigneeId: 'e1', assigneeName: 'Mohit Verma',
+    assigneeProfileId: 'm1', dueAt: at(26), statusId: 'ts1', createdBy: 'hr1', creatorName: 'Priya Sharma', createdAt: iso(0, 5) }),
+  task(4, { title: 'Collect the raw footage from Drive', clientId: 'cl3', assigneeId: 'e9', assigneeName: 'Lokesh Yadav',
+    statusId: 'ts6', completedAt: iso(2), createdAt: iso(4) }),
+  // Made by the hand-off — one open task per reel, on the stage it sits in.
+  task(5, { title: 'Editing — 5 herbs for better sleep', clientId: 'cl3', contentItemId: 'ci1', stageId: 'wf-fan-s6',
+    roleId: 'role-editor', assigneeId: 'e9', assigneeName: 'Lokesh Yadav', dueAt: at(-20), statusId: 'ts2', createdAt: iso(2) }),
+  task(6, { title: 'Script ready — Morning routine for digestion', clientId: 'cl3', contentItemId: 'ci2', stageId: 'wf-main-s3',
+    roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', dueAt: at(20),
+    statusId: 'ts1', createdAt: iso(1) }),
+  task(7, { title: 'Shoot required — Ashwagandha — three myths', clientId: 'cl3', contentItemId: 'ci3', stageId: 'wf-fan-s4',
+    roleId: 'role-dop', statusId: 'ts1', createdBy: 'cm3', creatorName: 'Samiksha Jain', createdAt: iso(2) }),
+  task(8, { title: 'Client review — Rahu in the 7th house', clientId: 'cl4', contentItemId: 'ci4', stageId: 'wf-main-s8',
+    roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', statusId: 'ts3', createdAt: iso(2) }),
+  task(9, { title: 'Idea — Weekend brunch menu reveal', clientId: 'cl1', contentItemId: 'ci6', stageId: 'wf-main-s1',
+    roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', statusId: 'ts1', createdAt: iso(1) }),
+  task(10, { title: 'SMM review — Neem for skin — 3 ways', clientId: 'cl3', contentItemId: 'ci7', stageId: 'wf-fan-s7',
+    roleId: 'role-smm', assigneeId: 'e7', assigneeName: 'Deepanshu Rawat', assigneeProfileId: 'cm2', statusId: 'ts2',
+    createdBy: 'cm2', creatorName: 'Deepanshu Rawat', createdAt: iso(1) }),
+  task(11, { title: 'Scheduled — Triphala explained in 60 seconds', clientId: 'cl3', contentItemId: 'ci8', stageId: 'wf-fan-s9',
+    roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', dueAt: at(18), statusId: 'ts1', createdAt: iso(1) }),
+]
+
+/** Two tasks with a history to read; every other one starts with its
+ *  "created" line, written on the fly. */
+export const demoThreads: Record<string, ThreadEntry[]> = {
+  t5: [
+    { kind: 'event', id: 'ev1', at: iso(2), who: 'Deepanshu Rawat', body: 'Hand-off: the item reached Editing', event: 'created', fromValue: null, toValue: 'Lokesh Yadav' },
+    { kind: 'event', id: 'ev2', at: iso(1, 4), who: 'Lokesh Yadav', body: '', event: 'status', fromValue: 'Not started', toValue: 'In progress' },
+    { kind: 'comment', id: 'cm-1', at: iso(1, 2), who: 'Deepanshu Rawat', body: 'Use the second take for the intro — the first one has wind noise.', event: null, fromValue: null, toValue: null },
+  ],
+  t1: [
+    { kind: 'event', id: 'ev3', at: iso(1), who: 'Priya Sharma', body: '', event: 'created', fromValue: null, toValue: 'Ritika Chandra' },
+    { kind: 'comment', id: 'cm-2', at: iso(0, 6), who: 'Priya Sharma', body: 'Subhash ji asked for it before Monday\'s call.', event: null, fromValue: null, toValue: null },
+  ],
+}
 
 export const demoClientLinks: ClientLink[] = [
   { id: 'cln1', clientId: 'cl3', label: 'Podcast sheet', url: 'https://docs.google.com/spreadsheets/d/demo-podcast', sortOrder: 1 },

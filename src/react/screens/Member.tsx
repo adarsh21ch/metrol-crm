@@ -33,7 +33,7 @@ import { usePageAssignments } from '@/data/usePageAssignments'
 import { usePageReels } from '@/data/usePageReels'
 import { useWfhRequests } from '@/data/useWfhRequests'
 import { useVisitPurposes } from '@/data/useVisitPurposes'
-import { notifyApprovers } from '@/data/useNotifications'
+import { flushPushes, notifyApprovers } from '@/data/useNotifications'
 import { useSalaryRecords } from '@/data/useSalaryRecords'
 import { useOnboardingTasks } from '@/data/useOnboardingTasks'
 import { useEmployeeDocuments } from '@/data/useEmployeeDocuments'
@@ -49,7 +49,11 @@ import { ClientsPagesSection } from '@/screens/sections/ClientsPagesSection'
 import { ClientsSection } from '@/screens/sections/ClientsSection'
 import { ClientPage } from '@/screens/sections/ClientPage'
 import { WeeklyViewsSection } from '@/screens/sections/WeeklyViewsSection'
+import { MyTasksCard, TasksSection } from '@/screens/sections/TasksSection'
 import { useAgency } from '@/data/useAgency'
+import { useWorkflows } from '@/data/useWorkflows'
+import { useWork } from '@/data/useWork'
+import { doneStatusIds } from '@/lib/work'
 import { useLeaveMonth } from '@/data/useLeaveMonths'
 import { useCompOffBalance } from '@/data/useCompOffBalance'
 import { addMonths, firstOfMonth, fmtDays } from '@/lib/leaveRules'
@@ -72,12 +76,14 @@ const TIER_10M = 10_000_000
  * a thing to scroll past on the way to the next call. It is one tap away when
  * they do want it.
  */
-type MemberSec = 'overview' | 'attendance' | 'leads' | 'sales' | 'team' | 'profile'
+type MemberSec = 'overview' | 'tasks' | 'attendance' | 'leads' | 'sales' | 'team' | 'profile'
 const HEAD: Record<MemberSec, { title: string; sub: string }> = {
   // Subtitles that only describe the title are read once and then skipped
   // forever — "why would we be explaining it". Where the sub carries a real
   // count it survives, in the ternary below.
   overview: { title: 'Overview', sub: '' },
+  // Tasks draws its own head (the Mine/Given/All switch rides on it).
+  tasks: { title: 'Tasks', sub: '' },
   // The line that used to live here is a one-time <Tip> inside the section
   // now — see the Attendance block below. Empty, so the page head drops the
   // whole row rather than printing a blank one.
@@ -288,6 +294,29 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
   // Agency OS Phase 1 (0035–0037) — clients, their teams, targets and the
   // weekly numbers. Only this department has any; nobody else loads them.
   const agency = useAgency(ws, staff.rows, pages, isContentMarketing)
+  // Round 2 (0044): tasks are everybody's — a salesperson can be given one
+  // too — so these load for every department once the database has them.
+  const workOn = agency.installed.work
+  const flows = useWorkflows(agency.installed.workflows && workOn)
+  const work = useWork(workOn)
+  const workKit = workOn ? { work, flows, staff: staff.rows } : undefined
+  const taskDone = useMemo(() => doneStatusIds(flows.statuses), [flows.statuses])
+  const myOpenTasks = myEmployee ? work.tasks.filter((t) => t.assigneeId === myEmployee.id && !taskDone.has(t.statusId)).length : 0
+  // Tasks is a tab on a desktop; on a phone it is reached from Profile's list
+  // or Overview's "My tasks" card, and the way back goes where they came from.
+  const [tasksFrom, setTasksFrom] = useState<'profile' | 'overview'>('profile')
+  const openTasks = (from: 'profile' | 'overview') => { setTasksFrom(from); setSec('tasks') }
+  // A Tasks tab remembered from the demo (or from before 0044 was run) has
+  // nothing to show once the database has answered without it.
+  // (setSec is a fresh function every render — usePersistedState — so it
+  // stays out of the list rather than re-running this each time.)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (sec === 'tasks' && agency.schema && !workOn) setSec('overview') }, [sec, agency.schema, workOn])
+  const tasksOpen = sec === 'tasks' && workOn
+  // Overdue tasks tell the assignee's manager — the screen-load tick again.
+  useEffect(() => {
+    if (!isDemo() && workOn) void supabase.rpc('remind_overdue_tasks').then(({ data }) => { if (Number(data) > 0) flushPushes() })
+  }, [workOn])
   useEffect(() => { if (!isDemo() && isContentMarketing) void supabase.rpc('remind_weekly_views').then() }, [isContentMarketing])
   const [pagesView, setPagesView] = usePersistedState<'pages' | 'weekly'>('member-pages-view', 'pages')
   const weeklyOn = isContentMarketing && agency.installed.targets
@@ -718,6 +747,39 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
     ? (sec === 'leads' ? 'My pages' : sec === 'sales' ? 'Claims' : HEAD[sec].title)
     : HEAD[sec].title
 
+  /* The desktop's tab strip. Tasks draws its own title line (its switch
+     rides on it), so there the strip is handed to it to sit under that
+     line — the title stays where every other tab has it. */
+  const navTabs = (
+    <div className="tabs tabs--nav">
+      <button className={sec === 'overview' ? 'is-on' : ''} onClick={() => setSec('overview')}>Overview</button>
+      {workOn && (
+        <button className={sec === 'tasks' ? 'is-on' : ''} onClick={() => setSec('tasks')}>
+          Tasks <span className="count">{myOpenTasks}</span>
+        </button>
+      )}
+      <button className={sec === 'attendance' ? 'is-on' : ''} onClick={() => setSec('attendance')}>
+        Attendance
+      </button>
+      {/* Same two slots either way — Content & Marketing's own
+          destinations (their pages, their claims) instead of Sales'. */}
+      <button className={sec === 'leads' ? 'is-on' : ''} onClick={() => setSec('leads')}>
+        {isContentMarketing ? 'My pages' : 'My leads'} <span className="count">{isContentMarketing ? myPages.length : mine.length}</span>
+      </button>
+      <button className={sec === 'sales' ? 'is-on' : ''} onClick={() => setSec('sales')}>
+        {isContentMarketing ? 'Claims' : 'My sales'} <span className="count">{isContentMarketing ? myClaims.length : cv.length}</span>
+      </button>
+      {isLead && (
+        <button className={sec === 'team' ? 'is-on' : ''} onClick={() => setSec('team')}>
+          Manage team <span className="count">{teamRows.length}</span>
+        </button>
+      )}
+      <button className={sec === 'profile' ? 'is-on' : ''} onClick={() => setSec('profile')}>
+        Profile {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
+      </button>
+    </div>
+  )
+
   return (
     <div className="screen screen--app is-active">
       <div className="topbar">
@@ -742,7 +804,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
       <div className="shell">
         <div className="workspace">
           <div className="wrap">
-            {!clientPageOpen && (
+            {!clientPageOpen && !tasksOpen && (
             <div className="page-head">
               <h1>{headTitle}</h1>
               {headSub && <div className="sub">{headSub}</div>}
@@ -828,28 +890,12 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             </div>
             )}
 
-            <div className="tabs tabs--nav">
-              <button className={sec === 'overview' ? 'is-on' : ''} onClick={() => setSec('overview')}>Overview</button>
-              <button className={sec === 'attendance' ? 'is-on' : ''} onClick={() => setSec('attendance')}>
-                Attendance
-              </button>
-              {/* Same two slots either way — Content & Marketing's own
-                  destinations (their pages, their claims) instead of Sales'. */}
-              <button className={sec === 'leads' ? 'is-on' : ''} onClick={() => setSec('leads')}>
-                {isContentMarketing ? 'My pages' : 'My leads'} <span className="count">{isContentMarketing ? myPages.length : mine.length}</span>
-              </button>
-              <button className={sec === 'sales' ? 'is-on' : ''} onClick={() => setSec('sales')}>
-                {isContentMarketing ? 'Claims' : 'My sales'} <span className="count">{isContentMarketing ? myClaims.length : cv.length}</span>
-              </button>
-              {isLead && (
-                <button className={sec === 'team' ? 'is-on' : ''} onClick={() => setSec('team')}>
-                  Manage team <span className="count">{teamRows.length}</span>
-                </button>
-              )}
-              <button className={sec === 'profile' ? 'is-on' : ''} onClick={() => setSec('profile')}>
-                Profile {myLeave.some((r) => r.status === 'pending') && <span className="count">{myLeave.filter((r) => r.status === 'pending').length}</span>}
-              </button>
-            </div>
+            {tasksOpen ? (
+              <TasksSection ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={staff.rows}
+                            toast={toast} nav={navTabs}
+                            lead={<button className="btn btn--sm on-phone" onClick={() => setSec(tasksFrom)}>
+                              ← {tasksFrom === 'overview' ? 'Overview' : 'Profile'}</button>} />
+            ) : navTabs}
 
             {/* Profile — the same component the owner's and HR's screens
                 render. The identity card, the list of everything about me,
@@ -881,6 +927,9 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                      those are tabs of their own, so it is the one that loses
                      least by being a tap away instead of a tab. */
                   ...(isLead ? [{ key: 'overview', label: 'Overview', onClick: () => setSec('overview') }] : []),
+                  // The phone's way in (the bar's five slots are full); a
+                  // desktop has the tab as well, as a lead's Overview does.
+                  ...(workOn ? [{ key: 'tasks', label: 'Tasks', badge: myOpenTasks, onClick: () => openTasks('profile') }] : []),
                   ...ME_TABS.filter((t) => t.key !== 'exit' || isLeaving).map((t) => ({
                     key: t.key,
                     label: t.label,
@@ -1479,7 +1528,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                 HR-only, confirmed with Adarsh before this was built. */}
             {shownSec === 'team' && isContentMarketing && leadClientOpen && agency.installed.clients && (
               <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
-                              pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} onOpenChange={setLeadClientOpen} />
+                              pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} onOpenChange={setLeadClientOpen}
+                              work={workKit} />
             )}
             {shownSec === 'team' && isContentMarketing && !(leadClientOpen && agency.installed.clients) && (
               <>
@@ -1519,7 +1569,8 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                     too because 0033 widened the RLS to match. */}
                 {agency.installed.clients ? (
                   <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
-                                  pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} onOpenChange={setLeadClientOpen} />
+                                  pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} onOpenChange={setLeadClientOpen}
+                                  work={workKit} />
                 ) : (
                   <ClientsPagesSection ws={ws} clients={clients} pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} staff={staff} toast={toast} />
                 )}
@@ -1570,6 +1621,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   <Kpi accent label="My sales" value={money(sum(cv))} sub={`${cv.filter((l) => !l.verified).length} awaiting verification`} />
                 </div>
 
+                {workKit && (
+                  <MyTasksCard ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={staff.rows}
+                               toast={toast} onSeeAll={() => openTasks('overview')} />
+                )}
+
                 {/* The same shape as the owner's Overview, asking the question a
                     salesperson actually has: what do I do next? Every row is a
                     button into My leads, where the work happens. */}
@@ -1604,6 +1660,11 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
                   <Kpi label="Paid this month" value={money(myClaimsPaidThisMonth)} sub={fmtPeriod(currentPeriod())} />
                   <Kpi accent label="Total earned" value={money(myClaimsTotalEarned)} sub="all-time incentive" />
                 </div>
+
+                {workKit && (
+                  <MyTasksCard ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={staff.rows}
+                               toast={toast} onSeeAll={() => openTasks('overview')} />
+                )}
 
                 <div className="ov-card">
                   <div className="ov-head">
@@ -1672,7 +1733,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
             {sec === 'leads' && isContentMarketing && shownPagesView === 'weekly' && (smmClientId && clients.rows.find((c) => c.id === smmClientId) ? (
               <ClientPage ws={ws} agency={agency} client={clients.rows.find((c) => c.id === smmClientId)!} clients={clients}
                           pages={pages} pageAssignments={pageAssignments} pageReels={pageReels} toast={toast}
-                          onBack={() => setSmmClientId(null)} />
+                          onBack={() => setSmmClientId(null)} work={workKit} />
             ) : (
               <WeeklyViewsSection agency={agency} clients={clients.rows} pages={pages.rows} pageAssignments={pageAssignments.rows}
                                   toast={toast} onOpenClient={setSmmClientId} />
@@ -1782,7 +1843,7 @@ export function Member({ ws, toast }: { ws: Workspace; toast: (m: string) => voi
           lead could not find. Manage team takes Overview's slot instead, and
           Overview is a row inside Profile for them. */}
       <BottomNav
-        active={sec}
+        active={sec === 'tasks' ? tasksFrom : sec}
         items={[
           isLead
             ? { key: 'team', label: 'Manage team', short: 'Team', badge: teamRows.length, icon: NAV_ICONS.team, onClick: () => setSec('team') }

@@ -16,6 +16,7 @@ const TITLE: Record<string, string> = {
   broadcast: 'From HR', birthday: 'Birthday', shift_reminder: 'Shift reminder',
   visit_request: 'Visit entry', wfh_request: 'Work from home',
   incentive_claim: 'Incentive claim', views_reminder: 'Weekly views',
+  task_assigned: 'Task', task_unassigned: 'Needs a person', task_overdue: 'Overdue', task_comment: 'Comment',
 }
 
 /**

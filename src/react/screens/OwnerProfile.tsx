@@ -34,7 +34,8 @@ export function OwnerProfile({
   const tip = useHoverTip()
   const oldClients = schema?.clients === false
   const rows = ownerProfileRows(go, {
-    hide: ['dashboard', 'projects', 'team', ...(oldClients ? ['reels' as const] : [])],
+    hide: ['dashboard', 'projects', 'team', ...(oldClients ? ['reels' as const] : []),
+      ...(schema?.work ? [] : ['content' as const, 'tasks' as const])],
     label: oldClients ? { clientsPages: 'Clients & Pages' } : {},
   })
 

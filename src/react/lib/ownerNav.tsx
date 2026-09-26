@@ -12,8 +12,8 @@ import type { ProfileRow } from '@/components/ProfileSection'
  * labelled groups, from this file. A screen only says which item is lit.
  *
  * To add a screen: one entry in DEST, one key in a group. A screen that is not
- * built yet has no entry — no dead buttons (Content, Tasks and Shoots arrive
- * in Rounds 2–4 and slot into "Clients & content").
+ * built yet has no entry — no dead buttons (Shoots arrive in Round 4 and slot
+ * into "Clients & content", beside Content and Tasks from Round 2).
  *
  * The keys that are HR-screen sections ARE HrPage's section names, so a
  * section remembered from before this change still opens.
@@ -21,14 +21,14 @@ import type { ProfileRow } from '@/components/ProfileSection'
 export type OwnerDest =
   | 'dashboard'
   | 'directory' | 'attendance' | 'salary' | 'joining' | 'departments'
-  | 'clientsPages' | 'reels'
+  | 'clientsPages' | 'content' | 'tasks' | 'reels'
   | 'projects' | 'team'
   | 'access' | 'workflows' | 'company' | 'terms'
 
 /** Destinations that live on HR's screen (HrPage), as its section names. */
 export const HR_SECTIONS = [
   'dashboard', 'directory', 'attendance', 'salary', 'joining', 'departments',
-  'clientsPages', 'reels', 'access', 'workflows', 'terms',
+  'clientsPages', 'content', 'tasks', 'reels', 'access', 'workflows', 'terms',
 ] as const
 export type HrSection = (typeof HR_SECTIONS)[number] | 'profile'
 export const isHrSection = (d: string): d is (typeof HR_SECTIONS)[number] => (HR_SECTIONS as readonly string[]).includes(d)
@@ -46,6 +46,8 @@ export const DEST: Record<OwnerDest, { label: string; icon: React.ReactNode }> =
   joining: { label: 'Joining & Exit', icon: svg(<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15l2 2 4-4" /></>) },
   departments: { label: 'Departments', icon: svg(<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01" />, 15) },
   clientsPages: { label: 'Clients', icon: svg(<><path d="M3 21h18" /><path d="M5 21V9l7-5 7 5v12" /><path d="M10 21v-6h4v6" /></>) },
+  content: { label: 'Content', icon: svg(<><rect x="3" y="4" width="5" height="16" rx="1.5" /><rect x="10" y="4" width="5" height="11" rx="1.5" /><rect x="17" y="4" width="4" height="7" rx="1.5" /></>) },
+  tasks: { label: 'Tasks', icon: svg(<><path d="M9 6h11M9 12h11M9 18h11" /><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17" /></>) },
   reels: { label: 'Reels', icon: svg(<><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 8h18M8 3l3 5M14 3l3 5" /><path d="M10.5 12.5v5l4-2.5z" /></>) },
   projects: { label: 'Projects', icon: svg(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>) },
   team: { label: 'Sales team', icon: svg(<path d="M3 20V10M9 20V4M15 20v-7M21 20v-11" />, 15) },
@@ -59,7 +61,7 @@ export const DEST: Record<OwnerDest, { label: string; icon: React.ReactNode }> =
 export const GROUPS: { label: string | null; items: OwnerDest[] }[] = [
   { label: null, items: ['dashboard'] },
   { label: 'People', items: ['directory', 'attendance', 'salary', 'joining', 'departments'] },
-  { label: 'Clients & content', items: ['clientsPages', 'reels'] },
+  { label: 'Clients & content', items: ['clientsPages', 'content', 'tasks', 'reels'] },
   { label: 'Sales', items: ['projects', 'team'] },
   { label: 'Settings', items: ['access', 'workflows', 'company', 'terms'] },
 ]

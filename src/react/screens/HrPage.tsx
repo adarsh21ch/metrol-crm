@@ -52,6 +52,10 @@ import { ClientsSection } from '@/screens/sections/ClientsSection'
 import { AccessSettings } from '@/screens/sections/AccessSettings'
 import { WorkflowSettings } from '@/screens/sections/WorkflowSettings'
 import { useWorkflows } from '@/data/useWorkflows'
+import { useWork } from '@/data/useWork'
+import { flushPushes } from '@/data/useNotifications'
+import { ContentSection } from '@/screens/sections/ContentSection'
+import { TasksSection } from '@/screens/sections/TasksSection'
 import { DEST, isHrSection, ownerProfileRows, ownerRail, type HrSection, type OwnerDest } from '@/lib/ownerNav'
 import { useAgency } from '@/data/useAgency'
 import { LeaveAlertStack, type LeaveAlert } from '@/components/LeaveAlertStack'
@@ -123,6 +127,11 @@ export function HrPage({
   // The Monday "weekly views are due" reminder (0037) — same trick, same
   // once-a-week idempotency, and a silent no-op until 0037 is installed.
   useEffect(() => { if (!isDemo()) void supabase.rpc('remind_weekly_views').then() }, [])
+  // Overdue tasks (0044) tell the assignee's manager — same trick again,
+  // idempotent per task; anything it wrote is then pushed to their phones.
+  useEffect(() => {
+    if (!isDemo()) void supabase.rpc('remind_overdue_tasks').then(({ data }) => { if (Number(data) > 0) flushPushes() })
+  }, [])
   // A request landing from another browser while this one is open, anywhere
   // in the HR module — see LeaveAlertStack.tsx. Kept as its own small queue
   // rather than reusing `toast`: toast is one slot, three seconds, and
@@ -429,7 +438,9 @@ export function HrPage({
     ...(pendingApps.length ? { joining: `Joining & Exit (${pendingApps.length})` } : {}),
     ...(oldClients ? { clientsPages: 'Clients & Pages' } : {}),
   }
-  const railItems = ownerRail(go, { hide: oldClients ? ['reels'] : [], label: navLabels })
+  // Content and Tasks arrive with 0044 — not on the list until it is run.
+  const notYet: OwnerDest[] = [...(oldClients ? ['reels' as const] : []), ...(agency.installed.work ? [] : ['content' as const, 'tasks' as const])]
+  const railItems = ownerRail(go, { hide: notYet, label: navLabels })
 
   /* The tab bar is NOT the rail, and that is the fix.
      It used to be `railItems.map(...)` — all seven sections, four of them
@@ -444,7 +455,7 @@ export function HrPage({
   /** Sections reached through Profile on a phone. Opening one lights Profile
    *  on the bar and puts a ← Profile on its page head, so "where am I" still
    *  has an answer and the way back is one tap. */
-  const IN_PROFILE: HrSection[] = ['salary', 'departments', 'clientsPages', 'reels', 'access', 'workflows', 'terms']
+  const IN_PROFILE: HrSection[] = ['salary', 'departments', 'clientsPages', 'content', 'tasks', 'reels', 'access', 'workflows', 'terms']
   const inProfileTab = IN_PROFILE.includes(section as HrSection)
   /** Phone only — see `.on-phone`. Sits ON the title's row, not above it. */
   const backToProfile = (
@@ -461,10 +472,12 @@ export function HrPage({
     },
   ]
   const profileRows = ownerProfileRows(go, {
-    hide: [...HR_TABS, ...(oldClients ? ['reels' as const] : [])],
+    hide: [...HR_TABS, ...notYet],
     label: oldClients ? { clientsPages: 'Clients & Pages' } : {},
   })
-  const flows = useWorkflows(section === 'workflows' && agency.installed.workflows)
+  // Loaded on the first visit to a screen that reads them, then kept.
+  const flows = useWorkflows(agency.installed.workflows && ['workflows', 'content', 'tasks', 'clientsPages'].includes(section))
+  const work = useWork(agency.installed.work && ['content', 'tasks', 'clientsPages'].includes(section))
 
   const exitTasksFor = (employeeId: string) => exitTasks.rows.filter((t) => t.employeeId === employeeId).sort((a, b) => a.sortOrder - b.sortOrder)
   const exitRecordFor = (employeeId: string) => exitRecords.rows.find((r) => r.employeeId === employeeId) ?? null
@@ -1545,7 +1558,7 @@ export function HrPage({
             {!open && section === 'clientsPages' && (agency.installed.clients ? (
               <ClientsSection ws={ws} agency={agency} clients={clients} pages={pages} pageAssignments={pageAssignments}
                               pageReels={pageReels} incentiveClaims={incentiveClaims} toast={toast} asPage lead={backToProfile}
-                              only="clients" />
+                              only="clients" work={agency.installed.work ? { work, flows, staff: hr.rows } : undefined} />
             ) : (
               <>
                 <div className="page-head">
@@ -1572,6 +1585,16 @@ export function HrPage({
                 <p className="cell-mute" style={{ margin: 0 }}>Your role does not have "Roles &amp; access" ticked — the owner can give it.</p>
               </>
             ))}
+
+            {!open && section === 'content' && agency.installed.work && (
+              <ContentSection ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} pages={pages.rows}
+                              pageAssignments={pageAssignments.rows} staff={hr.rows} toast={toast} lead={backToProfile} />
+            )}
+
+            {!open && section === 'tasks' && agency.installed.work && (
+              <TasksSection ws={ws} agency={agency} flows={flows} work={work} clients={clients.rows} staff={hr.rows}
+                            toast={toast} lead={backToProfile} />
+            )}
 
             {!open && section === 'workflows' && (
               <WorkflowSettings ws={ws} agency={agency} flows={flows} toast={toast} lead={backToProfile} />

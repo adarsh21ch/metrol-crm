@@ -174,7 +174,7 @@ function SignedIn() {
      time pushed all of Settings below a laptop's fold (2026-09-26). */
   const inProject = route.name === 'project'
   const rail = ownerRail(go, {
-    hide: schema?.clients === false ? ['reels'] : [],
+    hide: [...(schema?.clients === false ? ['reels' as const] : []), ...(schema?.work ? [] : ['content' as const, 'tasks' as const])],
     label: schema?.clients === false ? { clientsPages: 'Clients & Pages' } : {},
     under: inProject ? {
       projects: ws.projects.map((p) => ({ key: p.id, label: p.name, icon: initials(p.name), onClick: () => onOpenProject(p.id) })),

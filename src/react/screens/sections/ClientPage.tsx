@@ -1,3 +1,4 @@
+import { ContentSection, type WorkKit } from '@/screens/sections/ContentSection'
 import { useEffect, useMemo, useState } from 'react'
 import { DataGrid, type GridCol } from '@/components/DataGrid'
 import { Chip } from '@/components/bits'
@@ -20,7 +21,7 @@ import type { PageReels } from '@/data/usePageReels'
 import type { StaffPick, TeamRow } from '@/data/useClientTeam'
 import type { Workspace } from '@/data/useWorkspace'
 
-type Tab = 'dashboard' | 'pages' | 'team' | 'details'
+type Tab = 'dashboard' | 'content' | 'pages' | 'team' | 'details'
 
 /** One page row on the Pages tab: the sheet's numbering (fan pages 1, 2, 3…)
  *  and its live channels, looked up once. */
@@ -38,7 +39,7 @@ interface PageRow extends Page {
  * again by the database).
  */
 export function ClientPage({
-  ws, agency, client, clients, pages, pageAssignments, pageReels, toast, onBack,
+  ws, agency, client, clients, pages, pageAssignments, pageReels, toast, onBack, work,
 }: {
   ws: Workspace
   agency: Agency
@@ -49,6 +50,8 @@ export function ClientPage({
   pageReels: PageReels
   toast: (m: string) => void
   onBack: () => void
+  /** Content items and tasks (0044) — the Content tab shows when given. */
+  work?: WorkKit
 }) {
   const { access, team, lists, channels } = agency
   const ref = { id: client.id, departmentId: client.departmentId }
@@ -63,7 +66,7 @@ export function ClientPage({
   // who may see it is only known once access has loaded, a moment after this
   // mounts, and shownTab covers the people who never may.
   const [tab, setTab] = usePersistedState<Tab>('agency-client-tab:' + client.id, 'dashboard')
-  const shownTab: Tab = tab === 'dashboard' && !canDashboard ? 'details' : tab
+  const shownTab: Tab = tab === 'dashboard' && !canDashboard ? 'details' : tab === 'content' && !work ? 'pages' : tab
   const [editing, setEditing] = useState(false)
   const [openPageId, setOpenPageId] = useState<string | null>(null)
 
@@ -97,6 +100,11 @@ export function ClientPage({
         {canDashboard && (
           <button className={shownTab === 'dashboard' ? 'is-on' : ''} onClick={() => setTab('dashboard')}>Dashboard</button>
         )}
+        {work && (
+          <button className={shownTab === 'content' ? 'is-on' : ''} onClick={() => setTab('content')}>
+            Content <span className="count">{work.work.items.filter((i) => i.clientId === client.id && !i.completedAt).length}</span>
+          </button>
+        )}
         <button className={shownTab === 'pages' ? 'is-on' : ''} onClick={() => setTab('pages')}>
           Pages <span className="count">{clientPages.filter((p) => p.isActive).length}</span>
         </button>
@@ -109,6 +117,10 @@ export function ClientPage({
       {shownTab === 'dashboard' && (
         <ClientTargets ws={ws} agency={agency} client={client} pages={clientPages} pagesHook={pages} pageAssignments={pageAssignments}
                        canViewTargets={canTargets} toast={toast} />
+      )}
+      {shownTab === 'content' && work && (
+        <ContentSection ws={ws} agency={agency} flows={work.flows} work={work.work} clients={clients.rows} pages={pages.rows}
+                        pageAssignments={pageAssignments.rows} staff={work.staff} toast={toast} clientId={client.id} />
       )}
       {shownTab === 'pages' && (
         <PagesTab agency={agency} client={client} pages={pages} pageAssignments={pageAssignments}

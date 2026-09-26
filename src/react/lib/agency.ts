@@ -28,7 +28,7 @@ export const CAPABILITIES: { key: Capability; label: string; hint: string; live:
   { key: 'enter_views', label: 'Enter weekly views', hint: 'Per client role: only on pages they hold', live: true },
   { key: 'manage_settings', label: 'Roles & access', hint: 'This screen, and the colour lists', live: true },
   { key: 'manage_workflows', label: 'Workflows & lists', hint: 'Workflow stages, task statuses, content formats', live: true },
-  { key: 'view_all_work', label: 'See all work', hint: 'Phase 2', live: false },
+  { key: 'view_all_work', label: 'See all work', hint: 'Every content item and task — and give tasks to anyone in the department', live: true },
   { key: 'approve_incentives', label: 'Approve incentives', hint: 'Still HR today', live: false },
   { key: 'manage_hr', label: 'HR', hint: 'Still the HR department today', live: false },
   { key: 'manage_payroll', label: 'Payroll', hint: 'Still the HR department today', live: false },

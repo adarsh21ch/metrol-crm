@@ -7,6 +7,7 @@ type Row = Record<string, unknown>
 export interface AppNotification {
   id: string
   type: 'broadcast' | 'birthday' | 'shift_reminder' | 'visit_request' | 'wfh_request' | 'incentive_claim' | 'views_reminder'
+    | 'task_assigned' | 'task_unassigned' | 'task_overdue' | 'task_comment'
   title: string
   body: string
   createdAt: string
@@ -140,6 +141,22 @@ export async function notifyApprovers(type: 'visit_request' | 'wfh_request' | 'i
   if (err) { console.error('[Metrol CRM] notify_approvers failed:', err.message); return }
   void supabase.functions.invoke('notify-approvers', { body: { title, body } })
     .then(({ error: pushErr }) => { if (pushErr) void functionErrorMessage(pushErr).then((m) => console.error('[Metrol CRM] notify-approvers push failed:', m)) })
+}
+
+/**
+ * The phone push for the hand-offs (0044). The database has already written
+ * every notification a write caused — a task handed on, a comment, an
+ * overdue alert — so this carries no words and no names: it asks the
+ * push-notifications Edge Function to deliver whatever task notifications
+ * are still waiting. Called after any write that can hand work on.
+ *
+ * Silent by design, like notifyApprovers: the bell already has the row; a
+ * push that fails (or a function not deployed yet) costs only the push.
+ */
+export function flushPushes(): void {
+  if (isDemo()) return
+  void supabase.functions.invoke('push-notifications', { body: {} })
+    .then(({ error: pushErr }) => { if (pushErr) void functionErrorMessage(pushErr).then((m) => console.error('[Metrol CRM] push-notifications failed:', m)) })
 }
 
 /* ───────────────────────────────────────────────────────────────────────────

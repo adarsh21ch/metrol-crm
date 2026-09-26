@@ -22,6 +22,8 @@ export interface AgencySchema {
   targets: boolean
   /** 0043 — workflows, stages, task statuses, content formats */
   workflows: boolean
+  /** 0044 — content items, tasks, the hand-off */
+  work: boolean
 }
 
 /** PostgREST's "no such table" (PGRST205 today, 42P01 from older versions). */
@@ -34,7 +36,7 @@ export function isMissingTable(err: { code?: string; message?: string } | null |
 let probe: Promise<AgencySchema> | null = null
 
 export function agencySchema(): Promise<AgencySchema> {
-  if (isDemo()) return Promise.resolve({ access: true, clients: true, targets: true, workflows: true })
+  if (isDemo()) return Promise.resolve({ access: true, clients: true, targets: true, workflows: true, work: true })
   probe ??= (async () => {
     const has = async (table: string) => {
       // A plain one-row read, NOT a HEAD request: PostgREST answers HEAD on a
@@ -47,10 +49,10 @@ export function agencySchema(): Promise<AgencySchema> {
       // still a table that exists.
       return !isMissingTable(error)
     }
-    const [access, clients, targets, workflows] = await Promise.all([
-      has('roles'), has('client_statuses'), has('view_targets'), has('workflows'),
+    const [access, clients, targets, workflows, work] = await Promise.all([
+      has('roles'), has('client_statuses'), has('view_targets'), has('workflows'), has('content_items'),
     ])
-    return { access, clients, targets, workflows }
+    return { access, clients, targets, workflows, work }
   })()
   return probe
 }
