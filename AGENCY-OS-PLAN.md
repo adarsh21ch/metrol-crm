@@ -1,4 +1,4 @@
-# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Round 1 BUILT, 0043 installed)
+# Agency OS — the plan (Phase 1 BUILT 2026-09-26; Phase 2 APPROVED 2026-09-26 — Rounds 1–2 BUILT, 0043 installed, 0044 not yet)
 
 Brief, 2026-09-24. There are three inputs:
 - HR's 7-page "Integrated Digital Marketing Agency Software Blueprint"
@@ -427,7 +427,8 @@ THE ACCESS RULE applies throughout: owner AND HR get everything (`is_owner_level
   — all editable lists; seeded from the blueprint (§5).
 - Settings → Workflows: stages as rows, drag to reorder, owner role per stage.
 
-**Round 2 — content items, the hand-off, tasks (the heart of it).**
+**Round 2 — content items, the hand-off, tasks (the heart of it).** BUILT 2026-09-26
+(2f3cef8 + walk-through fixes; CLAUDE.md "Phase 2, Round 2"). 0044 NOT yet installed.
 - `content_items` (C-00001, client, page, workflow, stage, title, format, script /
   doc link, planned post date, due), `content_item_assignees`.
 - The golden-rule trigger: entering a stage creates a task for whoever holds the

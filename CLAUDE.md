@@ -6400,3 +6400,109 @@ and pasted the proof. All 8 rows were as expected:
 
 Settings → Workflows & lists on the real site now reads real rows. Nobody has
 looked at it signed in yet (Claude cannot sign in). Round 2 is next.
+
+# Phase 2, Round 2 — content items, the hand-off, tasks (2026-09-26)
+
+The round is 2f3cef8; the walk-through fixes are 25f238c and af11bc6. Plan:
+AGENCY-OS-PLAN.md §5 and §9. The build ran across two sessions (the first hit
+a usage limit while wiring the employee screen; the second finished it).
+
+## What shipped (2f3cef8)
+
+- **0044_content_and_tasks.sql** (NOT installed yet). `content_items`
+  (C-00001) + `content_item_assignees`; `tasks` (T-00001), `task_comments`
+  (internal by default), `task_events` (written only by the database);
+  notifications gain `task_id`, `pushed_at` and four types (task_assigned,
+  task_unassigned, task_overdue, task_comment).
+- **The golden rule is two triggers.** An item entering a stage makes that
+  stage's task for whoever holds the stage's role on the item, in this order:
+  named on the item → for the page-holder role (SMM), the page's holder →
+  the only person in that role on the client's team → a company-wide role's
+  only holder. Nobody found → the task waits "Nobody yet" and the item's
+  creator is told. Finishing the stage's task (a status ticked "done" in
+  Settings → Workflows & lists) moves the item to the next active stage.
+  Moving an item by hand (board drag, stage chip) closes whatever was open
+  on it ("Closed: the item moved to …"). `create_content_item()` is the only
+  way to add an item (it saves the people first, then runs the first
+  hand-off).
+- **Deadlines.** A stage's "due within N hours" becomes its task's due time.
+  Overdue → the assignee's reporting manager, else whoever gave the task;
+  once per deadline, on the next screen load (HrPage and Member both call
+  `remind_overdue_tasks()`, the birthday trick).
+- **Who.** An assignee may only move the status; whoever gave it, the
+  client's team / whoever manages the client, the assignee's manager, and a
+  "See all work" holder may change everything. "See all work" is live now:
+  every content item and task in the department, and giving tasks to anyone
+  in it. The owner and HR see and do everything (THE ACCESS RULE).
+- **push-notifications Edge Function** (NOT deployed yet): delivers the task
+  notifications the database wrote, claiming each by `pushed_at` so it goes
+  once. Same VAPID secrets as send-push. Until it is deployed, the bell still
+  shows every one of them.
+- **Screens.** Content (board by stage, one workflow at a time + list) and
+  Tasks (Mine · Given · All) in "Clients & content"; a client page's Content
+  tab (HR, the owner, an SMM via Weekly, the C&M head via Manage team);
+  every employee gets a Tasks tab (a Profile row on a phone) and a "My tasks"
+  card on Overview when something waits. `components/Board.tsx` is the leads
+  board's drag engine, now shared with Content.
+- Everything stays hidden until 0044 is on the database (schema probe
+  `work`), so the push was safe ahead of the SQL.
+
+## Judgement calls
+
+- **Tasks' head carries its own switch**, so on an employee's desktop
+  Member hands its tab strip to TasksSection (`nav` prop) to draw under the
+  title — the title stays where every other tab has it.
+- **"My tasks" draws nothing when nothing waits** (layout law, rule 7); the
+  Tasks tab / Profile row are the permanent ways in.
+- **Owner and HR open Tasks on All**, employees on Mine. A pick is
+  remembered for the tab session.
+- **Only "done" statuses move a reel on.** In the seeded list that is
+  Completed alone — marking a review task "Approved" does NOT advance it.
+  If Metrol wants Approved to advance too, tick "done" on it in Settings →
+  Workflows & lists (data, not code).
+- Finished items and tasks older than 30 days are not loaded (KEEP_DONE_DAYS
+  in useWork.ts); the database keeps them.
+
+## The walk-through: live demo at 1024×768 and 375px, found and fixed
+
+- The board's foot counted "waiting / late" across every workflow ("3 items
+  on Main page reel · 1 late" — the late one was a fan-page reel).
+- Content opened on the first workflow with anything on it; now on the one
+  with the most. A phone opens Content on Cards (eleven 220px columns show
+  one at a time there), and one Board · Cards · List switch replaces two.
+- HR's first view of Tasks was an empty "Mine".
+- "5 opens" on the My tasks card; its link now rides the title line.
+- Demo mode showed a salesperson the content team's tasks (no RLS in demo);
+  `demoVisible()` in useWork.ts restates task_visible() for the demo logins.
+- Five KPI cards at 861–1080px left a hole (employee Overview); the fifth
+  takes two columns there.
+
+## Verified
+
+- Local kit: every migration + all suites; 0044's own tests (work_tests.sql)
+  all as expected — hand-off order, the two-editors case, naming a person
+  hands them the waiting task, sales sees 0/0/0, assignee limits, overdue to
+  manager and to the giver, comments + thread, pickers, deletes. 0044 re-run
+  on a used database: clean, proof rows as expected.
+- typecheck + build clean. Live demo: HR (Content board, item modal, Tasks
+  All, status → Completed hands C-00002 on to Shoot required "Nobody yet",
+  board drag hands C-00003's Script ready task to the page holder), owner
+  (Tasks), salesperson (Tasks tab, My tasks card, Profile → Tasks, leads
+  board drag still works on the shared Board), SMM `as=cm` (My tasks, client
+  page Content tab on Cards) — desktop and 375px.
+
+## NOT verified
+
+- Nothing against the real database: 0044 is not installed.
+- Push delivery: the function is not deployed.
+- The C&M head (`as=cmlead`) path to a client's Content tab was not opened.
+
+## Still open
+
+- **0044 not installed; push-notifications not deployed.** Expected proof
+  rows: 5 of 5 / yes / yes / C-00001 and T-00001 / probably "DOP /
+  Production (Shoot required), Editor (Editing)" until clients have those on
+  their Team tab / 5 of 5 / the owner and HR logins / 1.
+- Round 3 (versions and reviews) next, per AGENCY-OS-PLAN.md §9.
+- The repo is PUBLIC. Q1, Q2, Q5, Q7, Q9, Q12–Q17 unanswered. is_hr()
+  matches department NAMES.
