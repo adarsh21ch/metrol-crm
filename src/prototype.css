@@ -938,6 +938,13 @@ kbd{
    of its own under every page title — the single most-repeated complaint on
    this project. It stays on the title's line at every width. */
 .page-head > .section-tools{ width:auto; margin-left:auto; flex-wrap:nowrap }
+/* Tasks → History: tabs, a person and a month are too many for one phone
+   line. The tabs keep a row; the person and the month share the next. */
+@media (max-width:860px){
+  .page-head > .section-tools.tools--stack{ width:100%; margin-left:0; flex-wrap:wrap }
+  .tools--stack > select{ flex:1 1 140px; min-width:0 }
+  .tools--stack > .month-step{ width:auto; flex:none; margin-left:0 }
+}
 /* Cards is a phone-only view — above the breakpoint the grid is always the
    resizable table, so the button would be a third option that does nothing. */
 @media (min-width:861px){ .seg--leads .seg-cards{ display:none } }

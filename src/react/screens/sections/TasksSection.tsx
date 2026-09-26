@@ -139,7 +139,7 @@ export function TasksSection({
         {lead}
         <h1>Tasks</h1>
         {!history && <PhoneViewPick view={phoneView} onPick={setPhoneView} className="head-cta" />}
-        <div className="section-tools">
+        <div className={'section-tools' + (history ? ' tools--stack' : '')}>
           <div className="seg" role="group" aria-label="Whose tasks">
             {meEmployee && <button className={whose === 'mine' ? 'is-on' : ''} onClick={() => setWhose('mine')}>Mine</button>}
             <button className={whose === 'given' ? 'is-on' : ''} onClick={() => setWhose('given')}>Given</button>
@@ -155,7 +155,10 @@ export function TasksSection({
           {history && (
             <div className="month-step">
               <button className="btn btn--sm" aria-label="Previous month" onClick={() => setHistMonth((m) => stepHistoryMonth(m, -1))}>←</button>
-              <strong>{historyMonthLabel(histMonth)}</strong>
+              <strong>
+                <span className="on-desktop">{historyMonthLabel(histMonth)}</span>
+                <span className="on-phone">{historyMonthLabel(histMonth).replace(/^(\w{3})\w+/, '$1')}</span>
+              </strong>
               <button className="btn btn--sm" aria-label="Next month" disabled={histMonth >= thisMonth}
                       onClick={() => setHistMonth((m) => stepHistoryMonth(m, 1))}>→</button>
             </div>

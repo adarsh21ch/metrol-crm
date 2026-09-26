@@ -184,7 +184,7 @@ export function WeeklyViewsSection({
                         <button type="button" className="wv-auto" disabled={!can || same || st === 'saving'}
                                 title={`Public views ${a.reels === 1 ? 'its reel' : `its ${a.reels} reels`} gained ${weekLabel(week)}, read automatically${a.reelsUnmeasured ? ` (${a.reelsUnmeasured} had no earlier reading, so not counted)` : ''}. Insights' account views are usually higher — type that when you have it; tap to use this one.`}
                                 onClick={() => { setDrafts((p) => ({ ...p, [channel.id]: n })); void save(channel, n) }}>
-                          <span className="on-desktop">Reels&nbsp;</span>{fmtCompact(a.viewsGained)}{same ? ' ✓' : ''}
+                          Reels&nbsp;{fmtCompact(a.viewsGained)}{same ? ' ✓' : ''}
                         </button>
                       )
                     })()}
