@@ -2,15 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   demoAccess, demoClientAssignments, demoClients, demoContentItems, demoDepartments, demoEmployees, demoItemPeople, demoMe,
-  demoPageAssignments, demoTaskStatuses, demoTasks, demoThreads, demoWorkflowStages, isDemo,
+  demoPageAssignments, demoReviews, demoTaskStatuses, demoTasks, demoThreads, demoVersions, demoWorkflowStages, isDemo,
 } from '@/data/demo'
 import { HR_DEPARTMENT } from '@/lib/hr'
 import { loadTable, newId, str, type Row } from '@/data/agencySchema'
 import { flushPushes } from '@/data/useNotifications'
 import type { StaffPick } from '@/data/useClientTeam'
 import {
-  fmtStamp, nextStage, personFor, type ContentItem, type ItemDraft, type ItemPatch, type ItemPerson, type Priority,
-  type Task, type TaskDraft, type TaskPatch, type ThreadEntry,
+  backStage, firstNoteLine, fmtStamp, nextStage, normalizeUrl, personFor, reviewWords, safeUrl,
+  type ContentItem, type ContentReview, type ContentVersion, type ItemDraft, type ItemPatch, type ItemPerson, type Priority,
+  type ReviewDraft, type ReviewNote, type Task, type TaskDraft, type TaskPatch, type ThreadEntry,
 } from '@/lib/work'
 
 const toItem = (r: Row): ContentItem => ({
@@ -53,6 +54,38 @@ const toTask = (r: Row): Task => ({
   completedAt: (r.completed_at as string | null) ?? null,
   createdBy: (r.created_by as string | null) ?? null,
   creatorName: str(r.creator_name),
+  createdAt: str(r.created_at),
+})
+
+const toVersion = (r: Row): ContentVersion => ({
+  id: str(r.id),
+  itemId: str(r.item_id),
+  number: Number(r.number ?? 0),
+  url: str(r.url),
+  note: str(r.note),
+  stageId: (r.stage_id as string | null) ?? null,
+  createdBy: (r.created_by as string | null) ?? null,
+  authorName: str(r.author_name),
+  createdAt: str(r.created_at),
+})
+
+const toNotes = (v: unknown): ReviewNote[] =>
+  (Array.isArray(v) ? v : []).map((n: { at?: unknown; text?: unknown }) => ({
+    at: typeof n?.at === 'number' ? n.at : null,
+    text: str(n?.text),
+  })).filter((n) => n.text)
+
+const toReview = (r: Row): ContentReview => ({
+  id: str(r.id),
+  itemId: str(r.item_id),
+  versionId: (r.version_id as string | null) ?? null,
+  stageId: str(r.stage_id),
+  decision: r.decision === 'changes' ? 'changes' : 'approved',
+  notes: toNotes(r.notes),
+  forClient: !!r.for_client,
+  backToStageId: (r.back_to_stage_id as string | null) ?? null,
+  reviewerId: (r.reviewer_id as string | null) ?? null,
+  reviewerName: str(r.reviewer_name),
   createdAt: str(r.created_at),
 })
 
@@ -132,21 +165,29 @@ function demoVisible(): { items: ContentItem[]; tasks: Task[] } {
 }
 
 /** content_item_enter_stage(): close what the move left behind, then make
- *  the new stage's task unless one is open already. */
-function demoEnterStage(it: ContentItem, tasks: Task[], people: ItemPerson[]): Task[] {
+ *  the new stage's task unless one is open already. A stage the reel comes
+ *  BACK to goes to whoever held it last time, unless somebody is named for
+ *  the role (0045); a review that sent it back says so on both tasks. */
+function demoEnterStage(
+  it: ContentItem, tasks: Task[], people: ItemPerson[], why?: { closeNote: string; handoffNote: string },
+): Task[] {
   const st = demoWorkflowStages.find((s) => s.id === it.stageId)
   if (!st) return tasks
   const done = demoDoneStatus()
   const doneIds = new Set(demoTaskStatuses.filter((s) => s.isDone).map((s) => s.id))
   let out = tasks.map((t) => {
     if (t.contentItemId !== it.id || t.stageId === it.stageId || doneIds.has(t.statusId)) return t
-    demoLog(t.id, { event: 'status', body: 'Closed: the item moved to ' + st.name,
+    demoLog(t.id, { event: 'status', body: why?.closeNote ?? 'Closed: the item moved to ' + st.name,
       fromValue: demoTaskStatuses.find((s) => s.id === t.statusId)?.name ?? null, toValue: 'Completed' })
     return { ...t, statusId: done, completedAt: new Date().toISOString() }
   })
   if (st.isDone) return out
   if (out.some((t) => t.contentItemId === it.id && t.stageId === st.id && !doneIds.has(t.statusId))) return out
-  const assigneeId = st.ownerRoleId ? demoPersonFor(it, st.ownerRoleId, people) : null
+  const active = (id: string | null) => !!id && demoEmployees.some((e) => e.id === id && e.status !== 'resigned')
+  const named = people.find((p) => p.itemId === it.id && p.roleId === st.ownerRoleId && active(p.employeeId))?.employeeId ?? null
+  const lastTime = out.filter((t) => t.contentItemId === it.id && t.stageId === st.id && t.roleId === st.ownerRoleId && active(t.assigneeId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.assigneeId ?? null
+  const assigneeId = st.ownerRoleId ? named ?? lastTime ?? demoPersonFor(it, st.ownerRoleId, people) : null
   const n = ++demoSeq
   const t: Task = {
     id: 'td' + n, code: 'T-' + String(n).padStart(5, '0'), title: `${st.name} — ${it.title}`, description: '',
@@ -156,13 +197,14 @@ function demoEnterStage(it: ContentItem, tasks: Task[], people: ItemPerson[]): T
     statusId: demoFirstStatus(), completedAt: null, createdBy: demoMe.id, creatorName: demoMe.name,
     createdAt: new Date().toISOString(),
   }
-  demoLog(t.id, { event: 'created', body: 'Hand-off: the item reached ' + st.name, fromValue: null, toValue: t.assigneeName || null })
+  demoLog(t.id, { event: 'created', body: why?.handoffNote ?? 'Hand-off: the item reached ' + st.name, fromValue: null, toValue: t.assigneeName || null })
   out = [t, ...out]
   return out
 }
 
 /**
- * Content items and tasks (0044). Loaded once per screen that shows them;
+ * Content items and tasks (0044), their versions and reviews (0045). Loaded
+ * once per screen that shows them;
  * every write that can hand work on reloads both lists, because the
  * database may have closed one task and made another — the app never
  * guesses what the triggers did, it reads it back.
@@ -174,13 +216,18 @@ export function useWork(enabled = true) {
   const [items, setItems] = useState<ContentItem[]>([])
   const [people, setPeople] = useState<ItemPerson[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [versions, setVersions] = useState<ContentVersion[]>([])
+  const [reviews, setReviews] = useState<ContentReview[]>([])
   const [installed, setInstalled] = useState(true)
+  // 0045 — versions and reviews. Until it is on the database the screens
+  // stay exactly as Round 2 left them.
+  const [versionsOn, setVersionsOn] = useState(false)
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
   const fetched = useRef(false)
   // Demo writes read the latest lists without widening every callback's deps.
-  const cur = useRef({ items, people, tasks })
-  cur.current = { items, people, tasks }
+  const cur = useRef({ items, people, tasks, versions, reviews })
+  cur.current = { items, people, tasks, versions, reviews }
 
   const load = useCallback(async (force = false) => {
     if (!enabled) { setLoading(false); return }
@@ -189,20 +236,29 @@ export function useWork(enabled = true) {
     if (isDemo()) {
       const v = demoVisible()
       setItems(v.items); setTasks(v.tasks)
-      setPeople(demoItemPeople.filter((p) => v.items.some((i) => i.id === p.itemId)))
+      const seen = (itemId: string) => v.items.some((i) => i.id === itemId)
+      setPeople(demoItemPeople.filter((p) => seen(p.itemId)))
+      setVersions(demoVersions.filter((x) => seen(x.itemId)))
+      setReviews(demoReviews.filter((x) => seen(x.itemId)))
+      setVersionsOn(true)
       setLoading(false)
       return
     }
     const since = new Date(Date.now() - KEEP_DONE_DAYS * 86400000).toISOString()
     const recent = `completed_at.is.null,completed_at.gte.${since}`
-    const [i, p, t] = await Promise.all([
+    // A version or review loads with its reel: the views carry the reel's finish time.
+    const withItem = `item_completed_at.is.null,item_completed_at.gte.${since}`
+    const [i, p, t, v, r] = await Promise.all([
       loadTable('content_items', toItem, (q) => q.or(recent).order('created_at', { ascending: false })),
       loadTable('content_item_assignees', toPerson),
       loadTable('v_tasks', toTask, (q) => q.or(recent).order('created_at', { ascending: false })),
+      loadTable('v_content_versions', toVersion, (q) => q.or(withItem).order('number', { ascending: false })),
+      loadTable('v_content_reviews', toReview, (q) => q.or(withItem).order('created_at', { ascending: true })),
     ])
     setInstalled(!i.missing)
-    setError(i.error ?? p.error ?? t.error)
-    setItems(i.rows); setPeople(p.rows); setTasks(t.rows)
+    setVersionsOn(!i.missing && !v.missing && !r.missing)
+    setError(i.error ?? p.error ?? t.error ?? v.error ?? r.error)
+    setItems(i.rows); setPeople(p.rows); setTasks(t.rows); setVersions(v.rows); setReviews(r.rows)
     setLoading(false)
   }, [enabled])
 
@@ -299,10 +355,13 @@ export function useWork(enabled = true) {
     setItems((p) => p.filter((x) => x.id !== id))
     setTasks((p) => p.filter((t) => t.contentItemId !== id))
     setPeople((p) => p.filter((x) => x.itemId !== id))
+    setVersions((p) => p.filter((x) => x.itemId !== id))
+    setReviews((p) => p.filter((x) => x.itemId !== id))
     if (isDemo()) return null
     const { data, error: err } = await supabase.from('content_items').delete().eq('id', id).select('id')
     if (err || !data || data.length === 0) {
       setItems(before.items); setTasks(before.tasks); setPeople(before.people)
+      setVersions(before.versions); setReviews(before.reviews)
       return err ? sentence(err) : 'Only management or the client\'s manager can delete an item.'
     }
     return null
@@ -468,6 +527,105 @@ export function useWork(enabled = true) {
     return null
   }, [])
 
+  /* --------------------------------------------- versions & reviews (0045) */
+
+  /** V1, V2… — a link. The database numbers it and notes the stage it was made in. */
+  const addVersion = useCallback(async (itemId: string, url: string, note: string): Promise<string | null> => {
+    const link = normalizeUrl(url)
+    if (!safeUrl(link)) return 'Paste the whole link — it starts with https://'
+    if (isDemo()) {
+      const it = cur.current.items.find((x) => x.id === itemId)
+      const n = cur.current.versions.filter((x) => x.itemId === itemId).reduce((m, x) => Math.max(m, x.number), 0) + 1
+      setVersions((p) => [{
+        id: newId('cv'), itemId, number: n, url: link, note: note.trim(), stageId: it?.stageId ?? null,
+        createdBy: demoMe.id, authorName: demoMe.name, createdAt: new Date().toISOString(),
+      }, ...p])
+      return null
+    }
+    const { data, error: err } = await supabase.from('content_versions')
+      .insert({ item_id: itemId, url: link, note: note.trim() || null }).select('id').maybeSingle()
+    if (err || !data) return err ? sentence(err) : 'You cannot add a version to this item.'
+    // Read it back through the view, for the author's name.
+    const back = await supabase.from('v_content_versions').select('*').eq('id', (data as Row).id).maybeSingle()
+    if (back.data) setVersions((p) => [toVersion(back.data as Row), ...p])
+    return null
+  }, [])
+
+  /** A wrong link, corrected — only until somebody reviews that version. */
+  const fixVersion = useCallback(async (id: string, url: string, note: string): Promise<string | null> => {
+    const before = cur.current.versions.find((x) => x.id === id)
+    if (!before) return 'That version is no longer on the list.'
+    if (cur.current.reviews.some((r) => r.versionId === id)) return `V${before.number} has been reviewed — add a new version instead.`
+    const link = normalizeUrl(url)
+    if (!safeUrl(link)) return 'Paste the whole link — it starts with https://'
+    setVersions((p) => p.map((x) => (x.id === id ? { ...x, url: link, note: note.trim() } : x)))
+    if (isDemo()) return null
+    const { data, error: err } = await supabase.from('content_versions')
+      .update({ url: link, note: note.trim() || null }).eq('id', id).select('id').maybeSingle()
+    if (err || !data) {
+      setVersions((p) => p.map((x) => (x.id === id ? before : x)))
+      return err ? sentence(err) : 'Only whoever added a version can correct it.'
+    }
+    return null
+  }, [])
+
+  /** Approve (the reel moves on) or ask for changes (it goes back, and whoever
+   *  made it there last time gets the task with the notes). One call; the
+   *  database does the moving — review_content_item(). */
+  const review = useCallback(async (d: ReviewDraft): Promise<string | null> => {
+    if (d.decision === 'changes' && d.notes.length === 0) return 'Say what to change.'
+    if (isDemo()) {
+      const it = cur.current.items.find((x) => x.id === d.itemId)
+      if (!it) return 'That item is no longer on the list.'
+      const st = demoWorkflowStages.find((s) => s.id === it.stageId)
+      if (!st?.isReview) return `It is not waiting for a review any more — it is at ${st?.name ?? 'another stage'}.`
+      const mine = cur.current.versions.filter((x) => x.itemId === it.id)
+      const v = mine.find((x) => x.id === d.versionId) ?? null
+      const back = d.decision === 'changes'
+        ? demoWorkflowStages.find((s) => s.id === d.backToStageId) ?? backStage(demoWorkflowStages, st, mine, d.versionId)
+        : null
+      if (d.decision === 'changes' && !back) return 'Changes go back to an earlier stage of this workflow that is in use.'
+      const now = new Date().toISOString()
+      const what = reviewWords(d.decision, st.clientVisible, v?.number ?? null)
+      setReviews((p) => [...p, {
+        id: newId('cr'), itemId: it.id, versionId: v?.id ?? null, stageId: st.id, decision: d.decision, notes: d.notes,
+        forClient: st.clientVisible, backToStageId: back?.id ?? null, reviewerId: demoMe.id, reviewerName: demoMe.name,
+        createdAt: now,
+      }])
+      const doneIds = new Set(demoTaskStatuses.filter((s) => s.isDone).map((s) => s.id))
+      if (back) {
+        const moved = { ...it, stageId: back.id, stageEnteredAt: now, completedAt: null }
+        setItems((p) => p.map((x) => (x.id === it.id ? moved : x)))
+        setTasks(demoEnterStage(moved, cur.current.tasks, cur.current.people, {
+          closeNote: `${what} — back to ${back.name}`, handoffNote: `${what}: ${firstNoteLine(d.notes)}`,
+        }))
+        return null
+      }
+      // Approved: the review's task is finished, and the reel moves on.
+      let list = cur.current.tasks.map((t) => {
+        if (t.contentItemId !== it.id || t.stageId !== it.stageId || doneIds.has(t.statusId)) return t
+        demoLog(t.id, { event: 'status', body: what,
+          fromValue: demoTaskStatuses.find((s) => s.id === t.statusId)?.name ?? null, toValue: 'Completed' })
+        return { ...t, statusId: demoDoneStatus(), completedAt: now }
+      })
+      const nx = nextStage(demoWorkflowStages, st)
+      if (nx) {
+        const moved = { ...it, stageId: nx.id, stageEnteredAt: now, completedAt: nx.isDone ? now : null }
+        setItems((p) => p.map((x) => (x.id === it.id ? moved : x)))
+        list = demoEnterStage(moved, list, cur.current.people)
+      }
+      setTasks(list)
+      return null
+    }
+    const { error: err } = await supabase.rpc('review_content_item', {
+      p_item: d.itemId, p_version: d.versionId, p_decision: d.decision,
+      p_notes: d.notes.map((n) => ({ at: n.at, text: n.text })), p_back_to: d.backToStageId,
+    })
+    if (err) return sentence(err)
+    await settle()
+    return null
+  }, [settle])
+
   /** Who this person may give a task to — on a client, or anyone at all. */
   const assignable = useCallback(async (clientId: string | null): Promise<{ rows: StaffPick[]; error: string | null }> => {
     if (isDemo()) {
@@ -492,10 +650,11 @@ export function useWork(enabled = true) {
   }, [])
 
   return {
-    items, people, tasks, installed, loading, error,
+    items, people, tasks, versions, reviews, installed, versionsOn, loading, error,
     reload: () => load(true),
     createItem, updateItem, moveItem, deleteItem, setPerson,
     createTask, updateTask, deleteTask, thread, comment, assignable,
+    addVersion, fixVersion, review,
   }
 }
 

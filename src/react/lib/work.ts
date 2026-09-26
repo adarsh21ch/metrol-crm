@@ -1,5 +1,6 @@
-/* Phase 2, Round 2 (0044) — content items and tasks. What the database does
-   is in 0044_content_and_tasks.sql; this file is the vocabulary the screens
+/* Phase 2, Rounds 2–3 (0044, 0045) — content items, tasks, versions and
+   reviews. What the database does is in 0044_content_and_tasks.sql and
+   0045_versions_and_reviews.sql; this file is the vocabulary the screens
    share, plus the few rules the screens restate (and demo mode runs) —
    each one names the SQL it mirrors, and the two are kept in step. */
 import type { PageKind, Role, TaskStatus, Tone, Workflow, WorkflowStage } from './agency'
@@ -181,6 +182,162 @@ export function personFor(o: {
   if (o.isPageHolderRole && o.pageHolders.length > 0) return o.pageHolders[0]!
   const team = [...new Set(o.teamHolders)]
   return team.length === 1 ? team[0]! : null
+}
+
+/* ------------------------------------------ Round 3 (0045): versions & reviews */
+
+/** V1, V2… of a reel — a link (Drive, Frame.io), never a file (Q14). */
+export interface ContentVersion {
+  id: string
+  itemId: string
+  number: number
+  url: string
+  note: string
+  /** The stage the reel was in when it was added — where "changes" goes back to. */
+  stageId: string | null
+  /** A profile id: whoever added it may correct the link until it is reviewed. */
+  createdBy: string | null
+  authorName: string
+  createdAt: string
+}
+
+/** One point of a review: a moment of the video in seconds, or null for
+ *  a note about the whole thing. */
+export interface ReviewNote { at: number | null; text: string }
+
+export type Decision = 'approved' | 'changes'
+
+export interface ContentReview {
+  id: string
+  itemId: string
+  /** null: reviewed as it stood, with no version on file. */
+  versionId: string | null
+  stageId: string
+  decision: Decision
+  notes: ReviewNote[]
+  /** The client's answer, recorded by the team (a review stage the client sees). */
+  forClient: boolean
+  backToStageId: string | null
+  reviewerId: string | null
+  reviewerName: string
+  createdAt: string
+}
+
+export interface ReviewDraft {
+  itemId: string
+  versionId: string | null
+  decision: Decision
+  notes: ReviewNote[]
+  /** Where "changes" sends it; null = the database's default (backStage()). */
+  backToStageId: string | null
+}
+
+/** A version being typed: the link, and what changed. */
+export interface VersionDraft { url: string; note: string }
+export const NO_VERSION_DRAFT: VersionDraft = { url: '', note: '' }
+
+/** fmt_moment(): "0:14", "1:02:03". */
+export function fmtMoment(seconds: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  return h > 0 ? `${h}:${pad(m)}:${pad(seconds % 60)}` : `${Math.floor(seconds / 60)}:${pad(seconds % 60)}`
+}
+
+/** "0:14 cut this", "1:02:03 - louder", "0.14 cut this", "at 0:14: cut this". */
+const MOMENT = /^(?:at\s+)?(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?(?:\s*[-–—:,)]\s*|\s+)(.+)$/i
+
+/** What a reviewer typed → the notes review_notes_ok() takes. Every line is a
+ *  note; one that starts with a time is a note at that moment of the video. */
+export function parseNotes(text: string): ReviewNote[] {
+  const out: ReviewNote[] = []
+  for (const raw of text.split('\n')) {
+    const line = raw.trim().replace(/^[-•*]\s+/, '')
+    if (!line) continue
+    const m = MOMENT.exec(line)
+    let at: number | null = null
+    let body = line
+    if (m) {
+      const a = Number(m[1])
+      const b = Number(m[2])
+      const c = m[3] != null ? Number(m[3]) : null
+      const secs = c == null ? (b < 60 ? a * 60 + b : NaN) : (b < 60 && c < 60 ? a * 3600 + b * 60 + c : NaN)
+      if (Number.isFinite(secs) && secs <= 86400 && m[4]!.trim()) { at = secs; body = m[4]!.trim() }
+    }
+    out.push({ at, text: body.slice(0, 1000) })
+  }
+  return out.slice(0, 50)
+}
+
+/** Only a web address is ever drawn as a link — never javascript: or data:. */
+export const safeUrl = (u: string | null | undefined): string | null => {
+  const t = (u ?? '').trim()
+  return /^https?:\/\/\S+$/i.test(t) ? t : null
+}
+
+/** What somebody pasted → a link the database takes: "drive.google.com/…"
+ *  gains its https://. Anything else is left for the database to refuse. */
+export function normalizeUrl(u: string): string {
+  const t = u.trim()
+  if (!t || /^https?:\/\//i.test(t)) return t
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/i.test(t) ? 'https://' + t : t
+}
+
+/** The stages a review may send an item back to: active, unfinished, and
+ *  earlier in its workflow — in the workflow's order. */
+export function earlierStages(stages: WorkflowStage[], current: WorkflowStage): WorkflowStage[] {
+  return stages
+    .filter((s) => s.workflowId === current.workflowId && s.isActive && !s.isDone
+      && (s.sortOrder < current.sortOrder || (s.sortOrder === current.sortOrder && s.name < current.name)))
+    .sort((a, b) => a.sortOrder - b.sortOrder || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+}
+
+/** review_back_stage() and stage_send_back(), restated: the stage the
+ *  reviewed version was made in; else the latest version made earlier;
+ *  else the nearest earlier stage another role acts on (a client's changes
+ *  skip the SMM's own review and land with the editor); else the stage before. */
+export function backStage(
+  stages: WorkflowStage[], current: WorkflowStage, versions: ContentVersion[], versionId: string | null,
+): WorkflowStage | null {
+  const earlier = earlierStages(stages, current)
+  const inEarlier = (id: string | null) => (id ? earlier.find((s) => s.id === id) ?? null : null)
+  const nearestFirst = [...earlier].reverse()
+  return inEarlier(versions.find((v) => v.id === versionId)?.stageId ?? null)
+    ?? [...versions].sort((a, b) => b.number - a.number).map((v) => inEarlier(v.stageId)).find((s) => !!s)
+    ?? nearestFirst.find((s) => !!s.ownerRoleId && s.ownerRoleId !== current.ownerRoleId)
+    ?? nearestFirst[0] ?? null
+}
+
+/** The stage that makes what the next one reviews (Editing, before SMM
+ *  review): where a version is added as a matter of course. */
+export function makesVersion(stages: WorkflowStage[], stage: WorkflowStage): boolean {
+  return !stage.isReview && !stage.isDone && !!nextStage(stages, stage)?.isReview
+}
+
+/** The words review_content_item() records: "Approved V2", "The client asked
+ *  for changes on V1". */
+export function reviewWords(decision: Decision, forClient: boolean, versionNumber: number | null): string {
+  if (decision === 'approved') return (forClient ? 'The client approved' : 'Approved') + (versionNumber != null ? ` V${versionNumber}` : '')
+  return (forClient ? 'The client asked for changes' : 'Changes asked') + (versionNumber != null ? ` on V${versionNumber}` : '')
+}
+
+/** A review's first note, as its hand-off notice carries it:
+ *  "0:14 cut this pause (+2 more)". */
+export function firstNoteLine(notes: ReviewNote[]): string {
+  const n = notes[0]
+  if (!n) return ''
+  const line = (n.at != null ? fmtMoment(n.at) + ' ' : '') + n.text.trim()
+  return (line.length > 90 ? line.slice(0, 90) + '…' : line) + (notes.length > 1 ? ` (+${notes.length - 1} more)` : '')
+}
+
+/** A reel's version as a card shows it: "V2" — and ↺ while changes asked for
+ *  have not had a newer version yet. null when there is nothing to show. */
+export function versionMark(versions: ContentVersion[], reviews: ContentReview[]): { label: string; changes: boolean } | null {
+  if (versions.length === 0 && reviews.length === 0) return null
+  const latest = versions.reduce<ContentVersion | null>((m, v) => (!m || v.number > m.number ? v : m), null)
+  const last = reviews.reduce<ContentReview | null>((m, r) => (!m || r.createdAt > m.createdAt ? r : m), null)
+  const changes = !!last && last.decision === 'changes' && (!latest || latest.createdAt <= last.createdAt)
+  return { label: latest ? `V${latest.number}` : '', changes }
 }
 
 /* ------------------------------------------------------------------ words */

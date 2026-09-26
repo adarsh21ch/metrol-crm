@@ -5,7 +5,7 @@ import type { ClientAssignment, ClientFinancials, ClientLink, EmployeeRole, List
 import { currentPeriod, workingDaysBetween } from '@/lib/hr'
 import { initials } from '@/lib/format'
 import { seedAccess } from '@/lib/access'
-import type { ContentItem, ItemPerson, Task, ThreadEntry } from '@/lib/work'
+import type { ContentItem, ContentReview, ContentVersion, ItemPerson, ReviewNote, Task, ThreadEntry } from '@/lib/work'
 import { addDays, lastCompletedWeek, weeksOf } from '@/lib/targets'
 
 /**
@@ -969,21 +969,80 @@ export const demoTasks: Task[] = [
     createdBy: 'cm2', creatorName: 'Deepanshu Rawat', createdAt: iso(1) }),
   task(11, { title: 'Scheduled — Triphala explained in 60 seconds', clientId: 'cl3', contentItemId: 'ci8', stageId: 'wf-fan-s9',
     roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', dueAt: at(18), statusId: 'ts1', createdAt: iso(1) }),
+  // Round 3: the finished stage tasks behind the reels that went round the
+  // review loop — C-00001 is back in Editing on Deepanshu's notes.
+  task(12, { title: 'Editing — 5 herbs for better sleep', clientId: 'cl3', contentItemId: 'ci1', stageId: 'wf-fan-s6',
+    roleId: 'role-editor', assigneeId: 'e9', assigneeName: 'Lokesh Yadav', statusId: 'ts6', completedAt: iso(3, 2), createdAt: iso(5) }),
+  task(13, { title: 'SMM review — 5 herbs for better sleep', clientId: 'cl3', contentItemId: 'ci1', stageId: 'wf-fan-s7',
+    roleId: 'role-smm', assigneeId: 'e7', assigneeName: 'Deepanshu Rawat', assigneeProfileId: 'cm2', statusId: 'ts6',
+    completedAt: iso(2), createdAt: iso(3, 2) }),
+  task(14, { title: 'Editing — Neem for skin — 3 ways', clientId: 'cl3', contentItemId: 'ci7', stageId: 'wf-fan-s6',
+    roleId: 'role-editor', assigneeId: 'e10', assigneeName: 'Vishal Gupta', statusId: 'ts6', completedAt: iso(1, 1), createdAt: iso(3) }),
+  task(15, { title: 'Editing — Rahu in the 7th house', clientId: 'cl4', contentItemId: 'ci4', stageId: 'wf-main-s6',
+    roleId: 'role-editor', assigneeId: 'e9', assigneeName: 'Lokesh Yadav', statusId: 'ts6', completedAt: iso(4), createdAt: iso(6) }),
+  task(16, { title: 'SMM review — Rahu in the 7th house', clientId: 'cl4', contentItemId: 'ci4', stageId: 'wf-main-s7',
+    roleId: 'role-smm', assigneeId: 'e6', assigneeName: 'Ritika Chandra', assigneeProfileId: 'cm1', statusId: 'ts6',
+    completedAt: iso(2), createdAt: iso(4) }),
 ]
 
 /** Two tasks with a history to read; every other one starts with its
  *  "created" line, written on the fly. */
 export const demoThreads: Record<string, ThreadEntry[]> = {
   t5: [
-    { kind: 'event', id: 'ev1', at: iso(2), who: 'Deepanshu Rawat', body: 'Hand-off: the item reached Editing', event: 'created', fromValue: null, toValue: 'Lokesh Yadav' },
+    { kind: 'event', id: 'ev1', at: iso(2), who: 'Deepanshu Rawat', body: 'Changes asked on V1: 0:03 Open on the herbs, not on the face (+2 more)', event: 'created', fromValue: null, toValue: 'Lokesh Yadav' },
     { kind: 'event', id: 'ev2', at: iso(1, 4), who: 'Lokesh Yadav', body: '', event: 'status', fromValue: 'Not started', toValue: 'In progress' },
     { kind: 'comment', id: 'cm-1', at: iso(1, 2), who: 'Deepanshu Rawat', body: 'Use the second take for the intro — the first one has wind noise.', event: null, fromValue: null, toValue: null },
+  ],
+  t13: [
+    { kind: 'event', id: 'ev4', at: iso(3, 2), who: 'Lokesh Yadav', body: 'Hand-off: the item reached SMM review', event: 'created', fromValue: null, toValue: 'Deepanshu Rawat' },
+    { kind: 'event', id: 'ev5', at: iso(2), who: 'Deepanshu Rawat', body: 'Changes asked on V1 — back to Editing', event: 'status', fromValue: 'Not started', toValue: 'Completed' },
   ],
   t1: [
     { kind: 'event', id: 'ev3', at: iso(1), who: 'Priya Sharma', body: '', event: 'created', fromValue: null, toValue: 'Ritika Chandra' },
     { kind: 'comment', id: 'cm-2', at: iso(0, 6), who: 'Priya Sharma', body: 'Subhash ji asked for it before Monday\'s call.', event: null, fromValue: null, toValue: null },
   ],
 }
+
+/* ------------------------------------------------ Phase 2, Round 3 (0045) */
+
+const ver = (id: string, itemId: string, number: number, authorName: string, daysAgo: number, url: string,
+  note: string, stageId: string, hour = 0): ContentVersion => ({
+  id, itemId, number, url, note, stageId, createdBy: null, authorName, createdAt: iso(daysAgo, hour),
+})
+
+/** Every state a version list has to draw: a V1 sent back with three notes
+ *  (C-00001, now in Editing again), a V1 waiting on the SMM (C-00007), one
+ *  the SMM approved that waits on the client (C-00004), a V1 → V2 round
+ *  (C-00008) and a posted reel's (C-00005). The editors have no login in
+ *  the demo, so nobody's own version is theirs to correct but HR's. */
+export const demoVersions: ContentVersion[] = [
+  ver('cv1', 'ci1', 1, 'Lokesh Yadav', 3, 'https://drive.google.com/file/d/demo-5-herbs-v1/view', 'First cut — 58 seconds', 'wf-fan-s6', 2),
+  ver('cv2', 'ci7', 1, 'Vishal Gupta', 1, 'https://drive.google.com/file/d/demo-neem-v1/view', '', 'wf-fan-s6', 1),
+  ver('cv3', 'ci4', 1, 'Lokesh Yadav', 4, 'https://frame.io/reviews/demo-rahu-v1', 'Graphics from the brand kit', 'wf-main-s6'),
+  ver('cv4', 'ci8', 1, 'Anjali Mehra', 7, 'https://drive.google.com/file/d/demo-triphala-v1/view', '', 'wf-fan-s6'),
+  ver('cv5', 'ci8', 2, 'Anjali Mehra', 5, 'https://drive.google.com/file/d/demo-triphala-v2/view', 'Subtitles fixed', 'wf-fan-s6'),
+  ver('cv6', 'ci5', 1, 'Lokesh Yadav', 11, 'https://drive.google.com/file/d/demo-navratri-v1/view', '', 'wf-fan-s6'),
+]
+
+const RITIKA = { id: 'cm1', name: 'Ritika Chandra' }
+const DEEPANSHU = { id: 'cm2', name: 'Deepanshu Rawat' }
+const rev = (id: string, itemId: string, versionId: string, stageId: string, decision: ContentReview['decision'],
+  by: { id: string; name: string }, daysAgo: number, notes: ReviewNote[] = [], backToStageId: string | null = null): ContentReview => ({
+  id, itemId, versionId, stageId, decision, notes, forClient: false, backToStageId,
+  reviewerId: by.id, reviewerName: by.name, createdAt: iso(daysAgo),
+})
+
+export const demoReviews: ContentReview[] = [
+  rev('cr1', 'ci1', 'cv1', 'wf-fan-s7', 'changes', DEEPANSHU, 2, [
+    { at: 3, text: 'Open on the herbs, not on the face' },
+    { at: 14, text: 'Cut the pause before tulsi' },
+    { at: null, text: 'Music is too loud under the voice' },
+  ], 'wf-fan-s6'),
+  rev('cr2', 'ci4', 'cv3', 'wf-main-s7', 'approved', RITIKA, 2, [{ at: null, text: 'Clean — sending it to the client' }]),
+  rev('cr3', 'ci8', 'cv4', 'wf-fan-s7', 'changes', RITIKA, 6, [{ at: 41, text: 'Subtitles run off the screen' }], 'wf-fan-s6'),
+  rev('cr4', 'ci8', 'cv5', 'wf-fan-s7', 'approved', RITIKA, 4),
+  rev('cr5', 'ci5', 'cv6', 'wf-fan-s7', 'approved', RITIKA, 10),
+]
 
 export const demoClientLinks: ClientLink[] = [
   { id: 'cln1', clientId: 'cl3', label: 'Podcast sheet', url: 'https://docs.google.com/spreadsheets/d/demo-podcast', sortOrder: 1 },

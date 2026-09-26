@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '@/components/Modal'
+import { VersionsPanel } from '@/components/VersionsPanel'
 import { isOwnerLevel, type Client, type Employee } from '@/lib/hr'
 import {
-  PRIORITIES, canEditWorkOn, eventWords, fmtStamp, fromLocalInput, nextStage, toLocalInput,
-  type Priority, type Task, type TaskPatch, type ThreadEntry,
+  NO_VERSION_DRAFT, PRIORITIES, canEditWorkOn, doneStatusIds, eventWords, fmtStamp, fromLocalInput, nextStage, toLocalInput,
+  type ContentItem, type ContentVersion, type Priority, type Task, type TaskPatch, type ThreadEntry, type VersionDraft,
 } from '@/lib/work'
 import type { StaffPick } from '@/data/useClientTeam'
 import type { Agency } from '@/data/useAgency'
@@ -27,6 +28,19 @@ export function taskRights(ws: Workspace, agency: Agency, staff: Employee[], cli
       || agency.access.canInDepartment(assignee.departmentId, 'view_all_work')))
   const mine = !!meEmployee && t.assigneeId === meEmployee
   return { manage, status: manage || mine, del: !t.contentItemId && (owner || (!!meProfile && t.createdBy === meProfile)) }
+}
+
+/** Who may do what with a reel's versions (0045's rules, restated):
+ *  `add` — the client's team, whoever manages it, anyone named on the reel
+ *  or holding a task on it; `fix` — whoever added that version, the owner, HR. */
+export function versionRights(ws: Workspace, agency: Agency, work: Work, client: Client | null, item: ContentItem) {
+  const me = agency.myEmployee?.id ?? null
+  const worksOn = !!me && (work.people.some((p) => p.itemId === item.id && p.employeeId === me)
+    || work.tasks.some((t) => t.contentItemId === item.id && t.assigneeId === me))
+  return {
+    add: (!!client && canEditWorkOn(ws, agency.access, client)) || worksOn,
+    fix: (v: ContentVersion) => isOwnerLevel(ws) || (!!ws.me?.id && v.createdBy === ws.me.id),
+  }
 }
 
 /**
@@ -62,6 +76,7 @@ export function TaskModal({
   const [people, setPeople] = useState<StaffPick[] | null>(null)
   const [thread, setThread] = useState<ThreadEntry[] | null>(null)
   const [note, setNote] = useState('')
+  const [verDraft, setVerDraft] = useState<VersionDraft>(NO_VERSION_DRAFT)
   const [busy, setBusy] = useState<'save' | 'delete' | 'comment' | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
@@ -88,6 +103,11 @@ export function TaskModal({
   const statuses = flows.statuses.filter((s) => s.isActive || s.id === task?.statusId).sort((a, b) => a.sortOrder - b.sortOrder)
   const client = clients.find((c) => c.id === (task?.clientId ?? clientId)) ?? null
   const seeClients = useMemo(() => clients.filter((c) => c.isActive || c.id === task?.clientId), [clients, task?.clientId])
+  // The reel's current task, still open — the one whose stage it sits in.
+  // Only that task decides a review; an older one just shows the history.
+  const done = useMemo(() => doneStatusIds(flows.statuses), [flows.statuses])
+  const current = !!task && !!item && task.stageId === item.stageId && !done.has(task.statusId)
+  const verRights = item ? versionRights(ws, agency, work, client, item) : null
 
   // Keep the current holder in the list even if the picker no longer offers
   // them (resigned, or off the client's team) — so the select shows the truth.
@@ -118,6 +138,12 @@ export function TaskModal({
       toast(assigneeId && assigneeId !== agency.myEmployee?.id ? 'Task given.' : 'Task added.')
       onClose()
       return
+    }
+    // A link typed but not yet added goes in with the save.
+    if (item && verDraft.url.trim()) {
+      const message = await work.addVersion(item.id, verDraft.url, verDraft.note)
+      if (message) { setBusy(null); setErr(message); return }
+      setVerDraft(NO_VERSION_DRAFT)
     }
     const patch: TaskPatch = {}
     if (rights.manage) {
@@ -195,11 +221,19 @@ export function TaskModal({
                    onChange={(e) => setTitle(e.target.value)} />
           </div>
         )}
-        {task && item && (
+        {current && item && next && (
           <p className="cell-mute" style={{ margin: 0 }}>
-            {stage?.isReview ? 'A review. ' : ''}
-            {next ? <>Finishing it moves {item.code} on to <b>{next.name}</b> — whoever holds that gets the next task.</> : null}
+            {stage?.isReview && work.versionsOn
+              ? <>Approving it moves {item.code} on to <b>{next.name}</b>.</>
+              : <>{stage?.isReview ? 'A review. ' : ''}Finishing it moves {item.code} on to <b>{next.name}</b> — whoever holds that gets the next task.</>}
           </p>
+        )}
+        {task && item && work.versionsOn && verRights && (
+          <VersionsPanel
+            item={item} flows={flows} work={work}
+            canAdd={verRights.add} canReview={current && rights.status} mayFix={verRights.fix}
+            draft={verDraft} onDraft={setVerDraft} toast={toast} onReviewed={onClose}
+          />
         )}
         <div className="field-grid">
           {!task?.contentItemId && (

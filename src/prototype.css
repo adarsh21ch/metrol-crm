@@ -2518,3 +2518,67 @@ table.grid a:hover,.hr-fld .v a:hover,.grid-cards a:hover{color:var(--accent-ink
   .work-people .field--inline label{min-width:0;width:100%}
   .work-people .field--inline select{min-width:0;width:100%}
 }
+
+/* ------------------------------------ Phase 2, Round 3: versions & reviews */
+/* The heading line carries the script link and "+ V2" (layout law, rule 1). */
+.ver-h{display:flex;align-items:center;gap:12px;min-height:22px}
+.ver-h .work-people-h{margin-right:auto}
+.ver-link{color:var(--accent-ink);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap}
+.ver-link:hover{text-decoration:underline;text-underline-offset:2px}
+/* The decision the reel is waiting on — the one box here that is "your move". */
+.ver-review{
+  display:flex;flex-direction:column;gap:8px;padding:10px 12px;
+  border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r);background:var(--accent-soft);
+}
+.ver-review-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-size:13px;color:var(--ink)}
+.ver-review-h > :last-child{margin-left:auto}
+.ver-review-act{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.ver-back{display:flex;align-items:center;gap:8px;margin-right:auto;min-width:0;font-size:12.5px;color:var(--ink-2)}
+.ver-back span{white-space:nowrap}
+.ver-back select{width:auto;height:32px;min-width:140px;max-width:240px;padding:0 8px;font-size:12.5px}
+.ver-review-btns{display:flex;flex-wrap:wrap;gap:8px}
+/* Paste a version: link, what changed, the button — one line. */
+.ver-add{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:8px;align-items:center}
+.ver-add .btn{height:38px}
+.ver-fix-act{display:flex;gap:6px}
+/* Every version, newest first, each with what was said about it. */
+.ver-list{display:flex;flex-direction:column;gap:8px}
+.ver{
+  display:flex;flex-direction:column;gap:6px;padding:9px 11px;font-size:12.5px;
+  border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface-2);
+}
+.ver-top{display:flex;align-items:center;gap:10px;min-width:0}
+.ver-n{
+  flex:none;font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--ink);
+  padding:1px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);
+}
+.ver-by{flex:1;min-width:0;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ver-note{color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.ver-rv{padding-top:6px;border-top:1px dashed var(--line)}
+.ver-rv-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px}
+.ver-rv-top b{font-weight:600;color:var(--ink)}
+.ver-rv-mark{font-weight:700}
+.ver-rv.is-approved .ver-rv-mark{color:var(--good)}
+.ver-rv.is-changes .ver-rv-mark{color:var(--warn)}
+.ver-rv-at{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap}
+.ver-notes{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.ver-notes li{display:flex;align-items:baseline;gap:6px;color:var(--ink);overflow-wrap:anywhere}
+/* The moment of the video a note is about — "0:14". */
+.ver-at{
+  flex:none;font-family:var(--mono);font-size:11px;font-weight:600;
+  padding:0 5px;border-radius:4px;background:var(--warn-soft);color:var(--warn);
+}
+/* A card's version mark — "V2", or "V1 ↺" when changes were asked on it. */
+.work-ver{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.work-ver.is-changes{color:var(--warn);font-weight:600}
+@media (max-width:600px){
+  /* The link and its button share a line; what changed goes under them. */
+  .ver-add{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"url btn" "note note"}
+  .ver-add-url{grid-area:url}
+  .ver-add-note{grid-area:note}
+  .ver-add-btn{grid-area:btn}
+  .ver-back{width:100%;margin-right:0}
+  .ver-back select{flex:1;min-width:0;max-width:none}
+  .ver-review-btns{width:100%}
+  .ver-review-btns .btn{flex:1}
+}

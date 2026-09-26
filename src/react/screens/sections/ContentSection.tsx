@@ -8,7 +8,10 @@ import { TaskModal } from '@/modals/TaskModal'
 import { usePersistedState } from '@/lib/usePersistedState'
 import { count } from '@/lib/format'
 import { fmtDate, type Client, type Employee, type Page, type PageAssignment } from '@/lib/hr'
-import { boardStages, canEditWorkOn, doneStatusIds, fmtDue, isOverdue, type ContentItem, type Task } from '@/lib/work'
+import {
+  boardStages, canEditWorkOn, doneStatusIds, fmtDue, isOverdue, versionMark,
+  type ContentItem, type ContentReview, type ContentVersion, type Task,
+} from '@/lib/work'
 import type { Agency } from '@/data/useAgency'
 import type { Work } from '@/data/useWork'
 import type { Workflows } from '@/data/useWorkflows'
@@ -78,6 +81,29 @@ export function ContentSection({
     return m
   }, [work.tasks, work.items, done])
 
+  /** "V2", or "V1 ↺" while changes asked for wait on a newer version (0045). */
+  const markOf = useMemo(() => {
+    const vs = new Map<string, ContentVersion[]>()
+    const rs = new Map<string, ContentReview[]>()
+    for (const v of work.versions) vs.set(v.itemId, [...(vs.get(v.itemId) ?? []), v])
+    for (const r of work.reviews) rs.set(r.itemId, [...(rs.get(r.itemId) ?? []), r])
+    const m = new Map<string, { label: string; changes: boolean }>()
+    for (const id of new Set([...vs.keys(), ...rs.keys()])) {
+      const x = versionMark(vs.get(id) ?? [], rs.get(id) ?? [])
+      if (x) m.set(id, x)
+    }
+    return m
+  }, [work.versions, work.reviews])
+  const verMark = (it: ContentItem) => {
+    const m = markOf.get(it.id)
+    if (!m) return null
+    return (
+      <span className={'work-ver' + (m.changes ? ' is-changes' : '')} title={m.changes ? 'Changes asked — waiting for a new version' : undefined}>
+        {m.label}{m.changes ? (m.label ? ' ↺' : '↺') : ''}
+      </span>
+    )
+  }
+
   const canEdit = (it: ContentItem) => { const c = clientById.get(it.clientId); return !!c && canEditWorkOn(ws, access, c) }
   const addable = clients.filter((c) => c.isActive && canEditWorkOn(ws, access, c))
   const canAdd = scoped ? addable.some((c) => c.id === clientId) : addable.length > 0
@@ -118,7 +144,7 @@ export function ContentSection({
           <span className="board-card-nm">{it.title}</span>
         </div>
         <div className="board-card-meta">
-          <span className="board-card-sub">{it.code}{sub ? ' · ' + sub : ''}</span>
+          <span className="board-card-sub">{it.code}{markOf.has(it.id) && <> · {verMark(it)}</>}{sub ? ' · ' + sub : ''}</span>
           {who(it)}
         </div>
       </>
@@ -143,6 +169,10 @@ export function ContentSection({
           : <Chip cls={cls}>{st?.name ?? '—'}</Chip>
       },
     },
+    ...(work.versionsOn ? [{
+      key: 'ver', label: 'Version', width: 90,
+      render: (r: ContentItem) => verMark(r) ?? <span className="cell-dash">—</span>,
+    }] : []),
     { key: 'who', label: 'With', width: 130, render: (r) => who(r) },
     {
       key: 'due', label: 'Due', width: 150,

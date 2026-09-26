@@ -27,7 +27,8 @@ export function RoleOptions({ roles }: { roles: Role[] }) {
 
 /**
  * One stage of a workflow — its name, who acts on it, and the three things a
- * stage can be: a review, something the client sees, the finish. Removing a
+ * stage can be: a review, something the client sees, the finish. A review
+ * the client sees is the client's decision, recorded by the team (0045). Removing a
  * stage nothing uses deletes it; once reels sit in it (Round 2) the database
  * refuses, and it is retired instead so their history keeps its name.
  */
@@ -125,7 +126,7 @@ export function StageModal({
         </label>
         <label className="check">
           <input type="checkbox" checked={clientVisible} onChange={(e) => setClientVisible(e.target.checked)} />
-          The client sees it (for the client portal, later)
+          The client sees it — on a review, the answer is the client's, recorded by whoever acts here
         </label>
         <label className="check">
           <input type="checkbox" checked={isDone} onChange={(e) => setIsDone(e.target.checked)} />

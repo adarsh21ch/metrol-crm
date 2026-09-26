@@ -35,7 +35,7 @@ for f in "$REPO"/supabase/migrations/00*.sql; do
   [ "$n" = "0032_clients_pages.sql" ] && run -f "$REPO/supabase/scripts/rename_content_marketing_department.sql" >/dev/null
 done
 
-for t in rls_tests team_tests rpc_tests sheet_check security_tests workflow_tests work_tests; do
+for t in rls_tests team_tests rpc_tests sheet_check security_tests workflow_tests work_tests review_tests; do
   echo "===== $t"
   psql -h localhost -p $PORT -U postgres -d metrol -q -f $t.sql 2>&1 | grep -v "^SET\|set_config\|^[0-9a-f-]\{36\}$\|^$"
 done

@@ -1,8 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Chip } from '@/components/bits'
+import { VersionsPanel } from '@/components/VersionsPanel'
+import { taskRights, versionRights } from '@/modals/TaskModal'
 import { isOwnerLevel, type Client, type Employee, type Page, type PageAssignment } from '@/lib/hr'
-import { actingRoles, doneStatusIds, fmtDue, fmtStamp, isOverdue, nextStage, personFor, workflowFor, type ContentItem, type Task } from '@/lib/work'
+import {
+  NO_VERSION_DRAFT, actingRoles, doneStatusIds, fmtDue, fmtStamp, isOverdue, nextStage, personFor, workflowFor,
+  type ContentItem, type Task, type VersionDraft,
+} from '@/lib/work'
 import type { Role } from '@/lib/agency'
 import type { Agency } from '@/data/useAgency'
 import type { Work } from '@/data/useWork'
@@ -57,6 +62,7 @@ export function ContentItemModal({
   const named = (roleId: string) => (item ? work.people.find((p) => p.itemId === item.id && p.roleId === roleId)?.employeeId ?? '' : '')
   const [picks, setPicks] = useState<Record<string, string>>({})
   const pickOf = (roleId: string) => picks[roleId] ?? named(roleId)
+  const [verDraft, setVerDraft] = useState<VersionDraft>(NO_VERSION_DRAFT)
   const [busy, setBusy] = useState<'save' | 'delete' | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
@@ -68,6 +74,11 @@ export function ContentItemModal({
   const itemTasks = item ? work.tasks.filter((t) => t.contentItemId === item.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : []
   const canDelete = !!item && !!client && (isOwnerLevel(ws) || access.canForClient(client, 'manage_clients'))
   const editable = canEdit
+  // Versions and the review the reel waits on (0045): the client's team, or
+  // whoever holds (or manages) the open task of the stage it sits in.
+  const openTask = item ? itemTasks.find((t) => t.stageId === item.stageId && !done.has(t.statusId)) ?? null : null
+  const verRights = item ? versionRights(ws, agency, work, client, item) : null
+  const canReview = !!stage?.isReview && (editable || (!!openTask && taskRights(ws, agency, staff, clients, openTask).status))
 
   const nameOf = (employeeId: string) =>
     team.rows.find((t) => t.employeeId === employeeId)?.fullName
@@ -110,7 +121,12 @@ export function ContentItemModal({
       ...(script.trim() !== item.script ? { script } : {}),
     }
     let message: string | null = null
-    if (Object.keys(patch).length) message = await work.updateItem(item.id, patch)
+    // A link typed but not yet added goes in with the save.
+    if (verDraft.url.trim()) {
+      message = await work.addVersion(item.id, verDraft.url, verDraft.note)
+      if (!message) setVerDraft(NO_VERSION_DRAFT)
+    }
+    if (!message && Object.keys(patch).length) message = await work.updateItem(item.id, patch)
     for (const r of roles) {
       if (message) break
       if (r.id in picks && picks[r.id] !== named(r.id)) message = await work.setPerson(item.id, r.id, picks[r.id] || null)
@@ -226,7 +242,18 @@ export function ContentItemModal({
           </p>
         )}
         {!isNew && !moveTo && next && !stage?.isDone && (
-          <p className="cell-mute" style={{ margin: 0 }}>Finishing the {stage?.name} task moves it on to {next.name}.</p>
+          <p className="cell-mute" style={{ margin: 0 }}>
+            {stage?.isReview && work.versionsOn
+              ? <>Approving it moves it on to {next.name}.</>
+              : <>Finishing the {stage?.name} task moves it on to {next.name}.</>}
+          </p>
+        )}
+        {item && work.versionsOn && verRights && (
+          <VersionsPanel
+            item={item} flows={flows} work={work}
+            canAdd={verRights.add} canReview={canReview} mayFix={verRights.fix}
+            draft={verDraft} onDraft={setVerDraft} toast={toast} onReviewed={onClose}
+          />
         )}
         <div className="field">
           <label htmlFor="ciScript">Script</label>
